@@ -28,7 +28,8 @@ describe('SettingsModuleGridComponent', () => {
   it('Overview no depende de ningún módulo', () => {
     const fixture = create([]);
 
-    expect(fixture.componentInstance.modules().map(m => m.id)).toEqual(['overview', 'notifications']);
+    // Las preferencias personales (Notifications, Communication preferences) son autoservicio: siempre se ven.
+    expect(fixture.componentInstance.modules().map(m => m.id)).toEqual(['overview', 'notifications', 'communication-preferences']);
   });
 
   it('muestra solo las tarjetas de los módulos que el usuario tiene', () => {
@@ -40,14 +41,33 @@ describe('SettingsModuleGridComponent', () => {
       'documents',
       'notifications',
       'signature',
+      'communication-preferences',
     ]);
   });
 
-  it('sin el módulo de comunicación no queda la tarjeta de Meetings', () => {
-    const fixture = create(['clients', 'email']);
+  // F9 (ADD-10 §14.1): la gobernanza de Communication pide `communication.settings.manage` (no basta usar el chat
+  // o unirse a reuniones); las preferencias personales se ven siempre.
+  it('sin communication.settings.manage no hay tarjetas de Communication, solo las preferencias personales', () => {
+    const fixture = create(['clients', 'email', 'chat', 'meetings']);
     const ids = fixture.componentInstance.modules().map(m => m.id);
 
     expect(ids).toContain('mail');
+    expect(ids).toContain('communication-preferences');
+    for (const id of ['communication-chat', 'communication-meetings', 'communication-calls', 'communication-recording']) {
+      expect(ids).not.toContain(id);
+    }
+  });
+
+  it('quien administra ve Chat, Meetings, Calls y Recording; el panel muerto "Meetings" ya no existe', () => {
+    const fixture = create([
+      'communication-settings-chat',
+      'communication-settings-meetings',
+      'communication-settings-calls',
+      'communication-settings-recording',
+    ]);
+    const ids = fixture.componentInstance.modules().map(m => m.id);
+
+    expect(ids).toEqual(expect.arrayContaining(['communication-chat', 'communication-meetings', 'communication-calls', 'communication-recording']));
     expect(ids).not.toContain('meetings');
   });
 

@@ -1,0 +1,141 @@
+<div class="mt-4 flex flex-col gap-5" data-role="group-info">
+  <!-- Datos del grupo -->
+  <div class="flex flex-col items-center text-center">
+    <div class="relative">
+      <app-avatar [name]="conversation.name" sizeClass="h-16 w-16 text-xl" [colorClass]="conversation.avatarColor"
+        [imageUrl]="conversation.groupAvatarFileId | avatarUrl"></app-avatar>
+      <label *ngIf="canManage" data-role="group-photo"
+        class="absolute -bottom-1 -right-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-white bg-gray-900 text-white"
+        title="Change photo" aria-label="Change group photo">
+        <ion-icon name="camera-outline" class="text-sm"></ion-icon>
+        <input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" [disabled]="admin.busy()" (change)="onPhotoSelected($event)" />
+      </label>
+    </div>
+    <button *ngIf="canManage && conversation.groupAvatarFileId" type="button" (click)="removePhoto()" [disabled]="admin.busy()"
+      class="mt-2 text-xs text-gray-400 hover:text-gray-600">Remove photo</button>
+
+    <ng-container *ngIf="!editing(); else editInfo">
+      <p class="mt-3 text-base font-bold text-gray-900" data-role="group-title">{{ conversation.name }}</p>
+      <p class="mt-1 text-xs text-gray-400">Group · {{ members.length }} {{ members.length === 1 ? 'member' : 'members' }}</p>
+      <p *ngIf="conversation.description" class="mt-2 whitespace-pre-line text-sm text-gray-600" data-role="group-description">{{ conversation.description }}</p>
+      <button *ngIf="canManage" type="button" (click)="startEdit()" data-role="group-edit"
+        class="mt-2 text-xs font-medium text-brand-bold hover:underline">Edit name and description</button>
+    </ng-container>
+    <ng-template #editInfo>
+      <div class="mt-3 flex w-full flex-col gap-2 text-left">
+        <input type="text" [maxLength]="titleMax" [ngModel]="draftTitle()" (ngModelChange)="draftTitle.set($event)" data-role="group-title-input"
+          placeholder="Group name" aria-label="Group name"
+          class="h-10 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:outline-none focus:border-gray-300" />
+        <textarea rows="3" [maxLength]="descriptionMax" [ngModel]="draftDescription()" (ngModelChange)="draftDescription.set($event)"
+          placeholder="Description (optional)" aria-label="Group description"
+          class="w-full rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 focus:outline-none focus:border-gray-300"></textarea>
+        <div class="flex justify-end gap-2">
+          <button type="button" (click)="editing.set(false)" class="rounded-full px-4 py-1.5 text-sm text-gray-500 hover:bg-gray-50">Cancel</button>
+          <button type="button" (click)="saveInfo()" [disabled]="admin.busy() || !draftTitle().trim()" data-role="group-save"
+            class="rounded-full bg-brand-bold px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-40">Save</button>
+        </div>
+      </div>
+    </ng-template>
+  </div>
+
+  <p *ngIf="conversation.isArchived" class="rounded-2xl bg-gray-50 px-4 py-3 text-center text-sm text-gray-500">
+    This group is read-only.
+  </p>
+
+  <!-- Ajustes -->
+  <div class="flex flex-col gap-3" *ngIf="isMember || canManage">
+    <div *ngIf="isMember" class="flex items-center justify-between gap-3">
+      <span class="text-sm text-gray-700">Mute notifications</span>
+      <app-switch [checked]="!!conversation.isMuted" [busy]="admin.busy()" ariaLabel="Mute notifications"
+        (checkedChange)="setMuted($event)"></app-switch>
+    </div>
+    <div *ngIf="canManage" class="flex items-center justify-between gap-3">
+      <span class="text-sm text-gray-700">Only admins can send messages</span>
+      <app-switch [checked]="!!conversation.adminsOnlyWrite" [busy]="admin.busy()" ariaLabel="Only admins can send messages"
+        (checkedChange)="setAdminsOnly($event)"></app-switch>
+    </div>
+  </div>
+
+  <!-- Miembros -->
+  <div>
+    <div class="flex items-center justify-between">
+      <span class="text-xs font-semibold uppercase tracking-wide text-gray-400">Members ({{ members.length }})</span>
+      <button *ngIf="canManage && !adding()" type="button" (click)="openAdd()" data-role="group-add"
+        class="flex items-center gap-1 text-xs font-medium text-brand-bold hover:underline">
+        <ion-icon name="person-add-outline" class="text-sm"></ion-icon> Add
+      </button>
+    </div>
+
+    <!-- Agregar -->
+    <div *ngIf="adding()" class="mt-2 rounded-2xl border border-gray-100 p-3" data-role="group-add-panel">
+      <app-segmented [options]="addAudienceOptions" [value]="addAudience()" (valueChange)="setAddAudience($event)"></app-segmented>
+      <app-search-input class="mt-2" widthClass="w-full" [placeholder]="addAudience() === 'clients' ? 'Search clients...' : 'Search teammates...'"
+        [value]="addSearch()" (valueChange)="onAddSearch($event)"></app-search-input>
+      <div class="mt-2 flex max-h-48 flex-col gap-1 overflow-y-auto">
+        <button *ngFor="let entry of candidates" type="button" (click)="add(entry.userId)" [disabled]="admin.busy()"
+          class="flex items-center gap-3 rounded-2xl px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-50">
+          <app-avatar [name]="entry.displayName" [seed]="entry.userId" [imageUrl]="entry.avatarFileId | avatarUrl" sizeClass="h-8 w-8 text-xs"></app-avatar>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-sm font-medium text-gray-900">{{ entry.displayName }}</span>
+            <span class="block truncate text-xs text-gray-400">{{ entry.email }}</span>
+          </span>
+        </button>
+        <p *ngIf="!store.employeeSearchLoading() && candidates.length === 0" class="px-3 py-3 text-center text-xs text-gray-400">
+          {{ addSearch().trim() ? 'No one to add' : 'Type a name to search' }}
+        </p>
+      </div>
+      <div class="mt-2 flex justify-end">
+        <button type="button" (click)="adding.set(false)" class="text-xs text-gray-500 hover:underline">Done</button>
+      </div>
+    </div>
+
+    <ul class="mt-2 flex flex-col gap-1" data-role="group-members">
+      <li *ngFor="let member of members" class="rounded-2xl">
+        <button type="button" (click)="toggleMember(member)" [class.cursor-default]="!hasActions(member)"
+          class="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left hover:bg-gray-50">
+          <app-avatar [name]="member.displayName" [seed]="member.userId" [imageUrl]="member.avatarFileId | avatarUrl" sizeClass="h-8 w-8 text-xs"></app-avatar>
+          <span class="min-w-0 flex-1 truncate text-sm text-gray-900">
+            {{ member.displayName }}<span *ngIf="member.userId === currentUserId()" class="text-gray-400"> (you)</span>
+          </span>
+          <span *ngIf="isClient(member)" class="rounded-full bg-indigo-50 px-2 py-0.5 text-[0.625rem] font-semibold text-indigo-600">Client</span>
+          <span *ngIf="member.role === 'Owner' || member.role === 'Admin'" data-role="member-role"
+            class="rounded-full bg-gray-100 px-2 py-0.5 text-[0.625rem] font-semibold text-gray-600">{{ member.role === 'Owner' ? 'Owner' : 'Admin' }}</span>
+          <ion-icon *ngIf="hasActions(member)" name="ellipsis-horizontal" class="text-gray-400"></ion-icon>
+        </button>
+        <div *ngIf="expandedMemberId() === member.userId" class="flex flex-wrap gap-2 px-3 pb-2 pl-14" data-role="member-actions">
+          <button *ngIf="actionsFor(member).makeAdmin" type="button" (click)="makeAdmin(member)" [disabled]="admin.busy()"
+            class="rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50">Make admin</button>
+          <button *ngIf="actionsFor(member).removeAdmin" type="button" (click)="removeAdmin(member)" [disabled]="admin.busy()"
+            class="rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50">Remove as admin</button>
+          <button *ngIf="actionsFor(member).makeOwner" type="button" (click)="makeOwner(member)" [disabled]="admin.busy()"
+            class="rounded-full border border-gray-200 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50">Make owner</button>
+          <button *ngIf="actionsFor(member).remove" type="button" (click)="removeMember(member)" [disabled]="admin.busy()"
+            class="rounded-full border border-red-100 px-3 py-1 text-xs text-red-600 hover:bg-red-50">Remove from group</button>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Bitácora (T-22) -->
+  <div *ngIf="canManage || store.canAdministerAnyGroup()">
+    <button *ngIf="activity() === null" type="button" (click)="loadActivity()" [disabled]="activityLoading()" data-role="group-activity"
+      class="text-xs font-medium text-brand-bold hover:underline">{{ activityLoading() ? 'Loading activity…' : 'View group activity' }}</button>
+    <p *ngIf="activityError()" class="mt-1 text-xs text-red-600">Couldn't load the activity.</p>
+    <ng-container *ngIf="activity() as items">
+      <span class="text-xs font-semibold uppercase tracking-wide text-gray-400">Activity</span>
+      <ul class="mt-2 flex flex-col gap-1.5" data-role="group-activity-list">
+        <li *ngFor="let item of items" class="flex items-baseline justify-between gap-3 text-xs">
+          <span class="text-gray-700">{{ activityText(item) }}</span>
+          <span class="shrink-0 text-gray-400">{{ item.occurredAtUtc | date: 'MMM d, h:mm a' }}</span>
+        </li>
+        <li *ngIf="items.length === 0" class="text-xs text-gray-400">No activity yet</li>
+      </ul>
+    </ng-container>
+  </div>
+
+  <!-- Salir -->
+  <button *ngIf="isMember" type="button" (click)="leave()" [disabled]="admin.busy()" data-role="group-leave"
+    class="self-start rounded-full border border-red-100 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50">
+    {{ confirmLeave() ? 'Tap again to leave' : 'Leave group' }}
+  </button>
+</div>

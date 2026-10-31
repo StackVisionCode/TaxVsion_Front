@@ -6,7 +6,15 @@
 
 export type CallKind = 'Audio' | 'Video';
 
-export type CallConnectionQuality = 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Disconnected';
+import type { types as MsTypes } from 'mediasoup-client';
+import type { ConnectionQuality } from './media/media-policy.model';
+import type { RecordingLimitWarning, RecordingState, RecordingStateChange } from './recording-status';
+
+/** Alias del dominio compartido (F4): mismos 5 niveles que las reuniones. */
+export type CallConnectionQuality = ConnectionQuality;
+
+/** F4 — por qué terminó la llamada; `MaxDurationReached` = tope de minutos de la oficina. */
+export type CallEndReason = 'Hangup' | 'Missed' | 'Rejected' | 'Cancelled' | 'IceFailed' | 'MaxDurationReached';
 
 export type CallStatus =
   | 'Ringing'
@@ -45,7 +53,7 @@ export interface IncomingCallDto {
 export interface CallStateDto {
   callId: string;
   status: CallStatus;
-  endReason: 'Hangup' | 'Missed' | 'Rejected' | 'Cancelled' | 'IceFailed' | null;
+  endReason: CallEndReason | null;
   durationSeconds: number | null;
   updatedAtUtc: string;
 }
@@ -76,20 +84,47 @@ export interface CallMediaStatusDto {
   screenSharing: boolean;
 }
 
+/** F4 — `call.peer_quality_changed`: la calidad del PAR (además de persistirla). */
+export interface CallPeerQualityChangedDto {
+  callId: string;
+  peerUserId: string;
+  quality: ConnectionQuality;
+}
+
+/** F4 — `call.duration.warning`: queda poco del tope de minutos de la oficina. */
+export interface CallDurationWarningDto {
+  callId: string;
+  remainingSeconds: number;
+  endsAtUtc: string;
+}
+
+/**
+ * F4 — copy legible para los acks de `call.initiate` (`Calls.Disabled`, `Calls.VideoDisabled`,
+ * `Call.LimitReached` con `message` "concurrent"/"monthly"). Null = no es un código conocido.
+ */
+export function callInitiateErrorMessage(code: string | null | undefined, message?: string | null): string | null {
+  switch (code) {
+    case 'Calls.Disabled':
+      return 'Calls are disabled for this office.';
+    case 'Calls.VideoDisabled':
+      return 'Video calls are disabled for this office. Start an audio call instead.';
+    case 'Call.LimitReached':
+      return /monthly/i.test(message ?? '')
+        ? 'This office has used its monthly call minutes.'
+        : 'This office has reached its limit of calls in progress. Try again in a few minutes.';
+    default:
+      return null;
+  }
+}
+
 export interface CallUpgradedToVideoDto {
   callId: string;
   upgradedByUserId: string;
   upgradedAtUtc: string;
 }
 
-export type CallRecordingState =
-  | 'Idle'
-  | 'Requesting'
-  | 'Recording'
-  | 'Stopping'
-  | 'Processing'
-  | 'Ready'
-  | 'Failed';
+/** F7 — mismo ciclo que las reuniones (incluye `Composing`, solo con captura en servidor). */
+export type CallRecordingState = RecordingState;
 
 export interface CallRecordingConsentRequestedDto {
   callId: string;
@@ -104,10 +139,14 @@ export interface CallRecordingConsentRecordedDto {
   respondedAtUtc: string;
 }
 
-export interface CallRecordingStateChangedDto {
+/** F7 — `call.recording.state_changed`: + `captureMode`, `startedAtUtc`, `maxDurationSeconds`, `reason`. */
+export interface CallRecordingStateChangedDto extends RecordingStateChange {
   callId: string;
-  state: CallRecordingState;
-  updatedAtUtc: string;
+}
+
+/** F7 — `call.recording.limit_warning`: queda poco del tope de la grabación (la llamada sigue). */
+export interface CallRecordingLimitWarningDto extends RecordingLimitWarning {
+  callId: string;
 }
 
 export interface CallTranscriptReadyDto {
@@ -117,6 +156,37 @@ export interface CallTranscriptReadyDto {
   durationSeconds: number;
   wordCount: number;
   readyAtUtc: string;
+  /** F7 — transcript v2 (JSON con hablantes); null si solo hay TXT. */
+  transcriptJsonFileId?: string | null;
+  speakerCount?: number | null;
+  segmentCount?: number | null;
+  language?: string | null;
+}
+
+/**
+ * F7 (D-56) — `call.recording.capture_requested`: el servidor pide publicar mi micrófono (y cámara si
+ * `captureVideo`) a un router SFU de solo grabación. La llamada sigue mesh para verse/oírse.
+ */
+export interface CallCaptureRequestedDto {
+  callId: string;
+  routerRtpCapabilities: MsTypes.RtpCapabilities;
+  captureVideo: boolean;
+  /** Alias del borrador de la spec (§4.2); manda `captureVideo`. */
+  video?: boolean;
+}
+
+/** F7 — `call.recording.capture_stopped`: cerrar el transport de captura. */
+export interface CallCaptureStoppedDto {
+  callId: string;
+}
+
+/** F7 — ack de `call.sfu.create_transport` (solo envío). `iceServers` es opcional (si falta, los de la llamada). */
+export interface CallSfuTransportParams {
+  id: string;
+  iceParameters: MsTypes.IceParameters;
+  iceCandidates: MsTypes.IceCandidate[];
+  dtlsParameters: MsTypes.DtlsParameters;
+  iceServers?: RTCIceServer[];
 }
 
 /** Fila de GET /communication/customers/{customerId}/calls — historial de llamadas del cliente con la oficina. */

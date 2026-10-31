@@ -33,6 +33,40 @@ export interface SupportTicket {
   claimedAtUtc: string | null;
   resolvedAtUtc: string | null;
   closedAtUtc: string | null;
+  /** Bandeja: mensajes de soporte sin leer y el último mensaje (los manda la lista del que abrió el ticket). */
+  unreadCount?: number;
+  lastMessage?: SupportTicketLastMessage | null;
+}
+
+export interface SupportTicketLastMessage {
+  fromMe: boolean;
+  kind: string;
+  preview: string | null;
+  isDeleted: boolean;
+  createdAtUtc: string;
+}
+
+/** Pestañas de la bandeja: lo que sigue vivo y lo ya resuelto o cerrado. */
+export type SupportInboxFilter = 'active' | 'closed';
+
+export function isTicketFinished(ticket: Pick<SupportTicket, 'status'>): boolean {
+  return ticket.status === 'Resolved' || ticket.status === 'Closed';
+}
+
+/** Hora de la última actividad: el último mensaje o, si no hay, la apertura. */
+export function ticketActivityAt(ticket: SupportTicket): string {
+  return ticket.lastMessage?.createdAtUtc ?? ticket.openedAtUtc;
+}
+
+/** Vista previa de la fila: quién habló y qué dijo. */
+export function ticketPreview(ticket: SupportTicket): string {
+  const last = ticket.lastMessage;
+  if (!last) return 'No messages yet';
+  const who = last.fromMe ? 'You' : 'Support';
+  if (last.isDeleted) return `${who}: message deleted`;
+  if (last.kind === 'Attachment') return `${who}: shared a file`;
+  if (last.kind === 'System') return last.preview ?? '';
+  return `${who}: ${last.preview ?? ''}`;
 }
 
 /** Body de POST /communication/support. `priority` default 'Normal' en el backend. */

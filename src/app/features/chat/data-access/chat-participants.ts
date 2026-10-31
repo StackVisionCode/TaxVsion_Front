@@ -19,6 +19,8 @@ export function toChatParticipants(
       userId: p.userId,
       displayName: p.displayName,
       ...(avatarFileId !== undefined ? { avatarFileId } : {}),
+      ...(p.role ? { role: p.role } : {}),
+      ...(p.actorType ? { actorType: p.actorType } : {}),
     };
   });
 }
@@ -96,6 +98,8 @@ export function addParticipant(
               ...p,
               displayName: participant.displayName || p.displayName,
               ...(participant.avatarFileId !== undefined ? { avatarFileId: participant.avatarFileId } : {}),
+              ...(participant.role ? { role: participant.role } : {}),
+              ...(participant.actorType ? { actorType: participant.actorType } : {}),
             }
           : p,
       )

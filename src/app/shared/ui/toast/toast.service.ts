@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { Toast, ToastKind } from './toast.model';
+import { Toast, ToastAction, ToastKind } from './toast.model';
 
 interface CountdownSlot {
   readonly id: number;
@@ -19,6 +19,8 @@ interface CountdownSlot {
 @Injectable({ providedIn: 'root' })
 export class ToastService {
   private static readonly AUTO_DISMISS_MS = 3200;
+  /** Con botón de acción el toast vive más: hay que leerlo y decidir. */
+  private static readonly ACTION_DISMISS_MS = 8000;
   /** Debe casar con el keyframe de salida del host (`toast-fall`). */
   private static readonly EXIT_MS = 180;
 
@@ -34,12 +36,20 @@ export class ToastService {
     this.push('success', message);
   }
 
-  error(message: string): void {
-    this.push('error', message);
+  error(message: string, options: { action?: ToastAction } = {}): void {
+    this.push('error', message, options.action);
   }
 
-  info(message: string): void {
-    this.push('info', message);
+  /** `action`: botón dentro del toast (`toast.info('…', { action: { label: 'Undo', run: () => … } })`). */
+  info(message: string, options: { action?: ToastAction } = {}): void {
+    this.push('info', message, options.action);
+  }
+
+  /** Ejecuta la acción de un toast y lo cierra (lo llama el host). */
+  runAction(id: number): void {
+    const toast = this._toasts().find(item => item.id === id);
+    this.dismiss(id);
+    toast?.action?.run();
   }
 
   /**
@@ -100,7 +110,7 @@ export class ToastService {
 
   // Una ráfaga de fallos iguales (p.ej. varios widgets del dashboard a la vez) apilaba un toast por
   // fallo: si ya hay uno visible con el mismo texto, solo se le reinicia la vida.
-  private push(kind: ToastKind, message: string): void {
+  private push(kind: ToastKind, message: string, action?: ToastAction): void {
     if (this.isAbsorbed(message)) {
       return;
     }
@@ -108,19 +118,19 @@ export class ToastService {
       toast => !toast.leaving && !toast.key && toast.kind === kind && toast.message === message,
     );
     if (duplicate) {
-      this.scheduleDismiss(duplicate.id);
+      this.scheduleDismiss(duplicate.id, !!duplicate.action);
       return;
     }
     const id = this.nextId++;
-    this._toasts.update(list => [...list, { id, kind, message }]);
-    this.scheduleDismiss(id);
+    this._toasts.update(list => [...list, action ? { id, kind, message, action } : { id, kind, message }]);
+    this.scheduleDismiss(id, !!action);
   }
 
-  private scheduleDismiss(id: number): void {
+  private scheduleDismiss(id: number, withAction = false): void {
     this.clearTimer(id);
     this.timers.set(
       id,
-      setTimeout(() => this.dismiss(id), ToastService.AUTO_DISMISS_MS),
+      setTimeout(() => this.dismiss(id), withAction ? ToastService.ACTION_DISMISS_MS : ToastService.AUTO_DISMISS_MS),
     );
   }
 

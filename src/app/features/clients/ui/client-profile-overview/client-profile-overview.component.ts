@@ -108,7 +108,7 @@ const FILE_STATUS_TONES: Partial<Record<FileStatus, StatusTone & { label: string
   Scanning: { icon: 'time-outline', text: 'text-gray-400', label: 'Scanning' },
   PendingReview: { icon: 'eye-outline', text: 'text-amber-600', label: 'In review' },
   Infected: { icon: 'alert-circle-outline', text: 'text-red-600', label: 'Blocked' },
-  BlockedByPolicy: { icon: 'alert-circle-outline', text: 'text-red-600', label: 'Blocked' },
+  BlockedByPolicy: { icon: 'alert-circle-outline', text: 'text-red-600', label: 'Blocked by content policy' },
   ScanFailed: { icon: 'alert-circle-outline', text: 'text-red-600', label: 'Scan failed' },
 };
 

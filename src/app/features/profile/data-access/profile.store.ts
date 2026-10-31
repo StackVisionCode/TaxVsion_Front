@@ -26,6 +26,7 @@ import {
   ProfilePhotoError,
 } from '@core/profile-photo/profile-photo-image.util';
 import {
+  PHOTO_BLOCKED_MESSAGE,
   PHOTO_POLL_DELAY_MS,
   PHOTO_POLL_INTERVAL_MS,
   PHOTO_POLL_MAX_TRIES,
@@ -160,6 +161,8 @@ export class ProfileStore {
         tap(outcome => {
           if (outcome === 'failed') {
             this._photoError.set(PHOTO_FAILED_MESSAGE);
+          } else if (outcome === 'blocked') {
+            this._photoError.set(PHOTO_BLOCKED_MESSAGE);
           }
         }),
         catchError(err => {
@@ -194,7 +197,9 @@ export class ProfileStore {
    * estar pendiente y rehidrata la sesión. Sin toast: no sabemos qué foto fue.
    */
   resumePendingPhoto(): void {
-    if (!this.auth.currentUser()?.avatarPending || this.photoBusy()) {
+    const user = this.auth.currentUser();
+    // En revisión de contenido espera a un revisor: sondear no adelanta nada (el aviso queda en la página).
+    if (!user?.avatarPending || user.avatarModerationStatus === 'under_review' || this.photoBusy()) {
       return;
     }
     this._photoStatus.set('processing');

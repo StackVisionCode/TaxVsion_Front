@@ -34,6 +34,7 @@ import {
   humanizeAction,
   reviewRowLabel,
 } from './form-review.format';
+import { FILE_UNDER_REVIEW_LABEL, rejectedFileText } from '@shared/utils/file-moderation';
 
 export type FormReviewTab = 'answers' | 'changes' | 'files' | 'activity';
 
@@ -191,7 +192,7 @@ const REVEAL_MS = 30_000;
                   ><span class="block truncate font-semibold text-gray-900">{{
                     file.displayName
                   }}</span
-                  ><span class="text-xs text-gray-500">{{ file.status }}</span></span
+                  ><span class="text-xs" [class.text-gray-500]="file.status !== 'Rejected'" [class.text-red-600]="file.status === 'Rejected'">{{ fileStatusLabel(file) }}</span></span
                 >
                 <ion-icon name="eye-outline" class="text-gray-400"></ion-icon>
               </button>
@@ -290,6 +291,22 @@ export class FormReviewPanelComponent {
   readonly previousRevision = input<{ answers: FormAnswers } | null>(null);
   readonly revisions = input<readonly FormReviewRevisionOption[]>([]);
   readonly attachments = input<readonly DataCollectionAttachment[]>([]);
+
+  /** Estado del archivo en palabras del preparador (T-20: revisión y bloqueo por política). */
+  fileStatusLabel(file: DataCollectionAttachment): string {
+    switch (file.status) {
+      case 'Available':
+        return 'Ready';
+      case 'Pending':
+        return 'Scanning…';
+      case 'UnderReview':
+        return FILE_UNDER_REVIEW_LABEL;
+      case 'Rejected':
+        return rejectedFileText(file.rejectionCode);
+      default:
+        return file.status ?? '';
+    }
+  }
   /** Visores de los adjuntos `Available`, en el mismo orden que en `attachments`. */
   readonly viewerFiles = input<readonly FileViewerItem[]>([]);
   readonly timeline = input<readonly FormReviewTimelineEntry[]>([]);

@@ -95,12 +95,7 @@ const PANELS: Record<string, PanelConfig> = {
   },
   // 'signature' se movió a su propia página ruteada (/settings/signature); el card del grid navega
   // en vez de abrir un panel inline, así que ya no hay placeholder acá.
-  meetings: {
-    fields: [
-      { kind: 'pending', key: 'waitingRoom', control: 'toggle', label: 'Enable waiting room', description: 'Will hold clients until you admit them' },
-      { kind: 'pending', key: 'recordByDefault', control: 'toggle', label: 'Record meetings by default', description: 'Will start recording as soon as a meeting begins' },
-    ],
-  },
+  // 'meetings' pasó a Settings → Communication (F9): el card navega a su página, sin placeholder.
   ai: {
     note: 'The AI assistant itself is not available yet, so there is no behavior to configure.',
     fields: [

@@ -36,6 +36,7 @@ import { SessionRevocationService } from '@core/auth/session-revocation.service'
 import { AccessSyncService } from '@core/access/access-sync.service';
 import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { AuthService } from '@core/auth/auth.service';
+import { SocketSessionRefreshService } from '@core/realtime/socket-session-refresh.service';
 import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
 
 /**
@@ -73,6 +74,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
   private readonly subscriptionStatus = inject(SubscriptionStatusStore);
+  private readonly socketSessionRefresh = inject(SocketSessionRefreshService);
 
   protected readonly isSidebarExpanded = signal(true);
 
@@ -188,9 +190,15 @@ export class AppShellComponent implements OnInit, OnDestroy {
     // B8 — el acceso se mantiene al día solo: `access.changed`, foco, reconexión y renovación de
     // token. Sin esto, quitarle un permiso a alguien exigía pedirle que recargara la página.
     this.accessSync.start(this.destroyRef);
+    // F3 — `session.expiring`: renovar el token y re-autenticar el socket sin reconectar.
+    this.socketSessionRefresh.start(this.destroyRef);
     void import('@features/chat/data-access/chat.store').then(m => this.injector.get(m.ChatStore).primeForBadge());
     // Fotos y nombres del staff en vivo (`user.profile.changed`): directorio compartido, fuera del bundle inicial.
     void import('@core/staff/staff-directory.store').then(m => this.injector.get(m.StaffDirectoryStore).startRealtime());
+    // F6 — "X invited you to a meeting in progress" / "starts in N min" con "Join", en cualquier página.
+    void import('@core/communication/meeting-invite-notifier.service').then(m =>
+      this.injector.get(m.MeetingInviteNotifierService).start(this.destroyRef),
+    );
     this.socket.sessionRevoked$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((revokedSid) => {

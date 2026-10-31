@@ -1,0 +1,121 @@
+<app-drawer [isOpen]="isOpen()" heading="Devices" subheading="Changes apply right away" width="md" (closed)="closed.emit()">
+  <div class="flex flex-col gap-6">
+    <!-- Dispositivo nuevo detectado -->
+    @if (newDevice(); as notice) {
+      <div role="status" class="flex flex-wrap items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-gray-800">
+        <ion-icon name="swap-horizontal-outline" class="text-base text-brand-bold" aria-hidden="true"></ion-icon>
+        <span class="min-w-0 flex-1">New {{ notice.kind }} detected — Switch?</span>
+        <button type="button" (click)="dismissNewDevice()" class="rounded-full px-3 py-1 text-xs font-semibold text-gray-600 transition-colors hover:bg-white">Not now</button>
+        <button type="button" (click)="switchToNewDevice()" class="rounded-full bg-brand-bold px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-brand-ink">Switch</button>
+      </div>
+    }
+
+    <!-- Micrófono -->
+    <section class="flex flex-col gap-2">
+      <label for="device-mic" class="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
+        <ion-icon name="mic-outline" class="text-base text-gray-400" aria-hidden="true"></ion-icon> Microphone
+      </label>
+      <select id="device-mic" (change)="onMicrophoneChange($any($event.target).value)"
+        [disabled]="microphoneBlocked() || microphones().length === 0"
+        class="h-10 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none disabled:opacity-50">
+        @for (device of microphones(); track device.deviceId; let i = $index) {
+          <option [value]="device.deviceId" [selected]="device.deviceId === selectedMicrophoneId()">{{ labelFor(device, i) }}</option>
+        }
+        @if (microphones().length === 0) {
+          <option value="">No microphone found</option>
+        }
+      </select>
+      <p class="text-xs" [class.text-red-600]="microphoneBlocked()" [class.text-gray-500]="!microphoneBlocked()">
+        {{ waitingForPermission() ? 'Waiting for permission…' : microphoneStatus() }}
+      </p>
+      @if (microphoneGuidance(); as guidance) {
+        <p class="text-xs text-gray-400">{{ guidance }}</p>
+      }
+    </section>
+
+    <!-- Cámara -->
+    @if (showCamera()) {
+      <section class="flex flex-col gap-2">
+        <label for="device-camera" class="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
+          <ion-icon name="videocam-outline" class="text-base text-gray-400" aria-hidden="true"></ion-icon> Camera
+        </label>
+        <select id="device-camera" (change)="onCameraChange($any($event.target).value)"
+          [disabled]="cameraBlocked() || cameras().length === 0"
+          class="h-10 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none disabled:opacity-50">
+          @for (device of cameras(); track device.deviceId; let i = $index) {
+            <option [value]="device.deviceId" [selected]="device.deviceId === selectedCameraId()">{{ labelFor(device, i) }}</option>
+          }
+          @if (cameras().length === 0) {
+            <option value="">No camera found</option>
+          }
+        </select>
+        <p class="text-xs" [class.text-red-600]="cameraBlocked()" [class.text-gray-500]="!cameraBlocked()">{{ cameraStatus() }}</p>
+        @if (cameraGuidance(); as guidance) {
+          <p class="text-xs text-gray-400">{{ guidance }}</p>
+        }
+      </section>
+    }
+
+    <!-- Altavoz -->
+    @if (showSpeaker()) {
+      <section class="flex flex-col gap-2">
+        <label for="device-speaker" class="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
+          <ion-icon name="volume-high-outline" class="text-base text-gray-400" aria-hidden="true"></ion-icon> Speaker
+        </label>
+        <div class="flex items-center gap-2">
+          <select id="device-speaker" (change)="onSpeakerChange($any($event.target).value)"
+            [disabled]="!supportsSinkId || speakers().length === 0"
+            class="h-10 min-w-0 flex-1 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none disabled:opacity-50">
+            @for (device of speakers(); track device.deviceId; let i = $index) {
+              <option [value]="device.deviceId" [selected]="device.deviceId === selectedSpeakerId()">{{ labelFor(device, i) }}</option>
+            }
+            @if (speakers().length === 0) {
+              <option value="">System default</option>
+            }
+          </select>
+          <button type="button" (click)="testSpeaker()" [disabled]="testingSpeaker()"
+            class="shrink-0 rounded-full border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50">
+            {{ testingSpeaker() ? 'Playing…' : 'Test speaker' }}
+          </button>
+        </div>
+        @if (!supportsSinkId) {
+          <p class="text-xs text-gray-400">This browser doesn't let web apps choose the speaker; use the system sound settings.</p>
+        }
+      </section>
+    }
+
+    <!-- Procesamiento de audio (D-46) -->
+    <section class="flex flex-col gap-3">
+      <h3 class="text-sm font-semibold text-gray-900">Audio processing</h3>
+      @if (processing(); as processing) {
+        @for (row of processingRows; track row.key) {
+          <label class="flex items-start justify-between gap-4">
+            <span class="min-w-0">
+              <span class="block text-sm text-gray-800">{{ row.label }}</span>
+              <span class="block text-xs text-gray-400">{{ row.hint }}</span>
+            </span>
+            <app-switch size="sm" [checked]="processing[row.key]" [busy]="savingProcessing() === row.key" [ariaLabel]="row.label"
+              (checkedChange)="setProcessing(row.key, $event)" />
+          </label>
+        }
+        <p class="text-xs text-gray-400">Applies the next time your microphone is captured.</p>
+      } @else {
+        <p class="text-xs text-gray-400">Loading your audio settings…</p>
+      }
+    </section>
+
+    <!-- F5 (D-43): picture-in-picture automático (preferencia local) -->
+    @if (pipSupported()) {
+      <section class="flex flex-col gap-3" data-role="pip-section">
+        <h3 class="text-sm font-semibold text-gray-900">Picture-in-picture</h3>
+        <label class="flex items-start justify-between gap-4">
+          <span class="min-w-0">
+            <span class="block text-sm text-gray-800">Pop out when I switch tabs</span>
+            <span class="block text-xs text-gray-400">Keeps the meeting visible in a small window while you work elsewhere.</span>
+          </span>
+          <app-switch size="sm" [checked]="autoPip()" ariaLabel="Pop out when I switch tabs" (checkedChange)="setAutoPip($event)" />
+        </label>
+      </section>
+    }
+  </div>
+</app-drawer>

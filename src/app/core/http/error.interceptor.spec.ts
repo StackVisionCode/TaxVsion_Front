@@ -10,6 +10,7 @@ import { ThrottleNoticeService } from '@core/errors/throttle-notice.service';
 import { EntitlementsNoticeService } from '@core/access/entitlements-notice.service';
 import { errorInterceptor } from './error.interceptor';
 import { readOnlyRequestContext } from './read-only-request';
+import { anonymousRequestContext } from './anonymous-request';
 
 describe('errorInterceptor — throttling', () => {
   let http: HttpClient;
@@ -228,6 +229,20 @@ describe('errorInterceptor — enlaces por correo', () => {
       expect(auth.logoutLocal).not.toHaveBeenCalled();
     },
   );
+
+  // F6 — la página de invitado (/meet/:token) marca sus llamadas como públicas: un 401 no toca la sesión.
+  it('una petición marcada como anónima no renueva ni cierra la sesión ante un 401', () => {
+    let failed: HttpErrorResponse | undefined;
+    http
+      .get('/communication/meetings/guest/tok/context', { context: anonymousRequestContext() })
+      .subscribe({ error: err => (failed = err) });
+
+    httpMock.expectOne('/communication/meetings/guest/tok/context').flush(null, { status: 401, statusText: 'Unauthorized' });
+
+    expect(failed?.status).toBe(401);
+    expect(auth.refresh).not.toHaveBeenCalled();
+    expect(auth.logoutLocal).not.toHaveBeenCalled();
+  });
 });
 
 /**

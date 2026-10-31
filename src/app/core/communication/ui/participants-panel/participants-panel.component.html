@@ -1,0 +1,115 @@
+<app-drawer [isOpen]="isOpen()" heading="Participants" [subheading]="joined().length + ' in the meeting'" width="md" bodyClass="p-4" (closed)="closed.emit()">
+  <!-- Manos levantadas (D-49): del primero al último -->
+  @if (raisedHands().length) {
+    <section class="mb-4" aria-label="Raised hands" data-role="raised-hands">
+      <div class="mb-2 flex items-center justify-between gap-2">
+        <h3 class="text-xs font-bold uppercase tracking-wide text-amber-700">✋ Raised hands ({{ raisedHands().length }})</h3>
+        @if (isHost() && raisedHands().length > 1) {
+          <button type="button" (click)="lowerAll()" data-role="lower-all"
+            class="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50">
+            Lower all
+          </button>
+        }
+      </div>
+      <ol class="flex flex-col gap-1.5">
+        @for (p of raisedHands(); track p.userId; let i = $index) {
+          <li class="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2" [attr.data-user]="p.userId">
+            <span class="w-4 text-center text-[0.6875rem] font-bold text-amber-700">{{ i + 1 }}</span>
+            <app-avatar [name]="p.displayName" [seed]="p.userId" [imageUrl]="p.avatarFileId | avatarUrl" size="sm" />
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-medium text-gray-900">{{ isMe(p) ? 'You' : p.displayName }}</p>
+              <p class="text-[0.6875rem] text-gray-500">Raised {{ (p.handRaisedAtUtc | timeAgo: nowMs()) || 'just now' }}</p>
+            </div>
+            @if (isMe(p)) {
+              <button type="button" (click)="lowerMine()" data-role="lower-mine"
+                class="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50">
+                Lower
+              </button>
+            } @else if (isHost()) {
+              <button type="button" (click)="act('lowerHand', p)" data-role="lower-hand"
+                class="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50">
+                Lower
+              </button>
+            }
+          </li>
+        }
+      </ol>
+    </section>
+  }
+
+  <!-- Sala de espera (host) -->
+  @if (isHost() && waiting().length) {
+    <section class="mb-4" aria-label="Waiting to join" data-role="waiting">
+      <h3 class="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">Waiting to join ({{ waiting().length }})</h3>
+      <ul class="flex flex-col gap-1.5">
+        @for (p of waiting(); track p.userId) {
+          <li class="flex items-center gap-2 rounded-xl border border-gray-100 px-3 py-2">
+            <app-avatar [name]="p.displayName" [seed]="p.userId" [imageUrl]="p.avatarFileId | avatarUrl" size="sm" />
+            <span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">{{ p.displayName }}</span>
+            <button type="button" (click)="act('deny', p)" class="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50">Deny</button>
+            <button type="button" (click)="act('admit', p)" class="rounded-full bg-brand-bold px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-brand-ink">Admit</button>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  <!-- Todos los que están dentro -->
+  <section aria-label="In the meeting" data-role="joined">
+    <h3 class="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">In the meeting ({{ joined().length }})</h3>
+    <ul class="flex flex-col gap-1">
+      @for (p of joined(); track p.userId) {
+        <li class="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-gray-50" [attr.data-user]="p.userId">
+          <app-avatar [name]="p.displayName" [seed]="p.userId" [imageUrl]="p.avatarFileId | avatarUrl" size="sm" />
+          <div class="min-w-0 flex-1">
+            <p class="flex items-center gap-1.5 truncate text-sm font-medium text-gray-900">
+              <span class="truncate">{{ isMe(p) ? 'You' : p.displayName }}</span>
+              @if (roleTone(p); as tone) {
+                <app-status-pill [tone]="tone" size="xs" [dot]="false">{{ roleLabel(p) }}</app-status-pill>
+              }
+            </p>
+          </div>
+          <span class="flex items-center gap-1.5 text-gray-400">
+            @if (p.handRaised) {
+              <span role="img" aria-label="Hand raised" appTooltip="Hand raised" class="text-sm">✋</span>
+            }
+            @if (p.screenSharing) {
+              <ion-icon name="desktop-outline" class="text-sm text-brand-bold" role="img" aria-label="Sharing screen" appTooltip="Sharing screen"></ion-icon>
+            }
+            <ion-icon [name]="p.audioEnabled ? 'mic-outline' : 'mic-off-outline'" class="text-sm" [class.text-red-500]="!p.audioEnabled" role="img"
+              [attr.aria-label]="p.audioEnabled ? 'Microphone on' : 'Muted'"></ion-icon>
+            <ion-icon [name]="p.videoEnabled ? 'videocam-outline' : 'videocam-off-outline'" class="text-sm" [class.text-red-500]="!p.videoEnabled" role="img"
+              [attr.aria-label]="p.videoEnabled ? 'Camera on' : 'Camera off'"></ion-icon>
+          </span>
+          @if (isHost() && !isMe(p)) {
+            <app-dropdown-menu [ariaLabel]="'Options for ' + p.displayName" panelClass="w-44 py-1 text-left">
+              @if (p.role === 'Attendee' && eligible(p)) {
+                <button appMenuItem type="button" (click)="act('promote', p)"><ion-icon name="shield-outline" class="text-base text-gray-400"></ion-icon> Make co-host</button>
+              }
+              @if (p.role === 'Cohost') {
+                <button appMenuItem type="button" (click)="act('demote', p)"><ion-icon name="shield-half-outline" class="text-base text-gray-400"></ion-icon> Remove co-host</button>
+              }
+              @if (isPrimaryHost() && eligible(p) && p.role !== 'Host') {
+                <button appMenuItem type="button" (click)="act('makeHost', p)"><ion-icon name="star-outline" class="text-base text-gray-400"></ion-icon> Make host</button>
+              }
+              @if (p.handRaised) {
+                <button appMenuItem type="button" (click)="act('lowerHand', p)"><ion-icon name="hand-left-outline" class="text-base text-gray-400"></ion-icon> Lower hand</button>
+              }
+              <button appMenuItem [danger]="true" type="button" (click)="act('remove', p)"><ion-icon name="person-remove-outline" class="text-base"></ion-icon> Remove</button>
+            </app-dropdown-menu>
+          }
+        </li>
+      }
+    </ul>
+  </section>
+
+  <!-- Invite (F6): solo host/cohost; la sala abre el panel de invitaciones -->
+  @if (isHost() && canInvite()) {
+    <div drawerFooter class="flex justify-end">
+      <button type="button" (click)="invite.emit()" data-role="invite"
+        class="flex items-center gap-1.5 rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
+        <ion-icon name="person-add-outline" class="text-base"></ion-icon> Invite
+      </button>
+    </div>
+  }
+</app-drawer>

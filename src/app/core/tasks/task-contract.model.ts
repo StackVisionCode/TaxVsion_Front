@@ -133,7 +133,7 @@ export interface StartTimerRequest {
 // ---------- Adjuntos de tarea (F5) ----------
 
 /** Espejo de AttachmentStatus (Tasks.Domain). Nace `Pending` aunque ya esté escaneado; el front pollea. */
-export type AttachmentStatus = 'Pending' | 'Available' | 'Rejected' | 'Detached';
+export type AttachmentStatus = 'Pending' | 'Available' | 'Rejected' | 'Detached' | 'UnderReview';
 
 /** Espejo de AttachmentOrigin. */
 export type AttachmentOrigin = 'Linked' | 'Uploaded' | 'FromTemplate';

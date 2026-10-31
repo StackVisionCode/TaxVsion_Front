@@ -11,11 +11,16 @@ function fakeSocket() {
     connected: false,
     active: true,
     on: vi.fn((event: string, cb: (...args: unknown[]) => void) => handlers.set(event, cb)),
+    /** `once` de la conexión de invitado: se guarda aparte para no pisar los handlers de `bind`. */
+    once: vi.fn((event: string, cb: (...args: unknown[]) => void) => handlers.set(`once:${event}`, cb)),
     onAny: vi.fn(),
     disconnect: vi.fn(),
     removeAllListeners: vi.fn(),
     /** Dispara un evento como lo haría socket.io. */
-    fire: (event: string, ...args: unknown[]) => handlers.get(event)?.(...args),
+    fire: (event: string, ...args: unknown[]) => {
+      handlers.get(event)?.(...args);
+      handlers.get(`once:${event}`)?.(...args);
+    },
   };
 }
 
@@ -135,5 +140,49 @@ describe('CommunicationRealtimeService', () => {
 
     expect(service.connected()).toBe(false);
     expect(socket.disconnect).toHaveBeenCalled();
+  });
+});
+
+describe('CommunicationRealtimeService.connectAsGuest (F6)', () => {
+  let service: CommunicationRealtimeService;
+  const settle = () => new Promise<void>(r => setTimeout(r, 0));
+
+  beforeEach(() => {
+    io.mockReset();
+    TestBed.configureTestingModule({
+      providers: [
+        CommunicationRealtimeService,
+        { provide: ApiConfigService, useValue: { tenantBase: () => 'https://oficina.example' } },
+        // Sin sesión: el invitado no tiene JWT y aun así debe poder conectar.
+        { provide: TokenService, useValue: { getAccessToken: () => null } },
+      ],
+    });
+    service = TestBed.inject(CommunicationRealtimeService);
+  });
+
+  it('abre el socket con auth.ticket (objeto fijo, sin token) y resuelve al conectar', async () => {
+    const socket = fakeSocket();
+    io.mockImplementation(() => socket);
+
+    const pending = service.connectAsGuest('ticket-1');
+    await settle();
+    expect(io.mock.calls[0][1].auth).toEqual({ ticket: 'ticket-1' });
+
+    socket.fire('connect');
+    await pending;
+    expect(service.connected()).toBe(true);
+  });
+
+  it('rechaza si el servidor rechaza el handshake', async () => {
+    const socket = fakeSocket();
+    io.mockImplementation(() => socket);
+
+    const pending = service.connectAsGuest('ticket-bad');
+    await settle();
+    socket.active = false;
+    socket.fire('connect_error', new Error('Unauthorized'));
+
+    await expect(pending).rejects.toThrow('Unauthorized');
+    expect(service.connected()).toBe(false);
   });
 });

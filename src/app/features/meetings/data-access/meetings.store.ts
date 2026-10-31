@@ -144,8 +144,9 @@ export class MeetingsStore {
     this.realtime.on<{ meetingId: string }>('meeting.started').pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.refreshScopeSilently('upcoming');
     });
-    // Meeting terminado → sale de "upcoming" y entra a "past": refrescar ambos.
-    this.realtime.on<{ meetingId: string }>('meeting.ended').pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+    // Meeting terminado (F3: trae `reason`, p. ej. MaxDurationReached/Expired) → sale de "upcoming" y entra a
+    // "past": refrescar ambos; el motivo lo pinta la lista desde el refetch (`endReason`).
+    this.realtime.on<{ meetingId: string; reason?: string }>('meeting.ended').pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.refreshScopeSilently('upcoming');
       this.refreshScopeSilently('past');
     });
@@ -231,16 +232,16 @@ export class MeetingsStore {
         title: form.title.trim(),
         ...(form.description.trim() ? { description: form.description.trim() } : {}),
         ...(form.scheduledForUtc ? { scheduledForUtc: form.scheduledForUtc } : {}),
-        // El default del backend es 4: con más invitados quedaría corta la sala.
-        // Host + invitados + margen de 1, acotado al rango válido [2..100].
-        ...(invitees.length > 0
-          ? { maxParticipants: Math.min(100, Math.max(4, invitees.length + 2)) }
-          : {}),
+        // Sin `maxParticipants`: el cupo lo pone el backend desde el resolver (plataforma > plan >
+        // oficina). La fórmula `min(100, max(4, invitados+2))` dejaba las reuniones pequeñas en Mesh
+        // (umbral 4) y el mesh a 3 falla al renegociar en Chrome (INV-11 H-7).
         // SIEMPRE explícito: el default del backend es `true`, así que omitirlo cuando está en false
         // dejaba la sala de espera encendida aunque el usuario la desmarcara.
         requireWaitingRoom: form.requireWaitingRoom,
         ...(passcode ? { passcode } : {}),
         ...(form.recordingRequested ? { recordingRequested: true } : {}),
+        // F3: duración programada (informativa; el backend valida contra el máximo de la oficina).
+        ...(form.scheduledDurationMinutes ? { scheduledDurationMinutes: form.scheduledDurationMinutes } : {}),
       })
       .pipe(
         switchMap(created =>
@@ -313,6 +314,20 @@ export class MeetingsStore {
       totalCount: Math.max(0, state.totalCount - 1),
     }));
     this._past.set(EMPTY_SCOPE);
+  }
+
+  // ---------- Ficha del meeting ----------
+
+  summary(meetingId: string) {
+    return this.service.summary(meetingId);
+  }
+
+  events(meetingId: string, afterSeq: number | null) {
+    return this.service.events(meetingId, afterSeq);
+  }
+
+  chatHistory(meetingId: string, before: string | null) {
+    return this.service.chatHistory(meetingId, before);
   }
 
   // ---------- Invitaciones (panel de gestión) ----------

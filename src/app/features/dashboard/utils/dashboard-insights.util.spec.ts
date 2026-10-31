@@ -56,6 +56,7 @@ function meeting(overrides: Partial<MeetingItem>): MeetingItem {
     startedAt: null,
     endedAt: null,
     durationMinutes: null,
+    endReasonLabel: null,
     joinedCount: 0,
     transcriptFileId: null,
     hostUserId: 'u1',

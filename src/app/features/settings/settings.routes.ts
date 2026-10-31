@@ -56,6 +56,22 @@ export const SETTINGS_ROUTES: Routes = [
     title: 'My signature',
   },
   {
+    // F9 (D-38): Settings → Communication. Un store para las cuatro páginas (borrador compartido); cada página
+    // con su feature (permiso de gobernanza + módulo). El componente lo posee la feature communication-settings.
+    path: 'communication',
+    loadChildren: () =>
+      import('../communication-settings/communication-settings.routes').then(m => m.COMMUNICATION_SETTINGS_ROUTES),
+  },
+  {
+    // F9: preferencias personales de Communication (autoservicio, el backend usa el UserId del JWT).
+    path: 'communication-preferences',
+    loadComponent: () =>
+      import('../communication-settings/components/communication-preferences-page/communication-preferences-page.component').then(
+        m => m.CommunicationPreferencesPageComponent,
+      ),
+    title: 'Communication preferences',
+  },
+  {
     // Preferencias de notificación del staff (FASE 8 del plan). Autoservicio sin
     // permiso especial — el backend filtra por el UserId del JWT.
     path: 'notifications',

@@ -1,19 +1,19 @@
-<!-- Audio remoto: ÚNICO lugar que lo reproduce y SIEMPRE montado mientras hay meeting (también con la
-     sala completa abierta, cuyos <video> van muted). Una pista por <audio>; el stream se reusa mientras
-     la pista no cambie, así el audio no se corta al navegar entre páginas. -->
-@for (source of remoteAudio(); track source.trackId) {
-  <audio [srcObject]="source.stream" autoplay class="hidden"></audio>
-}
+<!-- Audio remoto (micrófonos y pantallas): ÚNICO lugar del shell que lo reproduce y SIEMPRE montado
+     mientras hay meeting (también con la sala completa abierta, cuyos <video> van muted). Fuera del
+     panel: al salir a PiP (Document PiP mueve el panel) se queda en la ventana principal. -->
+<app-meeting-remote-audio />
+
+<!-- Panel Devices (drawer): cambios de micrófono/cámara en caliente, altavoz y AEC/NS/AGC -->
+<app-device-panel [isOpen]="devicesOpen()" (closed)="devicesOpen.set(false)" (microphoneChange)="swapMicrophone($event)" (cameraChange)="swapCamera($event)" />
 
 @if (visible()) {
   <section #panel role="region" [attr.aria-label]="'Meeting in progress: ' + (title() || 'Meeting')"
-    class="fixed inset-x-2 bottom-2 z-40 overflow-hidden rounded-3xl bg-gray-900 text-white shadow-2xl ring-1 ring-white/10 sm:left-auto sm:w-[22rem]"
-    [ngClass]="isDesktop() && position() ? 'sm:right-auto sm:bottom-auto' : 'sm:right-4 sm:bottom-4'"
-    [style.left.px]="isDesktop() ? position()?.x : null" [style.top.px]="isDesktop() ? position()?.y : null">
+    class="fixed z-40 flex flex-col overflow-hidden bg-gray-900 text-white shadow-2xl ring-1 ring-white/10" [ngClass]="panelClass()"
+    [style.left.px]="isDesktop() && !pipActive() ? effectivePosition()?.x : null" [style.top.px]="isDesktop() && !pipActive() ? effectivePosition()?.y : null">
 
     <!-- Encabezado = asa de arrastre (escritorio). Doble clic: volver a la esquina. -->
     <header class="flex items-center gap-2 px-3 py-2.5 select-none"
-      [ngClass]="isDesktop() ? (dragging() ? 'cursor-grabbing' : 'cursor-grab') : ''"
+      [ngClass]="isDesktop() && !pipActive() ? (dragging() ? 'cursor-grabbing' : 'cursor-grab') : ''"
       (pointerdown)="onDragStart($event)" (pointermove)="onDragMove($event)" (pointerup)="onDragEnd($event)"
       (pointercancel)="onDragEnd($event)" (dblclick)="resetPosition()">
       <ion-icon name="reorder-two-outline" class="hidden shrink-0 text-base text-white/40 sm:block" aria-hidden="true"></ion-icon>
@@ -24,12 +24,18 @@
             <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400"></span>
           }
           <span class="truncate">{{ statusLabel() }}</span>
-          @if (isRecording()) {
-            <span class="flex shrink-0 items-center gap-1 rounded-full bg-red-600 px-1.5 py-px text-[0.625rem] font-semibold tabular-nums text-white">
-              <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse motion-reduce:animate-none"></span>
-              REC {{ recordingElapsedLabel() }}
+          @if (isJoined()) {
+            <span class="relative inline-flex shrink-0" data-role="own-quality">
+              <app-quality-badge [quality]="connectionQuality()" [metrics]="connectionMetrics()" [showMetrics]="showMetrics()" />
+              @if (remotePoor()) {
+                <span class="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-gray-900" role="img"
+                  aria-label="A participant has a poor connection" title="A participant has a poor connection" data-role="remote-poor"></span>
+              }
             </span>
           }
+          <app-recording-badge [state]="recordingState()" [elapsed]="recordingElapsedLabel()" [remaining]="recordingRemainingLabel()"
+            pillClass="flex shrink-0 items-center gap-1 rounded-full bg-red-600 px-1.5 py-px text-[0.625rem] font-semibold tabular-nums text-white"
+            processingClass="shrink-0 text-[0.625rem] font-medium text-gray-300" />
         </p>
       </div>
 
@@ -49,99 +55,104 @@
         </button>
       }
 
+      <!-- F5 (D-43): Pop out / volver, solo si el navegador soporta PiP -->
+      @if (pipSupported() && isJoined()) {
+        <button type="button" (click)="popOut()" data-role="pip" [attr.aria-pressed]="pipActive()"
+          [attr.aria-label]="pipActive() ? 'Close pop out' : 'Pop out'" [appTooltip]="pipActive() ? 'Close pop out' : 'Pop out'"
+          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/15 hover:text-white motion-reduce:transition-none"
+          [ngClass]="pipActive() ? 'bg-white/15 text-white' : 'text-white/80'">
+          <ion-icon name="open-outline" class="text-base"></ion-icon>
+        </button>
+      }
       <button type="button" (click)="expand()" aria-label="Return to meeting" title="Return to meeting"
         class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/15 hover:text-white motion-reduce:transition-none">
         <ion-icon name="expand-outline" class="text-base"></ion-icon>
       </button>
-      <button type="button" (click)="toggleCollapsed()" [attr.aria-expanded]="!collapsed()"
-        [attr.aria-label]="collapsed() ? 'Show meeting controls' : 'Minimize to a bar'"
-        [title]="collapsed() ? 'Show meeting controls' : 'Minimize to a bar'"
-        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/15 hover:text-white motion-reduce:transition-none">
-        <ion-icon [name]="collapsed() ? 'chevron-up-outline' : 'chevron-down-outline'" class="text-base"></ion-icon>
-      </button>
+      @if (!pipActive()) {
+        <button type="button" (click)="toggleCollapsed()" [attr.aria-expanded]="!collapsed()"
+          [attr.aria-label]="collapsed() ? 'Show meeting controls' : 'Minimize to a bar'"
+          [title]="collapsed() ? 'Show meeting controls' : 'Minimize to a bar'"
+          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/15 hover:text-white motion-reduce:transition-none">
+          <ion-icon [name]="collapsed() ? 'chevron-up-outline' : 'chevron-down-outline'" class="text-base"></ion-icon>
+        </button>
+      }
     </header>
 
-    @if (!collapsed()) {
+    @if (!collapsed() || pipActive()) {
       @if (isJoined()) {
-        <!-- Tile principal: quien habla (→ fijado → primer remoto). Solo: mi cámara en grande. -->
-        <div class="relative mx-3 aspect-video overflow-hidden rounded-2xl bg-black ring-2 transition-shadow motion-reduce:transition-none"
-          [ngClass]="mainParticipant() && isSpeaking(mainParticipant()!.userId) ? 'ring-emerald-400' : 'ring-transparent'">
-          @if (mainParticipant(); as main) {
-            <video [srcObject]="streamFor(main.userId)" autoplay playsinline muted class="h-full w-full object-cover"
-              [class.invisible]="!main.videoEnabled || !streamFor(main.userId)"></video>
-            @if (!main.videoEnabled || !streamFor(main.userId)) {
-              <div class="absolute inset-0 flex items-center justify-center bg-gray-800">
-                <app-avatar [name]="main.displayName" [seed]="main.userId" [imageUrl]="main.avatarFileId | avatarUrl" size="xl" />
-              </div>
-            }
-            <div class="absolute bottom-2 left-2 flex max-w-[55%] items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-[0.6875rem] font-medium backdrop-blur-sm">
-              @if (isSpeaking(main.userId)) {
-                <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden="true"></span>
-              }
-              <span class="truncate">{{ main.displayName }}</span>
-              @if (!main.audioEnabled) {
-                <ion-icon name="mic-off-outline" class="shrink-0 text-xs" aria-label="Muted"></ion-icon>
-              }
-              @if (main.handRaised) {
-                <span aria-label="Hand raised" title="Hand raised">✋</span>
+        <!-- Tile principal: pantalla compartida (con alternancia) → quien habla (→ fijado → primer remoto). Solo: mi cámara. -->
+        <div class="relative mx-3 aspect-video overflow-hidden rounded-2xl bg-black" data-role="main-tile">
+          @if (showScreenMain() && activeShare(); as share) {
+            <video [srcObject]="share.stream" autoplay playsinline muted class="h-full w-full object-contain" data-role="main-screen"></video>
+            <!-- Hablante (o yo) en PiP interno -->
+            <div class="absolute bottom-2 right-2 aspect-video w-24 overflow-hidden rounded-xl border border-white/20 shadow-lg" data-role="inner-pip">
+              @if (mainParticipant(); as main) {
+                <app-meeting-participant-tile [participant]="main" [stream]="streamFor(main.userId)" size="sm" [isSpeaking]="isSpeaking(main.userId)"
+                  [levelBars]="barsOf(main.userId)" [reaction]="reactionFor(main.userId)" [nowMs]="nowMs()" />
+              } @else {
+                <app-meeting-participant-tile [participant]="self()" [stream]="localStream()" size="sm" [isSelf]="true" [isSpeaking]="isSpeaking(self().userId)"
+                  [levelBars]="barsOf(self().userId)" [reaction]="reactionFor(self().userId)" [nowMs]="nowMs()" />
               }
             </div>
-
-            <!-- Mi cámara (PiP, espejo) -->
-            <div class="absolute bottom-2 right-2 aspect-video w-24 overflow-hidden rounded-xl border border-white/20 bg-gray-800 shadow-lg">
-              <video [srcObject]="localStream()" autoplay playsinline muted class="h-full w-full -scale-x-100 object-cover"
-                [class.invisible]="!videoEnabled() || !localStream()"></video>
-              @if (!videoEnabled() || !localStream()) {
-                <div class="absolute inset-0 flex items-center justify-center">
-                  <ion-icon name="videocam-off-outline" class="text-base text-white/60" aria-label="Your camera is off"></ion-icon>
-                </div>
-              }
-              <span class="absolute left-1 top-1 flex items-center gap-0.5 rounded-full bg-black/50 px-1.5 text-[0.5625rem] font-medium">
-                You
-                @if (!audioEnabled()) {
-                  <ion-icon name="mic-off-outline" class="text-[0.5625rem]"></ion-icon>
-                }
-              </span>
+          } @else if (mainParticipant(); as main) {
+            <app-meeting-participant-tile [participant]="main" [stream]="streamFor(main.userId)" size="md" [isSpeaking]="isSpeaking(main.userId)"
+              [levelBars]="barsOf(main.userId)" [canHostAct]="isHost()" [canMakeHost]="isPrimaryHost()" [reaction]="reactionFor(main.userId)" [nowMs]="nowMs()"
+              (hostAction)="onTileHostAction($event)" />
+            <!-- Mi cámara (PiP interno, espejo) -->
+            <div class="absolute bottom-2 right-2 aspect-video w-24 overflow-hidden rounded-xl border border-white/20 shadow-lg" data-role="inner-pip">
+              <app-meeting-participant-tile [participant]="self()" [stream]="localStream()" size="sm" [isSelf]="true" [isSpeaking]="isSpeaking(self().userId)"
+                [levelBars]="barsOf(self().userId)" [reaction]="reactionFor(self().userId)" [nowMs]="nowMs()" />
             </div>
           } @else {
             <!-- Estoy solo: mi cámara ocupa el tile principal -->
-            <video [srcObject]="localStream()" autoplay playsinline muted class="h-full w-full -scale-x-100 object-cover"
-              [class.invisible]="!videoEnabled() || !localStream()"></video>
-            @if (!videoEnabled() || !localStream()) {
-              <div class="absolute inset-0 flex items-center justify-center bg-gray-800">
-                <span class="flex h-14 w-14 items-center justify-center rounded-full bg-brand-bold text-sm font-bold">You</span>
-              </div>
-            }
+            <app-meeting-participant-tile [participant]="self()" [stream]="localStream()" size="md" [isSelf]="true" [isSpeaking]="isSpeaking(self().userId)"
+              [levelBars]="barsOf(self().userId)" [showMetrics]="showMetrics()" [metrics]="connectionMetrics()" [reaction]="reactionFor(self().userId)" [nowMs]="nowMs()"
+              [videoPausedByNetwork]="videoPausedByNetwork()" />
             <p class="absolute inset-x-2 bottom-2 truncate rounded-full bg-black/50 px-2 py-0.5 text-center text-[0.6875rem] backdrop-blur-sm">
               Waiting for others to join…
             </p>
           }
 
           @if (sharingLabel(); as sharing) {
-            <span class="absolute left-2 top-2 flex max-w-[80%] items-center gap-1 rounded-full bg-brand-bold/90 px-2 py-0.5 text-[0.625rem] font-semibold">
-              <ion-icon name="desktop-outline" class="shrink-0 text-xs"></ion-icon>
-              <span class="truncate">{{ sharing }}</span>
-            </span>
+            <div class="absolute left-2 top-2 flex max-w-[85%] items-center gap-1">
+              <span class="flex min-w-0 items-center gap-1 rounded-full bg-brand-bold/90 px-2 py-0.5 text-[0.625rem] font-semibold">
+                <ion-icon name="desktop-outline" class="shrink-0 text-xs"></ion-icon>
+                <span class="truncate">{{ sharing }}</span>
+              </span>
+              <button type="button" (click)="toggleMainView()" data-role="main-view-toggle"
+                class="shrink-0 rounded-full bg-black/50 px-2 py-0.5 text-[0.625rem] font-semibold text-white backdrop-blur-sm transition-colors hover:bg-black/70 motion-reduce:transition-none">
+                {{ showScreenMain() ? 'View camera' : 'View screen' }}
+              </button>
+            </div>
           }
+
+          <!-- Reacciones flotantes (D-50) -->
+          <div class="pointer-events-none absolute inset-x-0 bottom-0 flex h-full items-end justify-center gap-2 overflow-hidden" aria-hidden="true" data-role="floating-reactions">
+            @for (r of floatingReactions(); track r.id) {
+              <span class="tv-reaction-float text-2xl drop-shadow" [style.--tv-reaction-ms]="reactionMs(r)">{{ r.emoji }}</span>
+            }
+          </div>
         </div>
 
-        <!-- Resto de participantes, en pequeño (los que hablaron primero) + "+N" -->
+        <!-- Volumen del audio de cada pantalla compartida (D-41) -->
+        @for (source of remoteScreenAudio(); track source.trackId) {
+          <label class="mx-3 mt-2 flex items-center gap-2 text-[0.6875rem] text-white/70">
+            <ion-icon name="volume-high-outline" class="shrink-0 text-xs" aria-hidden="true"></ion-icon>
+            <span class="shrink-0">Screen audio</span>
+            <input type="range" min="0" max="1" step="0.05" [value]="screenAudioVolume(source.userId)"
+              (input)="setScreenAudioVolume(source.userId, $any($event.target).value)" class="h-1 min-w-0 flex-1 accent-emerald-400"
+              [attr.aria-label]="'Screen audio volume'" />
+          </label>
+        }
+
+        <!-- Resto de participantes (tile sm, los que hablaron primero) + "+N" -->
         @if (thumbParticipants().length || tiles().overflow) {
-          <ul class="mx-3 mt-2 flex items-center gap-1.5" aria-label="Other participants">
+          <ul class="mx-3 mt-2 flex items-center gap-1.5" aria-label="Other participants" data-role="thumbs">
             @for (p of thumbParticipants(); track p.userId) {
-              <li class="relative h-10 w-14 shrink-0 overflow-hidden rounded-lg bg-gray-800 ring-2 transition-shadow motion-reduce:transition-none"
-                [ngClass]="isSpeaking(p.userId) ? 'ring-emerald-400' : 'ring-transparent'" [title]="p.displayName">
-                @if (p.videoEnabled && streamFor(p.userId)) {
-                  <video [srcObject]="streamFor(p.userId)" autoplay playsinline muted class="h-full w-full object-cover"></video>
-                } @else {
-                  <div class="flex h-full w-full items-center justify-center">
-                    <app-avatar [name]="p.displayName" [seed]="p.userId" [imageUrl]="p.avatarFileId | avatarUrl" size="xs" />
-                  </div>
-                }
-                @if (!p.audioEnabled) {
-                  <ion-icon name="mic-off-outline" class="absolute bottom-0.5 right-0.5 rounded-full bg-black/60 p-px text-[0.5625rem]"
-                    aria-label="Muted"></ion-icon>
-                }
+              <li class="h-10 w-14 shrink-0">
+                <app-meeting-participant-tile [participant]="p" [stream]="streamFor(p.userId)" size="sm" [isSpeaking]="isSpeaking(p.userId)"
+                  [levelBars]="barsOf(p.userId)" [canHostAct]="isHost()" [canMakeHost]="isPrimaryHost()" [reaction]="reactionFor(p.userId)" [nowMs]="nowMs()"
+                  (hostAction)="onTileHostAction($event)" />
               </li>
             }
             @if (tiles().overflow) {
@@ -153,13 +164,37 @@
           </ul>
         }
 
-        <!-- Host: gente esperando para entrar (se admite desde la sala completa) -->
+        <!-- F3: aviso de tiempo restante (persiste hasta el siguiente umbral) -->
+        @if (durationWarningText(); as warning) {
+          <p role="status" class="mx-3 mt-2 flex items-center gap-1.5 rounded-xl bg-amber-500/20 px-3 py-1.5 text-[0.6875rem] font-medium text-amber-200">
+            <ion-icon name="time-outline" class="shrink-0 text-xs" aria-hidden="true"></ion-icon>
+            {{ warning }}
+          </p>
+        }
+
+        <!-- Host: gente esperando, con Admit directo (T-54) -->
         @if (isHost() && waitingParticipants().length) {
-          <button type="button" (click)="expand()"
-            class="mx-3 mt-2 flex w-[calc(100%-1.5rem)] items-center gap-1.5 rounded-xl bg-amber-500/20 px-3 py-1.5 text-left text-[0.6875rem] font-medium text-amber-200 transition-colors hover:bg-amber-500/30 motion-reduce:transition-none">
-            <ion-icon name="hourglass-outline" class="shrink-0 text-xs"></ion-icon>
-            {{ waitingParticipants().length }} waiting to join · Open meeting to admit
-          </button>
+          <div class="mx-3 mt-2 rounded-xl bg-amber-500/20 px-3 py-2 text-[0.6875rem] text-amber-100" data-role="waiting">
+            <p class="flex items-center gap-1.5 font-semibold">
+              <ion-icon name="hourglass-outline" class="shrink-0 text-xs"></ion-icon>
+              {{ waitingParticipants().length }} waiting to join
+            </p>
+            <ul class="mt-1.5 flex flex-col gap-1">
+              @for (p of waitingRows(); track p.userId) {
+                <li class="flex items-center gap-2" [attr.data-user]="p.userId">
+                  <span class="min-w-0 flex-1 truncate">{{ p.displayName }}</span>
+                  <button type="button" (click)="deny(p.userId)" class="rounded-full px-2 py-0.5 font-semibold text-white/80 transition-colors hover:bg-white/10">Deny</button>
+                  <button type="button" (click)="admit(p.userId)" data-role="admit"
+                    class="rounded-full bg-white px-2.5 py-0.5 font-semibold text-gray-900 transition-colors hover:bg-white/90">Admit</button>
+                </li>
+              }
+            </ul>
+            @if (waitingMore() > 0) {
+              <button type="button" (click)="expand()" class="mt-1 font-semibold underline-offset-2 hover:underline">
+                +{{ waitingMore() }} more · Open meeting
+              </button>
+            }
+          </div>
         }
 
         <!-- Consentimiento de grabación (la sala no está montada para mostrar su modal) -->
@@ -175,47 +210,68 @@
           </div>
         }
 
-        <!-- Controles -->
-        <div class="flex items-center justify-center gap-1.5 px-3 py-3">
-          <button type="button" (click)="toggleAudio()" [attr.aria-pressed]="!audioEnabled()"
-            [attr.aria-label]="audioEnabled() ? 'Mute microphone' : 'Unmute microphone'"
-            [title]="audioEnabled() ? 'Mute' : 'Unmute'"
-            class="flex h-10 w-10 items-center justify-center rounded-full transition-colors motion-reduce:transition-none"
-            [ngClass]="audioEnabled() ? 'bg-white/15 hover:bg-white/25' : 'bg-red-500 hover:bg-red-600'">
-            <ion-icon [name]="audioEnabled() ? 'mic-outline' : 'mic-off-outline'" class="text-lg"></ion-icon>
-          </button>
-          <button type="button" (click)="toggleVideo()" [attr.aria-pressed]="!videoEnabled()"
-            [attr.aria-label]="videoEnabled() ? 'Turn camera off' : 'Turn camera on'"
-            [title]="videoEnabled() ? 'Turn camera off' : 'Turn camera on'"
-            class="flex h-10 w-10 items-center justify-center rounded-full transition-colors motion-reduce:transition-none"
-            [ngClass]="videoEnabled() ? 'bg-white/15 hover:bg-white/25' : 'bg-red-500 hover:bg-red-600'">
-            <ion-icon [name]="videoEnabled() ? 'videocam-outline' : 'videocam-off-outline'" class="text-lg"></ion-icon>
-          </button>
-          @if (canScreenShare) {
-            <button type="button" (click)="toggleScreenShare()" [attr.aria-pressed]="screenSharing()"
-              [attr.aria-label]="screenSharing() ? 'Stop sharing screen' : 'Share screen'"
-              [title]="screenSharing() ? 'Stop sharing' : 'Share screen'"
-              class="flex h-10 w-10 items-center justify-center rounded-full transition-colors motion-reduce:transition-none"
-              [ngClass]="screenSharing() ? 'bg-white text-gray-900' : 'bg-white/15 hover:bg-white/25'">
-              <ion-icon [name]="screenSharing() ? 'stop-circle-outline' : 'desktop-outline'" class="text-lg"></ion-icon>
-            </button>
-          }
-          <button type="button" (click)="toggleHand()" [attr.aria-pressed]="handRaised()"
-            [attr.aria-label]="handRaised() ? 'Lower hand' : 'Raise hand'" [title]="handRaised() ? 'Lower hand' : 'Raise hand'"
-            class="flex h-10 w-10 items-center justify-center rounded-full transition-colors motion-reduce:transition-none"
-            [ngClass]="handRaised() ? 'bg-amber-300 text-amber-900' : 'bg-white/15 hover:bg-white/25'">
-            <ion-icon name="hand-left-outline" class="text-lg"></ion-icon>
-          </button>
-          <button type="button" (click)="leave()" aria-label="Leave meeting" title="Leave"
-            class="flex h-10 w-10 items-center justify-center rounded-full bg-red-500 transition-colors hover:bg-red-600 motion-reduce:transition-none">
-            <ion-icon name="call-outline" class="rotate-[135deg] text-lg"></ion-icon>
-          </button>
-          @if (canEndForAll()) {
-            <button type="button" (click)="endConfirmOpen.set(true)" aria-label="End meeting for everyone" title="End for everyone"
-              class="flex h-10 w-10 items-center justify-center rounded-full bg-red-700 transition-colors hover:bg-red-800 motion-reduce:transition-none">
-              <ion-icon name="power-outline" class="text-lg"></ion-icon>
-            </button>
-          }
+        <!-- Chat compacto (T-54): últimos mensajes + envío -->
+        @if (chatOpen()) {
+          <div class="mx-3 mt-2 flex max-h-48 flex-col rounded-xl bg-white/5" data-role="compact-chat" aria-label="Meeting chat">
+            <div class="min-h-0 flex-1 overflow-y-auto px-2.5 py-2">
+              @for (m of chatMessages(); track m.id) {
+                <p class="text-[0.6875rem] leading-snug" [class.text-right]="m.isMine">
+                  @if (!m.isMine) {
+                    <span class="font-semibold text-white/70">{{ m.senderName }}: </span>
+                  }
+                  <span class="break-words text-white/90">{{ m.text }}</span>
+                </p>
+              } @empty {
+                <p class="py-2 text-center text-[0.6875rem] text-white/50">No messages yet.</p>
+              }
+            </div>
+            <form class="flex items-center gap-1.5 border-t border-white/10 p-1.5" (ngSubmit)="sendChat()">
+              <input type="text" name="miniChatDraft" placeholder="Message everyone…" [ngModel]="chatDraft()" (ngModelChange)="chatDraft.set($event)" autocomplete="off"
+                class="h-8 min-w-0 flex-1 rounded-full bg-white/10 px-3 text-[0.6875rem] text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-white/30" />
+              <button type="submit" [disabled]="!chatDraft().trim()" aria-label="Send message"
+                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white transition-colors hover:bg-brand-ink disabled:opacity-40">
+                <ion-icon name="send-outline" class="text-sm"></ion-icon>
+              </button>
+            </form>
+          </div>
+        }
+
+        <!-- Controles comunes (F4) + React, chat y "terminar para todos" proyectados -->
+        <div class="flex justify-center px-3 py-3">
+          <app-media-controls size="sm" variant="bare" [audioEnabled]="audioEnabled()" [videoEnabled]="videoEnabled()" [muteReason]="muteReason()"
+            [videoPausedByNetwork]="videoPausedByNetwork()" [hasMicrophone]="hasMicrophone()" [waitingForPermission]="waitingForPermission()"
+            [screenSharing]="screenSharing()" [screenAudioAllowed]="screenAudioAllowed()" [showHand]="true" [handRaised]="handRaised()" [raisedHands]="raisedHandCount()"
+            [showChat]="true" [chatOpen]="chatOpen()" [chatUnread]="chatUnread()" leaveTitle="Leave meeting"
+            (toggleAudio)="toggleAudio()" (toggleVideo)="toggleVideo()" (shareScreen)="shareScreen($event)" (stopScreenShare)="stopScreenShare()"
+            (toggleHand)="toggleHand()" (toggleChat)="toggleChat()" (openDevices)="devicesOpen.set(true)" (leave)="leave()">
+            @if (reactionsEnabled()) {
+              <div class="relative shrink-0">
+                <button type="button" data-control="react" (click)="toggleReactionPicker()" [attr.aria-expanded]="reactionPickerOpen()" aria-haspopup="dialog"
+                  aria-label="React" appTooltip="React"
+                  class="flex h-10 w-10 items-center justify-center rounded-full transition-colors motion-reduce:transition-none"
+                  [ngClass]="reactionPickerOpen() ? 'bg-brand-bold text-white' : 'bg-white/10 text-white hover:bg-white/20'">
+                  <ion-icon name="happy-outline" class="text-lg"></ion-icon>
+                </button>
+                @defer (when reactionPickerOpen()) {
+                  @if (reactionPickerOpen()) {
+                    <app-reaction-picker [catalog]="reactionCatalog()" (picked)="react($event)" (closed)="reactionPickerOpen.set(false)" />
+                  }
+                }
+              </div>
+            }
+            @if (isHost()) {
+              <button type="button" (click)="requestInvite()" data-control="invite" aria-label="Invite people" appTooltip="Invite"
+                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 motion-reduce:transition-none">
+                <ion-icon name="person-add-outline" class="text-lg"></ion-icon>
+              </button>
+            }
+            @if (canEndForAll()) {
+              <button type="button" (click)="endConfirmOpen.set(true)" aria-label="End meeting for everyone" title="End for everyone"
+                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-700 transition-colors hover:bg-red-800 motion-reduce:transition-none">
+                <ion-icon name="power-outline" class="text-lg"></ion-icon>
+              </button>
+            }
+          </app-media-controls>
         </div>
       } @else {
         <!-- Fases previas/sin media: estado + volver a la sala / salir -->

@@ -24,6 +24,7 @@ import {
 import { MfaMethodType, PendingMfa, VerifyMfaRequest } from './mfa.model';
 import { AccountKind } from './central-login.model';
 import { WebPushRegistrationService } from '../notifications/web-push-registration.service';
+import { SessionTeardownRegistry } from './session-teardown';
 
 /** Desenlace del login, ya interpretado por el servicio (el componente solo enruta). */
 export type LoginOutcome =
@@ -51,6 +52,7 @@ export class AuthService {
   private readonly api = inject(ApiConfigService);
   private readonly branding = inject(TenantBrandingService);
   private readonly webPush = inject(WebPushRegistrationService);
+  private readonly sessionTeardown = inject(SessionTeardownRegistry);
   /**
    * Base de los endpoints de Auth: la oficina resuelta (`https://<slug>.baseDomain`).
    *
@@ -257,6 +259,9 @@ export class AuthService {
 
   /** Limpia todo el estado de sesión en el cliente (sin llamar al backend). */
   logoutLocal(): void {
+    // F3: reunión/llamada activas salen y sueltan cámara/mic ANTES de navegar al login (logout y
+    // `session.revoked` pasan por acá). Corre antes de limpiar el token, con el socket aún vivo.
+    this.sessionTeardown.runAll();
     this.tokenService.clear();
     this._currentUser.set(null);
     this._pendingMfa.set(null);

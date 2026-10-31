@@ -9,7 +9,7 @@ interface SupportChannelStep {
 }
 
 /**
- * Cabecera del módulo Support: explica cómo se contacta realmente al equipo.
+ * Panel de Support sin ticket elegido: explica cómo se contacta realmente al equipo.
  *
  * NO HAY DATOS DE CONTACTO PORQUE NO EXISTEN: la versión anterior mostraba un
  * teléfono inventado (+1 (800) 555-0142), un email en un dominio que no es el del
@@ -30,28 +30,25 @@ interface SupportChannelStep {
 export class SupportContactOptionsComponent {
   readonly steps: SupportChannelStep[] = [
     {
-      // POST /communication/support (formulario "Submit a ticket" más abajo).
+      // POST /communication/support (botón "New ticket").
       icon: 'create-outline',
       circleClass: 'bg-brand-border text-brand-bold',
       title: 'Open a ticket',
-      description:
-        'Describe the issue in the form below. The ticket is created in your workspace and routed to our team.',
+      description: 'Use New ticket to describe the issue. It goes straight to our support team.',
     },
     {
-      // GET /communication/support (lista "My tickets" al pie de la página).
-      icon: 'list-outline',
+      // GET /communication/support (columna de la izquierda, con sus no leídos).
+      icon: 'chatbubbles-outline',
       circleClass: 'bg-indigo-100 text-indigo-600',
-      title: 'Follow it up here',
-      description:
-        'Every ticket you open is listed at the bottom of this page with its current status.',
+      title: 'Chat with us',
+      description: 'Replies show up in the ticket. A blue counter marks the tickets with new messages.',
     },
     {
       // POST /communication/support/:id/reopen (solo desde Resolved/Closed).
       icon: 'refresh-outline',
       circleClass: 'bg-indigo-50 text-orange-500',
       title: 'Reopen if needed',
-      description:
-        'If a resolved or closed ticket still needs attention, you can reopen it from that list.',
+      description: 'If a resolved or closed ticket still needs attention, open it and choose Reopen.',
     },
   ];
 }

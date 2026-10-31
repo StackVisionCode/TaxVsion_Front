@@ -1,69 +1,42 @@
-<div class="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm">
-  <div class="flex flex-wrap items-start justify-between gap-3">
-    <div>
-      <h2 class="text-xl font-bold text-gray-900">Submit a ticket</h2>
-      <p class="mt-1 text-sm text-gray-500">Can't find your answer above? Send us the details</p>
-    </div>
-
-    <span *ngIf="submittedTicketId"
-      class="flex items-center gap-2 rounded-full border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-600">
-      <ion-icon name="checkmark-circle-outline" class="text-sm"></ion-icon>
-      <span class="break-all">Ticket #{{ submittedTicketId }} created</span>
-      <button type="button" (click)="dismissConfirmation.emit()" class="text-emerald-600 hover:text-emerald-800"
-        aria-label="Dismiss">
-        <ion-icon name="close-outline" class="text-sm"></ion-icon>
-      </button>
-    </span>
+<form class="mt-4 flex flex-col gap-4" (ngSubmit)="submit()" data-role="support-ticket-form">
+  <div>
+    <label for="support-subject" class="block text-sm font-medium text-gray-800">Subject</label>
+    <input id="support-subject" type="text" placeholder="What do you need help with?" [ngModel]="subject()" name="subject"
+      [attr.maxlength]="subjectMax" autocomplete="off" (ngModelChange)="subject.set($event)"
+      class="mt-1.5 h-10 w-full rounded-full border border-gray-200 px-4 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none" />
   </div>
 
-  <form class="mt-4 flex flex-col gap-4" (ngSubmit)="submit()">
-    <div class="flex flex-col sm:flex-row gap-3">
-      <!-- Subject -->
-      <div class="flex-1">
-        <div class="h-10 bg-white rounded-full flex items-center border border-gray-200 focus-within:border-gray-300 transition-colors">
-          <input type="text" placeholder="Subject" [ngModel]="subject()" name="subject" maxlength="200"
-            (ngModelChange)="subject.set($event)"
-            class="w-full h-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 rounded-full focus:outline-none" />
-        </div>
-      </div>
-
-      <!-- Category dropdown -->
-      <div class="relative" appClickOutside [clickOutsideEnabled]="isCategoryOpen()" (appClickOutside)="isCategoryOpen.set(false)">
-        <button type="button" (click)="toggleCategoryDropdown()"
-          class="flex h-10 w-full sm:w-48 items-center justify-between gap-2 rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 hover:bg-gray-50 transition-colors">
-          {{ categoryLabel() }}
-          <ion-icon name="chevron-down-outline" class="text-sm text-gray-500"></ion-icon>
-        </button>
-
-        <div *ngIf="isCategoryOpen()"
-          class="absolute right-0 top-full z-20 mt-2 w-48 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
-          <button *ngFor="let option of categories" type="button" (click)="selectCategory(option.value)"
-            class="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-            {{ option.label }}
-            <ion-icon *ngIf="option.value === category()" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Message -->
-    <textarea rows="4" placeholder="Describe the issue..." [ngModel]="message()" name="message" maxlength="4000"
-      (ngModelChange)="message.set($event)"
-      class="w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors resize-none"></textarea>
-
-    <div class="flex flex-wrap items-center gap-3">
-      <button type="submit" [disabled]="!canSubmit() || submitting"
-        class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-        <ion-icon name="send-outline" class="text-base"></ion-icon>
-        {{ submitting ? 'Sending...' : 'Send ticket' }}
+  <div>
+    <span class="block text-sm font-medium text-gray-800">Category</span>
+    <div class="mt-1.5 flex flex-wrap gap-2" role="radiogroup" aria-label="Category">
+      <button *ngFor="let option of categories" type="button" role="radio" [attr.aria-checked]="option.value === category()"
+        (click)="category.set(option.value)"
+        class="rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors"
+        [ngClass]="option.value === category() ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
+        {{ option.label }}
       </button>
-
-      <!-- Error del POST -->
-      <span *ngIf="errorMessage"
-        class="flex items-center gap-2 rounded-full border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600">
-        <ion-icon name="alert-circle-outline" class="text-sm"></ion-icon>
-        {{ errorMessage }}
-      </span>
     </div>
-  </form>
-</div>
+  </div>
+
+  <div>
+    <label for="support-message" class="block text-sm font-medium text-gray-800">Describe the issue</label>
+    <textarea id="support-message" rows="5" placeholder="What happened, and what did you expect?" [ngModel]="message()" name="message"
+      [attr.maxlength]="messageMax" (ngModelChange)="message.set($event)"
+      class="mt-1.5 w-full resize-none rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none"></textarea>
+    <p class="mt-1 text-right text-xs tabular-nums text-gray-400">{{ message().length }}/{{ messageMax }}</p>
+  </div>
+
+  <p *ngIf="errorMessage" class="flex items-center gap-2 rounded-2xl border border-red-200 px-3 py-2 text-xs font-medium text-red-600" role="alert">
+    <ion-icon name="alert-circle-outline" class="text-sm"></ion-icon> {{ errorMessage }}
+  </p>
+
+  <div class="flex justify-end gap-2">
+    <button type="button" (click)="cancel.emit()" [disabled]="submitting"
+      class="rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">Cancel</button>
+    <button type="submit" [disabled]="!canSubmit() || submitting"
+      class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold">
+      <ion-icon name="send-outline" class="text-base"></ion-icon>
+      {{ submitting ? 'Sending…' : 'Send ticket' }}
+    </button>
+  </div>
+</form>

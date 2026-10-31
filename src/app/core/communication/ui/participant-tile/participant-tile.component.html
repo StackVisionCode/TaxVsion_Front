@@ -1,0 +1,124 @@
+<!-- Tile único (F5). `overflow-hidden` es seguro: el menú de host se porta al body. -->
+<div class="relative h-full w-full overflow-hidden bg-gray-900 ring-2 transition-shadow motion-reduce:transition-none"
+  [ngClass]="[radiusClass(), ringClass(), clickable() ? 'cursor-pointer' : '']" [attr.data-user]="participant().userId"
+  [attr.data-size]="size()" [attr.title]="isSm() ? displayName() : null" (click)="onTileClick()">
+  <video [srcObject]="stream()" autoplay playsinline muted class="h-full w-full object-cover"
+    [class.-scale-x-100]="mirrored()" [class.invisible]="!showVideo()"></video>
+
+  <!-- Cámara apagada / sin stream: avatar con la foto -->
+  @if (!showVideo()) {
+    <div class="absolute inset-0 flex items-center justify-center bg-gray-800" data-role="camera-off">
+      <app-avatar [name]="participant().displayName" [seed]="participant().userId" [imageUrl]="participant().avatarFileId | avatarUrl" [size]="avatarSize()" />
+    </div>
+  }
+
+  <!-- Burbuja de reacción (re-dispara la animación por id) -->
+  @for (r of reactionList(); track r.id) {
+    <span class="tv-reaction-pop pointer-events-none absolute left-1/2 top-1/2 z-10 select-none drop-shadow"
+      [ngClass]="isSm() ? 'text-lg' : size() === 'md' ? 'text-3xl' : 'text-5xl'" [style.--tv-reaction-ms]="reactionMs()" data-role="reaction" aria-hidden="true">{{ r.emoji }}</span>
+  }
+
+  @if (!isSm()) {
+    <!-- Esquina superior izquierda: rol, pantalla, fijado -->
+    <div class="absolute left-2 flex items-center gap-1" [ngClass]="cornerClass()">
+      @if (roleLabel(); as role) {
+        <span class="rounded-full bg-white/90 px-2 py-0.5 text-[0.625rem] font-semibold text-brand-bold shadow-sm" data-role="role">{{ role }}</span>
+      }
+      @if (participant().screenSharing) {
+        <span class="flex h-5 w-5 items-center justify-center rounded-full bg-brand-bold/90 text-white" role="img" aria-label="Sharing screen"
+          appTooltip="Sharing screen" data-role="sharing">
+          <ion-icon name="desktop-outline" class="text-[0.625rem]"></ion-icon>
+        </span>
+      }
+      @if (pinned()) {
+        <span class="flex items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-[0.625rem] font-medium text-white backdrop-blur-sm" data-role="pinned">
+          <ion-icon name="pin-outline" class="text-[0.625rem]" aria-hidden="true"></ion-icon> Pinned
+        </span>
+      }
+    </div>
+
+    <!-- Esquina superior derecha: mano + menú de host -->
+    <div class="absolute right-2 flex items-center gap-1" [ngClass]="cornerClass()">
+      @if (handLabel(); as hand) {
+        <span class="flex h-7 w-7 items-center justify-center rounded-full bg-amber-400 text-base shadow-sm" role="img" [attr.aria-label]="hand"
+          [appTooltip]="hand" data-role="hand">✋</span>
+      }
+      <ng-container *ngTemplateOutlet="hostMenu" />
+    </div>
+
+    <!-- Nombre + mic + medidor -->
+    <div class="absolute flex max-w-[calc(100%-1rem)] items-center rounded-full bg-black/45 font-medium text-white backdrop-blur-sm"
+      [ngClass]="namePillClass()" data-role="name">
+      @if (participant().audioEnabled) {
+        <span class="flex items-end gap-px" role="img" [attr.aria-label]="isSpeaking() ? 'Speaking' : 'Microphone on'" data-role="meter">
+          @for (bar of BARS; track bar) {
+            <span class="w-0.5 rounded-sm transition-colors motion-reduce:transition-none"
+              [ngClass]="[barHeight(bar), levelBars() >= bar ? 'bg-emerald-400' : 'bg-white/30']"></span>
+          }
+        </span>
+      } @else {
+        <ion-icon name="mic-off-outline" class="shrink-0 text-xs text-red-300" role="img" aria-label="Muted" data-role="muted"></ion-icon>
+      }
+      <span class="truncate">{{ displayName() }}</span>
+      @if (videoPausedByNetwork()) {
+        <span class="shrink-0 text-amber-300">· Video paused</span>
+      }
+    </div>
+
+    <!-- Calidad (cifras solo en el propio tile del staff) -->
+    <app-quality-badge class="absolute bottom-2 right-2" [quality]="participant().connectionQuality ?? null" [metrics]="metrics()" [showMetrics]="showMetrics()"
+      [attr.data-role]="isSelf() ? 'own-quality' : 'peer-quality'" />
+  } @else {
+    <!-- sm (miniaturas del mini-player): solo iconos con tooltip -->
+    @if (handLabel(); as hand) {
+      <span class="absolute left-0.5 top-0.5 rounded-full bg-amber-400 px-0.5 text-[0.5625rem] leading-none" role="img" [attr.aria-label]="hand" [appTooltip]="hand" data-role="hand">✋</span>
+    }
+    @if (participant().screenSharing) {
+      <ion-icon name="desktop-outline" class="absolute bottom-0.5 left-0.5 rounded-full bg-brand-bold/90 p-px text-[0.5625rem] text-white" role="img"
+        aria-label="Sharing screen" data-role="sharing"></ion-icon>
+    }
+    @if (!participant().audioEnabled) {
+      <ion-icon name="mic-off-outline" class="absolute bottom-0.5 right-0.5 rounded-full bg-black/60 p-px text-[0.5625rem] text-red-300" role="img" aria-label="Muted"
+        data-role="muted"></ion-icon>
+    }
+    <div class="absolute right-0.5 top-0.5">
+      <ng-container *ngTemplateOutlet="hostMenu" />
+    </div>
+  }
+</div>
+
+<!-- Menú de host (INV-07: roles solo a staff; "Make host" solo host principal). El trigger no propaga el click. -->
+<ng-template #hostMenu>
+  @if (canHostAct() && !isSelf()) {
+    <app-dropdown-menu [ariaLabel]="'Options for ' + participant().displayName" panelClass="w-44 py-1 text-left">
+      <button menuTrigger type="button" [attr.aria-label]="'Options for ' + participant().displayName" aria-haspopup="menu"
+        class="flex items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-colors hover:bg-black/60 motion-reduce:transition-none"
+        [ngClass]="menuButtonClass()" data-role="host-menu">
+        <ion-icon name="ellipsis-vertical"></ion-icon>
+      </button>
+      @if (participant().role === 'Attendee' && roleEligible()) {
+        <button appMenuItem type="button" data-action="promote" (click)="act('promote')">
+          <ion-icon name="shield-outline" class="text-base text-gray-400"></ion-icon> Make co-host
+        </button>
+      }
+      @if (participant().role === 'Cohost') {
+        <button appMenuItem type="button" data-action="demote" (click)="act('demote')">
+          <ion-icon name="shield-half-outline" class="text-base text-gray-400"></ion-icon> Remove co-host
+        </button>
+      }
+      @if (canMakeHost() && roleEligible() && participant().role !== 'Host') {
+        <button appMenuItem type="button" data-action="makeHost" (click)="act('makeHost')">
+          <ion-icon name="star-outline" class="text-base text-gray-400"></ion-icon> Make host
+        </button>
+      }
+      @if (participant().handRaised) {
+        <button appMenuItem type="button" data-action="lowerHand" (click)="act('lowerHand')">
+          <ion-icon name="hand-left-outline" class="text-base text-gray-400"></ion-icon> Lower hand
+        </button>
+      }
+      <button appMenuItem [danger]="true" type="button" data-action="remove" (click)="act('remove')">
+        <ion-icon name="person-remove-outline" class="text-base"></ion-icon> Remove
+      </button>
+    </app-dropdown-menu>
+  }
+</ng-template>

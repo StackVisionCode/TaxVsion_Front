@@ -1,0 +1,128 @@
+<div [ngClass]="wrapClass()" role="toolbar" aria-label="Media controls">
+  <!-- Micrófono: estado + motivo del mute (eco / host) en el tooltip -->
+  <button type="button" data-control="mic" (click)="toggleAudio.emit()" [disabled]="micDisabled()"
+    [attr.aria-pressed]="!audioEnabled()" [attr.aria-label]="micTooltip()" [appTooltip]="micTooltip()"
+    class="flex shrink-0 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed motion-reduce:transition-none"
+    [ngClass]="[buttonClass(), micClass()]">
+    <ion-icon [name]="audioEnabled() && !micDisabled() ? 'mic-outline' : 'mic-off-outline'"></ion-icon>
+  </button>
+
+  <!-- Cámara: pausada por red = ámbar con aviso -->
+  @if (showCamera()) {
+    <button type="button" data-control="camera" (click)="toggleVideo.emit()"
+      [attr.aria-pressed]="!videoEnabled()" [attr.aria-label]="cameraTooltip()" [appTooltip]="cameraTooltip()"
+      class="flex shrink-0 items-center justify-center rounded-full transition-colors motion-reduce:transition-none"
+      [ngClass]="[buttonClass(), cameraClass()]">
+      <ion-icon [name]="videoEnabled() && !videoPausedByNetwork() ? 'videocam-outline' : 'videocam-off-outline'"></ion-icon>
+    </button>
+  }
+
+  <!-- Secundarios: en < sm (con `showMore`) se pliegan bajo "More" -->
+  <div class="contents" [ngClass]="showMore() ? 'max-sm:hidden' : ''">
+  <!-- Compartir pantalla: con audio permitido y soportado, menú de dos opciones -->
+  @if (canShare()) {
+    @if (!screenSharing() && offersScreenAudio()) {
+      <app-dropdown-menu ariaLabel="Share screen options" panelClass="w-56 py-1 text-left">
+        <button menuTrigger type="button" data-control="share" aria-label="Share screen" aria-haspopup="menu" appTooltip="Share screen"
+          class="flex shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 motion-reduce:transition-none"
+          [ngClass]="buttonClass()">
+          <ion-icon name="desktop-outline"></ion-icon>
+        </button>
+        <button appMenuItem type="button" data-control="share-video" (click)="share(false)">
+          <ion-icon name="desktop-outline" class="text-base text-gray-400"></ion-icon> Share screen
+        </button>
+        <button appMenuItem type="button" data-control="share-audio" (click)="share(true)">
+          <ion-icon name="volume-high-outline" class="text-base text-gray-400"></ion-icon> Share screen with audio
+        </button>
+      </app-dropdown-menu>
+    } @else {
+      <button type="button" data-control="share" (click)="onShareClick()" [attr.aria-pressed]="screenSharing()"
+        [attr.aria-label]="screenSharing() ? 'Stop sharing screen' : 'Share screen'" [appTooltip]="screenSharing() ? 'Stop sharing' : 'Share screen'"
+        class="flex shrink-0 items-center justify-center rounded-full transition-colors motion-reduce:transition-none"
+        [ngClass]="[buttonClass(), screenSharing() ? 'bg-brand-bold text-white hover:bg-brand-ink' : 'bg-white/10 text-white hover:bg-white/20']">
+        <ion-icon [name]="screenSharing() ? 'stop-circle-outline' : 'desktop-outline'"></ion-icon>
+      </button>
+    }
+  }
+
+  @if (showHand()) {
+    <button type="button" data-control="hand" (click)="toggleHand.emit()" [attr.aria-pressed]="handRaised()"
+      [attr.aria-label]="handRaised() ? 'Lower hand' : 'Raise hand'" [appTooltip]="handRaised() ? 'Lower hand' : 'Raise hand'"
+      class="relative flex shrink-0 items-center justify-center rounded-full transition-colors motion-reduce:transition-none"
+      [ngClass]="[buttonClass(), handRaised() ? 'bg-amber-400 text-amber-950 hover:bg-amber-300' : 'bg-white/10 text-white hover:bg-white/20']">
+      <ion-icon name="hand-left-outline"></ion-icon>
+      @if (raisedHands() > 0) {
+        <span data-role="hands-badge" class="absolute -right-0.5 -top-0.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-amber-400 px-1 text-[0.625rem] font-bold text-amber-950 ring-2 ring-black/60"
+          [attr.aria-label]="raisedHands() + ' raised hands'">
+          {{ raisedHands() }}
+        </span>
+      }
+    </button>
+  }
+  </div>
+
+  @if (showChat()) {
+    <button type="button" data-control="chat" (click)="toggleChat.emit()" [attr.aria-pressed]="chatOpen()" aria-label="Toggle meeting chat"
+      appTooltip="Chat"
+      class="relative flex shrink-0 items-center justify-center rounded-full transition-colors motion-reduce:transition-none"
+      [ngClass]="[buttonClass(), chatOpen() ? 'bg-brand-bold text-white hover:bg-brand-ink' : 'bg-white/10 text-white hover:bg-white/20']">
+      <ion-icon name="chatbubble-ellipses-outline"></ion-icon>
+      @if (chatUnread() > 0) {
+        <span class="absolute -right-0.5 -top-0.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-[0.625rem] font-bold text-white ring-2 ring-black/60">
+          {{ chatUnread() }}
+        </span>
+      }
+    </button>
+  }
+
+  <!-- Botones extra del anfitrión (grabar, "Turn on video", …) -->
+  <div class="contents" [ngClass]="showMore() ? 'max-sm:hidden' : ''">
+    <ng-content />
+    @if (showDevices()) {
+      <button type="button" data-control="devices" (click)="openDevices.emit()" aria-label="Devices" appTooltip="Devices"
+        class="flex shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 motion-reduce:transition-none"
+        [ngClass]="buttonClass()">
+        <ion-icon name="options-outline"></ion-icon>
+      </button>
+    }
+  </div>
+
+  <!-- F5 (T-57): "More" solo en < sm con los secundarios como ítems de menú -->
+  @if (showMore()) {
+    <app-dropdown-menu ariaLabel="More controls" panelClass="w-56 py-1 text-left" class="sm:hidden">
+      <button menuTrigger type="button" data-control="more" aria-label="More controls" aria-haspopup="menu"
+        class="flex shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 motion-reduce:transition-none"
+        [ngClass]="buttonClass()">
+        <ion-icon name="ellipsis-horizontal"></ion-icon>
+      </button>
+      @if (canShare()) {
+        <button appMenuItem type="button" (click)="onShareClick()">
+          <ion-icon [name]="screenSharing() ? 'stop-circle-outline' : 'desktop-outline'" class="text-base text-gray-400"></ion-icon>
+          {{ screenSharing() ? 'Stop sharing' : 'Share screen' }}
+        </button>
+      }
+      @if (showHand()) {
+        <button appMenuItem type="button" (click)="toggleHand.emit()">
+          <ion-icon name="hand-left-outline" class="text-base text-gray-400"></ion-icon> {{ handRaised() ? 'Lower hand' : 'Raise hand' }}
+        </button>
+      }
+      <ng-content select="[moreItem]" />
+      @if (showDevices()) {
+        <button appMenuItem type="button" (click)="openDevices.emit()">
+          <ion-icon name="options-outline" class="text-base text-gray-400"></ion-icon> Devices
+        </button>
+      }
+    </app-dropdown-menu>
+  }
+
+  @if (showLeave()) {
+    <button type="button" data-control="leave" (click)="leave.emit()" [attr.aria-label]="leaveTitle()" [appTooltip]="leaveTitle()"
+      class="flex shrink-0 items-center justify-center gap-2 rounded-full bg-red-500 font-semibold text-white transition-colors hover:bg-red-600 motion-reduce:transition-none"
+      [ngClass]="leaveLabel() ? [size() === 'sm' ? 'h-10 px-4 text-xs' : size() === 'lg' ? 'h-12 px-5 text-sm' : 'h-11 px-5 text-sm'] : [buttonClass()]">
+      <ion-icon name="call-outline" class="rotate-[135deg]" [class.text-lg]="!!leaveLabel()"></ion-icon>
+      @if (leaveLabel(); as label) {
+        <span>{{ label }}</span>
+      }
+    </button>
+  }
+</div>

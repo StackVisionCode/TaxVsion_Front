@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampMiniPlayerPosition, parseStoredPosition } from './mini-player-position.util';
+import { avoidReservedCorner, clampMiniPlayerPosition, parseStoredPosition } from './mini-player-position.util';
 
 const SIZE = { width: 360, height: 300 };
 const VIEWPORT = { width: 1280, height: 800 };
@@ -33,5 +33,24 @@ describe('parseStoredPosition', () => {
     expect(parseStoredPosition('nope')).toBeNull();
     expect(parseStoredPosition('{"x":"1","y":2}')).toBeNull();
     expect(parseStoredPosition('null')).toBeNull();
+  });
+});
+
+describe('avoidReservedCorner (T-58: overlay de llamada + mini-player)', () => {
+  const OVERLAY = { width: 384, height: 340 };
+
+  it('sin hueco reservado devuelve la posición tal cual', () => {
+    expect(avoidReservedCorner(null, SIZE, VIEWPORT, null)).toBeNull();
+    expect(avoidReservedCorner({ x: 10, y: 10 }, SIZE, VIEWPORT, null)).toEqual({ x: 10, y: 10 });
+  });
+
+  it('la esquina por defecto pisa el overlay: se corre a la izquierda del hueco', () => {
+    const moved = avoidReservedCorner(null, SIZE, VIEWPORT, OVERLAY)!;
+    expect(moved.x + SIZE.width).toBeLessThanOrEqual(VIEWPORT.width - 16 - OVERLAY.width);
+    expect(moved.y).toBe(VIEWPORT.height - SIZE.height - 16);
+  });
+
+  it('una posición arrastrada lejos del overlay no se toca', () => {
+    expect(avoidReservedCorner({ x: 40, y: 40 }, SIZE, VIEWPORT, OVERLAY)).toEqual({ x: 40, y: 40 });
   });
 });

@@ -83,7 +83,8 @@ export class NotificationRouteResolver {
       case 'invoice':
         return { commands: ['/billing'], queryParams: compact({ invoiceId: id }) };
       case 'conversation':
-        return { commands: ['/chat'], queryParams: compact({ conversationId: id }) };
+        // La página de chat lee `?conversation=` (deep link de F8a).
+        return { commands: ['/chat'], queryParams: compact({ conversation: id }) };
       case 'customer_documents':
         return context['customerId']
           ? {

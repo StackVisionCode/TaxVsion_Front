@@ -43,7 +43,14 @@ export const SETTINGS_MODULES: SettingsModule[] = [
   // Firma personal del preparador: su propia superficie, gateada por preparer.manage (no por settings.manage),
   // para que un empleado llegue a sus firmas sin ver la gobernanza del despacho.
   { id: 'my-signature', featureId: 'my-signature', title: 'My signature', description: 'Your personal reusable signatures', icon: 'create-outline', circleClass: 'bg-gray-200 text-gray-700', routerLink: '/settings/my-signature' },
-  { id: 'meetings', featureId: 'meetings', title: 'Meetings', description: 'Video call and scheduling preferences', icon: 'videocam-outline', circleClass: 'bg-gray-200 text-gray-700' },
+  // F9 (D-38): una tarjeta por módulo de Communication, gateadas por `communication.settings.manage` (antes
+  // "Meetings" era un panel muerto visible para quien solo podía unirse a reuniones).
+  { id: 'communication-chat', featureId: 'communication-settings-chat', title: 'Chat', description: 'Who can chat, attachments, editing and message retention', icon: 'chatbubbles-outline', circleClass: 'bg-indigo-100 text-indigo-600', routerLink: '/settings/communication/chat' },
+  { id: 'communication-meetings', featureId: 'communication-settings-meetings', title: 'Meetings', description: 'Length, participants, guests, sounds and audio defaults', icon: 'videocam-outline', circleClass: 'bg-indigo-100 text-brand-bold', routerLink: '/settings/communication/meetings' },
+  { id: 'communication-calls', featureId: 'communication-settings-calls', title: 'Calls', description: 'Audio and video calls, ringing and plan limits', icon: 'call-outline', circleClass: 'bg-indigo-50 text-orange-500', routerLink: '/settings/communication/calls' },
+  { id: 'communication-recording', featureId: 'communication-settings-recording', title: 'Recording & transcript', description: 'Consent, recording length, retention and transcripts', icon: 'radio-button-on-outline', circleClass: 'bg-gray-200 text-gray-700', routerLink: '/settings/communication/recording' },
+  // Preferencias personales de Communication: autoservicio, sin featureId (como Notifications).
+  { id: 'communication-preferences', title: 'Communication preferences', description: 'Your sounds, devices, audio and transcript language', icon: 'headset-outline', circleClass: 'bg-indigo-50 text-orange-500', routerLink: '/settings/communication-preferences' },
   { id: 'ai', featureId: 'ai-assistant', title: 'AI', description: 'Assistant behavior and suggestion tone', icon: 'sparkles-outline', circleClass: 'bg-indigo-100 text-brand-bold' },
   // Conexiones de terceros para la IA: API keys de proveedores, cuentas OAuth y servidores MCP.
   { id: 'connections', featureId: 'ai-assistant', title: 'Connections & MCP', description: 'AI providers, connected accounts and MCP servers', icon: 'extension-puzzle-outline', circleClass: 'bg-indigo-50 text-orange-500', routerLink: '/settings/connections' },

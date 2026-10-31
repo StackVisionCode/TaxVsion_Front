@@ -52,7 +52,7 @@ export interface PublicFormAttachment {
   componentId: string;
   rowId: string | null;
   displayName: string;
-  status: 'Pending' | 'Available' | 'Rejected' | 'Detached';
+  status: 'Pending' | 'Available' | 'Rejected' | 'Detached' | 'UnderReview';
   rejectionCode: string | null;
 }
 

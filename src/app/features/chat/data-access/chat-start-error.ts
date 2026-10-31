@@ -3,6 +3,12 @@
  * `Chat.NotAssignedPreparer`: la oficina limita el chat con clientes al staff asignado a cada uno.
  */
 export function chatStartErrorMessage(code: string, message: string): string {
+  if (code === 'Chat.EmployeeToEmployeeDisabled') {
+    return 'Team chat is turned off by your admin.';
+  }
+  if (code === 'Directory.Unresolved') {
+    return "This person isn't ready to chat yet. Try again in a moment.";
+  }
   if (code === 'Chat.NotAssignedPreparer') {
     return 'You can only chat with clients assigned to you. Ask an admin to assign this client to you.';
   }

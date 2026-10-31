@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   INITIAL_SPEAKER_STATE,
   SpeakerOptions,
+  SpeakingThrottle,
   isSpeakingNow,
+  levelBars,
   pickMiniPlayerTiles,
   stepActiveSpeaker,
 } from './active-speaker.util';
@@ -87,5 +89,49 @@ describe('pickMiniPlayerTiles', () => {
     const tiles = pickMiniPlayerTiles(['a', 'b', 'c', 'd', 'e'], 'a', null, 4);
     expect(tiles.thumbs).toEqual(['b', 'c', 'd', 'e']);
     expect(tiles.overflow).toBe(0);
+  });
+});
+
+describe('levelBars', () => {
+  it('cuantiza el RMS a 0–3 barras con el umbral de voz', () => {
+    expect(levelBars(0.01, 0.04)).toBe(0);
+    expect(levelBars(0.04, 0.04)).toBe(1);
+    expect(levelBars(0.12, 0.04)).toBe(2);
+    expect(levelBars(0.3, 0.04)).toBe(3);
+  });
+});
+
+describe('SpeakingThrottle (T-69)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('emite hasta maxPerSecond por segundo y luego solo el ÚLTIMO estado cuando se libera la ventana', () => {
+    vi.useFakeTimers();
+    let now = 10_000;
+    const sent: boolean[] = [];
+    const throttle = new SpeakingThrottle(2, v => sent.push(v), () => now);
+    throttle.push(true);
+    now += 100;
+    throttle.push(false);
+    now += 100;
+    throttle.push(true); // ventana llena: se guarda
+    now += 50;
+    throttle.push(false); // pisa al pendiente
+    expect(sent).toEqual([true, false]);
+
+    now += 800; // la primera emisión (t=10000) caduca a t=11000
+    vi.advanceTimersByTime(800);
+    expect(sent).toEqual([true, false, false]);
+    throttle.dispose();
+  });
+
+  it('con la ventana libre emite al instante; dispose descarta lo pendiente', () => {
+    vi.useFakeTimers();
+    const sent: boolean[] = [];
+    const throttle = new SpeakingThrottle(1, v => sent.push(v), () => 0);
+    throttle.push(true);
+    throttle.push(false);
+    throttle.dispose();
+    vi.advanceTimersByTime(2000);
+    expect(sent).toEqual([true]);
   });
 });

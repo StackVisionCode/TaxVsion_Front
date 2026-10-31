@@ -128,10 +128,20 @@ Servicios  (src/app/shared/services y src/app/core)
   core/errors + toApiError(err).message .... mensajes de error legibles.
   core/access (AccessStore, guards) ........ permisos y módulos del plan.
   core/communication/meeting-mini-player ... al salir de /meetings la reunión
-      se minimiza abajo a la derecha (en el shell, con @defer). Es el ÚNICO
-      dueño del audio remoto de la reunión: no agregar otros <audio> de
-      participantes. MeetingSessionState es el estado mínimo que lee el shell
-      sin cargar ActiveMeetingService.
+      se minimiza abajo a la derecha (en el shell, con @defer). Monta el
+      audio remoto (app-meeting-remote-audio). MeetingSessionState es el estado
+      mínimo que lee el shell sin cargar ActiveMeetingService.
+  core/communication/ui/remote-audio ........ <app-meeting-remote-audio />: ÚNICA salida del
+      audio remoto de la reunión (micrófonos + pantallas, setSinkId). Una sola instancia
+      montada a la vez: el mini-player en el shell, o la página pública /meet/:token.
+      No agregar otros <audio> de participantes.
+  core/communication/ui/participant-tile ... tile ÚNICO de participante de meetings
+      (galería, filmstrip, spotlight, mini-player principal y miniaturas; size xl|md|sm;
+      overlays, medidor, mano, reacción y menú de host). NO crear otros tiles de video.
+  core/communication/ui/participants-panel .. drawer "Participants" (cola de manos, lista, espera).
+  core/communication/ui/reaction-picker ..... picker de reacciones (catálogo de la política), con @defer.
+  core/communication/meeting-pip.service .... "Pop out" (Document PiP → PiP de video → nada); el
+      mini-player registra su panel; preferencia auto-PiP en Devices.
 
 
 -------------------------------------------------------------------------------

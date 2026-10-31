@@ -43,6 +43,10 @@ export class ToastHostComponent {
     }
   }
 
+  runAction(id: number): void {
+    this.toastService.runAction(id);
+  }
+
   dismiss(id: number): void {
     this.toastService.dismiss(id);
   }

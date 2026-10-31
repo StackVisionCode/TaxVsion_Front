@@ -76,6 +76,19 @@
         {{ isEditMode() ? 'Clear both fields to convert it into an instant meeting.' : 'Leave both empty to create an instant meeting.' }}
       </p>
 
+      <!-- D-35 (revisada): la duración elegida es la real; la reunión termina ahí (sin "Extend", D-34) -->
+      <label *ngIf="!isEditMode() && limits()" class="flex items-center justify-between gap-3">
+        <span class="flex flex-col">
+          <span class="text-sm font-medium text-gray-800">Duration</span>
+          <span class="text-xs text-gray-400">The meeting ends automatically when this time is up.</span>
+        </span>
+        <select [ngModel]="scheduledDurationMinutes()" (ngModelChange)="setDuration($event)" name="scheduledDurationMinutes"
+          aria-label="Duration"
+          class="h-10 shrink-0 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none">
+          <option *ngFor="let minutes of durationOptions()" [ngValue]="minutes">{{ minutes }} min</option>
+        </select>
+      </label>
+
       <!-- Descripción: el listado no la devuelve, solo tiene sentido al crear -->
       <textarea *ngIf="!isEditMode()" rows="3" placeholder="Description (optional)" [ngModel]="description()"
         (ngModelChange)="description.set($event)"
@@ -226,9 +239,9 @@
               </div>
               <div class="flex shrink-0 items-center gap-2">
                 <app-status-pill [tone]="invitationTone(invitation)" size="xs" [dot]="false">
-                  {{ invitationState(invitation) | titlecase }}
+                  {{ invitationStateLabel(invitation) }}
                 </app-status-pill>
-                <button *ngIf="invitationState(invitation) === 'active'" type="button"
+                <button *ngIf="canRevoke(invitation)" type="button"
                   (click)="revokeInvitation(invitation)" [disabled]="invitationsBusy()"
                   class="text-xs font-medium text-red-400 hover:text-red-600 disabled:opacity-50 transition-colors">
                   Revoke

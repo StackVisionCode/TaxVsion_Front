@@ -13,7 +13,9 @@ import {
   ClientRequestItem,
   requestStatusChipClass,
   requestStatusLabel,
+  documentStatusLabel,
 } from '../../data-access/client-requests.model';
+import { FILE_UNDER_REVIEW_HINT } from '@shared/utils/file-moderation';
 
 /** Permiso de gestión de client-requests (BuildingBlocks.Authorization.TasksPermissions). */
 const CLIENT_REQUESTS_MANAGE = 'tasks.client_requests.manage';
@@ -83,6 +85,9 @@ export class ClientProfileRequestsComponent implements OnChanges {
   dismissActionError(): void {
     this.store.clearActionError();
   }
+
+  readonly documentStatus = documentStatusLabel;
+  readonly underReviewHint = FILE_UNDER_REVIEW_HINT;
 
   documentSize(bytes: number): string {
     return formatBytes(bytes);

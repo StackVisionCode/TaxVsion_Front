@@ -21,11 +21,16 @@ import { StateBlockComponent } from '@shared/ui/state-block/state-block.componen
 import { LoadMoreComponent } from '@shared/ui/load-more/load-more.component';
 import { MeetingListComponent } from '../../ui/meeting-list/meeting-list.component';
 import { MeetingSchedulePanelComponent } from '../../ui/meeting-schedule-panel/meeting-schedule-panel.component';
-import { MeetingRoomComponent } from '../../ui/meeting-room/meeting-room.component';
+import { MeetingInvitePanelComponent } from '../../ui/meeting-invite-panel/meeting-invite-panel.component';
+import { MeetingDetailsPanelComponent } from '../../ui/meeting-details-panel/meeting-details-panel.component';
+import { MeetingLobbyTarget, MeetingRoomComponent } from '../../ui/meeting-room/meeting-room.component';
 import { ActiveMeetingService } from '@core/communication/active-meeting.service';
+import { ActiveCallService } from '@core/communication/active-call.service';
+import { MeetingSessionState } from '@core/communication/meeting-session-state';
 import { MeetingCreationOutcome, MeetingsStore } from '../../data-access/meetings.store';
 import { MeetingFormValue, MeetingInviteeDraft, MeetingItem, MeetingsScope } from '../../data-access/meeting.model';
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import { RecordingViewerComponent } from '@core/communication/ui/recording-viewer/recording-viewer.component';
 import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 
 /**
@@ -43,6 +48,10 @@ import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
  * perfil del cliente. El store filtra por ese cliente, no se leen query params y "Schedule meeting"
  * abre el panel con el cliente ya invitado. La sala en vivo se renderiza igual que en /meetings
  * (la sala marca `roomViewAttached` y el mini-player global se oculta mientras está montada).
+ *
+ * F6: panel "Invite" de la sala (`app-meeting-invite-panel`, abierto por `inviteRequested` de la sala o
+ * por `MeetingSessionState.invitePanelRequested` desde el mini-player) y deep link `?join={meetingId}`
+ * (toasts "invited you to a meeting in progress" / recordatorio): lobby si está Live, panel si no empezó.
  */
 @Component({
   selector: 'app-meetings-page',
@@ -50,12 +59,15 @@ import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
     CommonModule,
     MeetingListComponent,
     MeetingSchedulePanelComponent,
+    MeetingInvitePanelComponent,
+    MeetingDetailsPanelComponent,
     MeetingRoomComponent,
     FilterChipsComponent,
     SearchInputComponent,
     StateBlockComponent,
     LoadMoreComponent,
     FileViewerComponent,
+    RecordingViewerComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meetings-page.component.html',
@@ -63,6 +75,7 @@ import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 export class MeetingsPageComponent implements OnInit {
   readonly store = inject(MeetingsStore);
   private readonly activeMeeting = inject(ActiveMeetingService);
+  private readonly activeCall = inject(ActiveCallService);
   private readonly toast = inject(ToastService);
   private readonly clipboard = inject(ClipboardService);
   private readonly route = inject(ActivatedRoute);
@@ -106,7 +119,7 @@ export class MeetingsPageComponent implements OnInit {
     if (meeting) {
       untracked(() => {
         this.activeTab.set(upcoming ? 'upcoming' : 'past');
-        this.openManagePanel(meeting);
+        this.openFromLink(meeting);
         this.pendingMeetingId.set(null);
       });
       return;
@@ -129,12 +142,77 @@ export class MeetingsPageComponent implements OnInit {
    * sacaron o el join falló) se oculta y volvemos a la lista — el template de la sala no tiene rama
    * 'idle' (antes quedaba una tarjeta en BLANCO que obligaba a refrescar).
    */
-  readonly showRoom = computed(() => this.activeMeeting.phase() !== 'idle');
+  readonly showRoom = computed(() => this.activeMeeting.phase() !== 'idle' || this.pendingJoin() !== null);
+  /** F4 (D-45): reunión elegida en la agenda; la sala muestra el lobby (pre-join) hasta que entre o cancele. */
+  readonly pendingJoin = signal<MeetingLobbyTarget | null>(null);
+
+  // ---------- F6: panel Invite de la sala ----------
+  private readonly session = inject(MeetingSessionState);
+  readonly inviteOpen = signal(false);
+  readonly activeMeetingId = this.activeMeeting.meetingId;
+  /** Código corto de la reunión activa (la sala no lo conoce; sale de la agenda cargada). */
+  readonly activeShortCode = computed(() => {
+    const id = this.activeMeetingId();
+    return id ? ([...this.store.upcoming(), ...this.store.past()].find(m => m.id === id)?.shortCode ?? null) : null;
+  });
+  /** El mini-player pidió "Invite": con la sala montada se abre el panel y se consume el flag. */
+  private readonly invitePanelRequestEffect = effect(() => {
+    if (this.session.invitePanelRequested() && this.activeMeeting.phase() === 'joined') {
+      untracked(() => {
+        this.session.invitePanelRequested.set(false);
+        this.inviteOpen.set(true);
+      });
+    }
+  });
+
+  openInvitePanel(): void {
+    if (this.activeMeetingId()) {
+      this.inviteOpen.set(true);
+    }
+  }
 
   ngOnInit(): void {
     this.store.bindRealtime();
     this.store.loadScope('upcoming');
   }
+
+  // ---------- F6: deep link ?join={meetingId} (toasts "Join") ----------
+  private consumedJoinId: string | null = null;
+  private readonly pendingJoinId = signal<string | null>(null);
+  private readonly joinDeepLinkEffect = effect(() => {
+    if (this.embedded()) return;
+    const meetingId = this.routeParams().get('join');
+    if (!meetingId || this.consumedJoinId === meetingId) return;
+    this.consumedJoinId = meetingId;
+    untracked(() => {
+      void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
+      this.pendingJoinId.set(meetingId);
+      this.store.loadScope('upcoming');
+    });
+  });
+  private readonly joinResolveEffect = effect(() => {
+    const meetingId = this.pendingJoinId();
+    if (!meetingId) return;
+    const meeting = this.store.upcoming().find(m => m.id === meetingId);
+    if (meeting) {
+      untracked(() => {
+        this.pendingJoinId.set(null);
+        if (meeting.apiStatus === 'Live') {
+          this.joinMeeting(meeting);
+        } else {
+          if (meeting.isHost) this.openManagePanel(meeting);
+          this.toast.info("This meeting hasn't started yet.");
+        }
+      });
+      return;
+    }
+    if (this.store.isScopeLoaded('upcoming') && !this.store.loading()) {
+      untracked(() => {
+        this.pendingJoinId.set(null);
+        this.toast.info('This meeting is no longer available.');
+      });
+    }
+  });
 
   /** Deep links reactivos: estando ya en /meetings, abrir otra notificacion de meeting
    *  cambia los queryParams pero no vuelve a disparar ngOnInit. */
@@ -243,6 +321,27 @@ export class MeetingsPageComponent implements OnInit {
     this.isPanelOpen.set(true);
   }
 
+  /** Ficha de una reunión que ya se hizo (fila de Past o enlace de una notificación). */
+  readonly detailsMeeting = signal<MeetingItem | null>(null);
+
+  openDetails(meeting: MeetingItem): void {
+    this.detailsMeeting.set(meeting);
+  }
+
+  /**
+   * Enlace `?meetingId=` (notificaciones de invitación y de grabación): si ya empezó o terminó se abre
+   * su ficha; si está agendada, "Manage" solo para el host (los demás no pueden re-agendar).
+   */
+  private openFromLink(meeting: MeetingItem): void {
+    if (meeting.startedAt) {
+      this.openDetails(meeting);
+    } else if (meeting.isHost && meeting.status === 'upcoming') {
+      this.openManagePanel(meeting);
+    } else {
+      this.toast.info("This meeting hasn't started yet.");
+    }
+  }
+
   openManagePanel(meeting: MeetingItem): void {
     this.managingMeeting.set(meeting);
     this.panelError.set(null);
@@ -275,7 +374,12 @@ export class MeetingsPageComponent implements OnInit {
       },
       error: err => {
         this.panelBusy.set(false);
-        this.panelError.set(toApiError(err).message);
+        const apiError = toApiError(err);
+        this.panelError.set(apiError.message);
+        // F3: límites de la oficina/plan (duración por encima del máximo, tamaño de reunión) también en toast.
+        if (apiError.code === 'Meeting.InvalidDuration' || apiError.code === 'Plan.MeetingSizeExceeded') {
+          this.toast.error(apiError.message);
+        }
       },
     });
   }
@@ -314,15 +418,30 @@ export class MeetingsPageComponent implements OnInit {
     this.runRowAction(meeting, this.store.cancelMeeting(meeting.id), 'Meeting cancelled');
   }
 
-  /** Entra a la sala real (Socket.IO): solo meetings Live. El ActiveMeetingService maneja el join/espera. */
+  /**
+   * Entra a la sala real (Socket.IO): solo meetings Live. Primero el lobby (vista previa, dispositivos,
+   * join muted / camera off); el lobby llama a `ActiveMeetingService.join`. T-58: con una llamada en
+   * curso no hay lobby: `join()` avisa con "Leave and join" sin capturar nada.
+   */
   joinMeeting(meeting: MeetingItem): void {
-    void this.activeMeeting.join(meeting.id, meeting.title);
+    if (this.activeCall.phase() !== 'idle') {
+      void this.activeMeeting.join(meeting.id, meeting.title);
+      return;
+    }
+    this.pendingJoin.set({ meetingId: meeting.id, title: meeting.title });
   }
 
   copyCode(meeting: MeetingItem): void {
     void this.clipboard.copy(meeting.shortCode).then(copied =>
       copied ? this.toast.success(`Code ${meeting.shortCode} copied`) : this.toast.error('Could not copy the code'),
     );
+  }
+
+  /** F7 — reunión cuya grabación se está viendo (null = cerrado). */
+  readonly recordingTarget = signal<MeetingItem | null>(null);
+
+  viewRecording(meeting: MeetingItem): void {
+    this.recordingTarget.set(meeting);
   }
 
   /** Visor global del transcript (antes se abría en otra pestaña). */

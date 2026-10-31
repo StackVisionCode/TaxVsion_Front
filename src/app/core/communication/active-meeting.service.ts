@@ -1,24 +1,95 @@
+import { applyReaction, hasMyReaction, reactionErrorText } from '@shared/ui/chat/message-reactions/reaction-summary';
+import { toAttachmentScanState, type AttachmentScanState, type MessageReactionSummary } from '@shared/ui/chat/chat-message.model';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { firstValueFrom, map, switchMap } from 'rxjs';
+import { firstValueFrom, from } from 'rxjs';
 import { AuthService } from '@core/auth/auth.service';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { toApiError } from '@core/models/api-error.model';
 import { SOCKET_RATE_LIMITED_MESSAGE, isSocketRateLimited, socketErrorCode } from '@core/errors/throttling';
-import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
-import { InitiateUploadRequest } from '@core/cloud-storage/cloud-storage.model';
 import { MeetingChatMessageDto } from './meeting.model';
+import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { ConversationAttachmentsService } from './conversation-attachments.service';
+import { formatBytes } from '@core/cloud-storage/cloud-storage.model';
+import { editErrorMessage, type ChatEditPolicy } from '@shared/ui/chat/message-edit';
+import { meetingChatErrorMessage } from './meeting-chat-errors';
 import { MeetingRtcService } from './meeting-rtc.service';
-import { MeetingSfuService } from './meeting-sfu.service';
+import { MeetingSfuService, SfuProducerKey } from './meeting-sfu.service';
 import { CallsService } from './calls.service';
-import { CallRecordingService } from './call-recording.service';
-import { MeetingSoundsService } from './meeting-sounds.service';
+import { ActiveCallService } from './active-call.service';
 import { IceServer } from './call.model';
-import { MeetingParticipantDto, MeetingRecordingState, MeetingRole, MeetingSnapshotDto, MeetingStrategy } from './meeting.model';
+import {
+  MeetingDurationWarningDto,
+  MeetingEndReason,
+  MeetingParticipantDto,
+  MeetingRecordingState,
+  MeetingRecordingStateChangedDto,
+  MeetingRole,
+  MeetingSnapshotDto,
+  MeetingStrategy,
+  MeetingYouRemovedReason,
+} from './meeting.model';
 
 import { ActiveMeetingPhase, MeetingSessionState } from './meeting-session-state';
-import { applyProfileChangeToRoster, mergeMeetingParticipant, mergeMeetingRoster } from './meeting-participants.util';
+import { applyProfileChangeToRoster, mergeMeetingParticipant, mergeMeetingRoster, sortRaisedHands } from './meeting-participants.util';
+import {
+  MeetingReaction,
+  addReaction,
+  handErrorMessage,
+  latestReactionByUser,
+  pruneReactions,
+  reactionErrorMessage,
+  receivedAtMs,
+} from './meeting-reactions.util';
+import { SpeakingThrottle } from './active-speaker.util';
+import { MediaLinkState, aggregateMediaState } from './ice-recovery-policy';
+import {
+  MS_PER_SECOND,
+  formatClock,
+  hostActionErrorMessage,
+  meetingEndedMessage,
+  remainingSecondsAt,
+  youRemovedMessage,
+} from './meeting-clock.util';
+import { SessionTeardownRegistry } from '@core/auth/session-teardown';
+import { MediaPolicyService } from './media/media-policy.service';
+import { ConnectionQuality, MediaPolicyDto } from './media/media-policy.model';
+import { LocalMediaSessionFactory } from './media/local-media-session.factory';
+import { LocalMediaSession, LocalTrackSource, MuteReason } from './media/local-media-session';
+import { MediaAccessError } from './media/media-errors';
+import { PeerConnectionFactory, PeerLink, PeerSignalKind } from './media/peer-connection-factory';
+import { QualityMonitor } from './media/quality-monitor';
+import { QualityMetrics } from './media/derive-quality';
+import { EchoDetector } from './media/echo-detector';
+import { ClientRecordingSession, RecordingUploadService } from './media/client-recording-session';
+import { SoundsService } from './media/sounds.service';
+import {
+  RecordingCaptureMode,
+  RecordingClock,
+  isRecordingProcessing,
+  recordingLimitWarningMessage,
+  recordingStartErrorMessage,
+  recordingStateNotice,
+  usesClientCapture,
+} from './recording-status';
+
+/** Fases en las que seguimos "dentro" para el servidor (hay una room que abandonar). */
+const IN_MEETING_PHASES: readonly ActiveMeetingPhase[] = ['joining', 'waiting', 'passcode', 'joined'];
+const CLOCK_TICK_MS = MS_PER_SECOND;
+/** Cada cuánto avanza el cronómetro "REC 0:12". */
+const RECORDING_TICK_MS = 250;
+/** Mesh con esta cantidad de participantes (incluido yo) o más → perfil de cámara reducido (`meshCamera`). */
+const MESH_REDUCED_PROFILE_FROM = 3;
+/** Copy del aviso de eco (D-51). */
+const ECHO_NOTICE = "We're detecting echo from your side. Use headphones or lower your speaker volume.";
+/** Capa espacial completa del simulcast de cámara (0 = ¼, 1 = ½, 2 = completa). */
+const TOP_SPATIAL_LAYER = 2;
+/** Cada cuánto se barren las reacciones vencidas (la duración la da la política). */
+const REACTION_SWEEP_MS = 250;
+
+/** F5 — acciones de host que ofrece el menú del tile y el panel de participantes. */
+export type MeetingHostTileAction = 'promote' | 'demote' | 'makeHost' | 'lowerHand' | 'remove' | 'admit' | 'deny';
 
 // Re-export: el tipo vive en meeting-session-state (liviano, usado por el shell).
 export type { ActiveMeetingPhase };
@@ -30,13 +101,25 @@ export interface MeetingChatMessage {
   text: string;
   time: string;
   isMine: boolean;
+  /** F8a: lo que necesita el hilo compartido (T-11) de la sala. */
+  senderUserId: string;
+  createdAtUtc: string;
+  isEdited: boolean;
+  editCount: number;
+  isDeleted: boolean;
+  /** Sin `status` = disponible; `Pending` = aún subiendo o escaneando; T-20: en revisión o bloqueado. */
+  attachment?: { fileId: string; name: string; size: string; status?: AttachmentScanState; contentType?: string | null };
+  /** Mensaje propio que todavía se está enviando (marcador local hasta que vuelve el real). */
+  sending?: boolean;
+  /** F8d (T-26): reacciones del mensaje. */
+  reactions?: MessageReactionSummary[];
 }
 
 /**
- * Un peer remoto con DOS streams separados: cámara y pantalla. Un participante puede enviar ambos a la
- * vez (Zoom-style), así que se mantienen aparte para pintar la cámara en su tile y la pantalla en el
- * escenario. `screenStream` puede estar "vacío" (placeholder negro) mientras el peer no comparte; la UI
- * lo muestra solo cuando su flag `screenSharing` está activo.
+ * Un peer remoto con DOS streams separados: cámara (+ su audio) y pantalla (+ su audio). Un
+ * participante puede enviar ambos a la vez, así que se mantienen aparte para pintar la cámara en su
+ * tile y la pantalla en el escenario. `screenStream` puede estar "vacío" (placeholder) mientras el
+ * peer no comparte; la UI lo muestra solo cuando su flag `screenSharing` está activo.
  */
 export interface MeetingPeer {
   userId: string;
@@ -44,49 +127,46 @@ export interface MeetingPeer {
   screenStream: MediaStream;
 }
 
-/**
- * Estado de negociación por peer (perfect negotiation, patrón MDN). NO se bufferean candidatos a mano:
- * el `RTCPeerConnection` ya encola `addIceCandidate` detrás de `setRemoteDescription`; bufferear a mano
- * rompía el ICE con glare (`Unknown ufrag`). `cameraSender`/`screenSender` son DOS senders de video
- * PERSISTENTES (dos m-lines pre-creados) para prender/apagar cámara y compartir pantalla SIMULTÁNEAS vía
- * `replaceTrack` sin renegociar (y apagar la cámara físicamente).
- */
+/** Opciones de entrada (lobby): si faltan, mandan las preferencias del usuario (`joinMuted`/`joinCameraOff`). */
+export interface MeetingJoinMediaOptions {
+  audio?: boolean;
+  video?: boolean;
+}
+
+/** Enlace mesh con un peer + el joinOrder con el que se armó (para detectar un RE-JOIN y rearmar). */
 interface PeerConn {
-  pc: RTCPeerConnection;
-  isPolite: boolean;
-  /** joinOrder del participante con el que se armó este PC — para detectar un RE-JOIN (joinOrder nuevo)
-   * y recrear el PC stale en vez de reusarlo (idempotencia auto-sanadora en `connectToPeer`). */
+  link: PeerLink;
   joinOrder: number | undefined;
-  makingOffer: boolean;
-  ignoreOffer: boolean;
-  isSettingRemoteAnswerPending: boolean;
-  /** Sender de la CÁMARA (m-line de video pre-creado; replaceTrack para prender/apagar sin renegociar). */
-  cameraSender: RTCRtpSender | null;
-  /** Sender de la PANTALLA (2º m-line de video pre-creado; replaceTrack para compartir sin renegociar). */
-  screenSender: RTCRtpSender | null;
 }
 
 /**
- * Estado de la sesión de meeting activa. 3A: join, sala de espera, snapshot y el gate
- * de SFU — SIN media todavía (el mesh WebRTC llega en 3B). El backend usa `strategy:'Sfu'`
- * para meetings >4 participantes (mediasoup); el CRM no lo soporta aún, así que se muestra
- * `phase='unsupported'` con un mensaje claro en vez de intentar mesh o pantalla negra.
+ * Orquestador de la sesión de meeting activa: join / sala de espera / passcode, snapshot, roster y
+ * rol reactivo (F3), reloj y fin, chat, grabación con consentimiento, host actions, mesh (perfect
+ * negotiation por peer) o SFU según `strategy`, y ciclo de vida de la pestaña.
  *
- * Corrige dos cosas del ActiveMeetingService del Portal (que estaba desactualizado): usa el
- * contrato real de `participant.changed` (anida `participant` con `status`) y sí gatea `strategy`.
+ * F4: NO toca media ni RTCPeerConnection directamente. La captura vive en `LocalMediaSession`, cada
+ * enlace mesh en `PeerLink` (fábrica), el SFU en `MeetingSfuService` (encodings de la política), la
+ * calidad en `QualityMonitor` (T-48, D-39) con modo solo audio automático (D-40), el eco en
+ * `EchoDetector`, los sonidos en `SoundsService` (T-70) y la grabación en `ClientRecordingSession`.
+ * T-58: con una llamada 1:1 en curso, `join()` no entra: toast "You're already in a call" con "Leave and join".
  */
 @Injectable({ providedIn: 'root' })
 export class ActiveMeetingService {
   private readonly rtc = inject(MeetingRtcService);
   private readonly auth = inject(AuthService);
   private readonly calls = inject(CallsService);
+  private readonly activeCall = inject(ActiveCallService);
   private readonly toast = inject(ToastService);
-  private readonly recording = inject(CallRecordingService);
-  private readonly cloudStorage = inject(CloudStorageUploadService);
   private readonly sfu = inject(MeetingSfuService);
-  private readonly sounds = inject(MeetingSoundsService);
+  private readonly sounds = inject(SoundsService);
   private readonly http = inject(HttpClient);
+  private readonly cloudStorage = inject(CloudStorageUploadService);
+  private readonly conversationAttachments = inject(ConversationAttachmentsService);
   private readonly api = inject(ApiConfigService);
+  private readonly mediaPolicy = inject(MediaPolicyService);
+  private readonly sessionFactory = inject(LocalMediaSessionFactory);
+  private readonly peerFactory = inject(PeerConnectionFactory);
+  private readonly recordingUpload = inject(RecordingUploadService);
 
   /** Fase de la sesión. El signal vive en `MeetingSessionState` para que el shell lo lea sin este servicio. */
   readonly phase = inject(MeetingSessionState).phase;
@@ -94,52 +174,147 @@ export class ActiveMeetingService {
   readonly meetingTitle = signal<string>('');
   readonly conversationId = signal<string | null>(null);
   readonly participants = signal<MeetingParticipantDto[]>([]);
+  /**
+   * F3 — rol propio REACTIVO: lo fija el snapshot y lo actualiza cada `participant.changed` con mi
+   * userId y `meeting.host.changed`. El `state.changed` posterior NO lo toca (trae `hostUserId`, no mi rol).
+   */
   readonly yourRole = signal<MeetingRole>('Attendee');
+  readonly hostUserId = signal<string | null>(null);
   readonly strategy = signal<MeetingStrategy>('Mesh');
   readonly isLocked = signal(false);
   readonly errorMessage = signal<string | null>(null);
   readonly myUserId = signal<string | null>(null);
+  /**
+   * F6 (D-47) — entré como INVITADO EXTERNO (`joinAsGuest`): sin JWT, userId = invitationId, sin
+   * acciones de host ni grabación, chat solo texto; el ICE viene en el ack del join (no hay `GET /webrtc/ice`).
+   */
+  readonly isGuest = signal(false);
+  private guestInvitationId: string | null = null;
+  /** Último nombre con el que el roster me mostró: el tile "You" lo conserva aunque mi fila ya no esté (expulsión). */
+  private readonly lastSelfDisplayName = signal<string | null>(null);
+  /** F6 — motivo del último `meeting.you.removed` (p. ej. `Revoked` al guest); null hasta que ocurre. Se limpia al entrar. */
+  readonly removedReason = signal<MeetingYouRemovedReason | null>(null);
 
-  // ---------- Media (mesh) ----------
+  // ---------- F3: reloj y fin ----------
+  /** Corte real según el servidor (ISO); null = sin tope → no se muestra restante. */
+  readonly endsAtUtc = signal<string | null>(null);
+  readonly maxDurationMinutes = signal<number | null>(null);
+  readonly scheduledDurationMinutes = signal<number | null>(null);
+  /** Motivo con el que terminó (del `state.changed`/`meeting.ended`); null mientras está viva o si no terminó por el sistema. */
+  readonly endReason = signal<MeetingEndReason | 'Expired' | null>(null);
+  /** true cuando la reunión TERMINÓ (fin por host/sistema), no cuando me denegaron/sacaron o se canceló. */
+  readonly meetingEnded = signal(false);
+  /** Último aviso de tiempo (`meeting.duration.warning`); persiste hasta el siguiente umbral. */
+  readonly durationWarning = signal<MeetingDurationWarningDto | null>(null);
+  /** Reloj local que avanza 1/s mientras estoy dentro; el restante se calcula contra el reloj del servidor (T-41). También da el "raised 2m ago" de las manos. */
+  readonly nowMs = signal(Date.now());
+  private clockTimer: ReturnType<typeof setInterval> | null = null;
+  private joinedAtMs: number | null = null;
+  readonly remainingSeconds = computed(() => remainingSecondsAt(this.endsAtUtc(), this.nowMs(), this.rtc.serverOffsetMs()));
+  /** Transcurrido: desde el inicio real (tope − restante) o, sin tope, desde que entré. */
+  readonly elapsedSeconds = computed(() => {
+    const remaining = this.remainingSeconds();
+    const max = this.maxDurationMinutes();
+    if (remaining !== null && max !== null) {
+      return Math.max(0, max * 60 - remaining);
+    }
+    return this.joinedAtMs === null ? 0 : Math.max(0, Math.floor((this.nowMs() - this.joinedAtMs) / MS_PER_SECOND));
+  });
+  /** "12:05 / 47:55" (transcurrido / restante) o solo "12:05" sin tope. */
+  readonly clockLabel = computed(() => {
+    const remaining = this.remainingSeconds();
+    const elapsed = formatClock(this.elapsedSeconds());
+    return remaining === null ? elapsed : `${elapsed} / ${formatClock(remaining)}`;
+  });
+  /** Título de la pantalla de fin: el motivo del servidor si terminó, o el aviso (denegado/removido/cancelado). */
+  readonly endedTitle = computed(() =>
+    this.meetingEnded() ? meetingEndedMessage(this.endReason()) : (this.errorMessage() ?? 'The meeting has ended'),
+  );
+  /**
+   * F1 — estado del enlace de media (mesh: peor peer; SFU: peor transport). La sala muestra
+   * "Reconnecting…" o "Media connection failed" + Retry.
+   */
+  readonly mediaState = signal<MediaLinkState>('ok');
+  /** Esta pestaña compartía pantalla antes de un re-join completo (recarga): ofrecer "Resume sharing". */
+  readonly screenShareInterrupted = signal(false);
+
+  // ---------- Media (espejo de la sesión local) ----------
   readonly localStream = signal<MediaStream | null>(null);
   /** Mi pantalla mientras comparto (separada de la cámara), para el escenario local. */
   readonly localScreenStream = signal<MediaStream | null>(null);
   readonly audioEnabled = signal(true);
   readonly videoEnabled = signal(true);
   readonly handRaised = signal(false);
+  /** F5 — cuándo levanté la mano (lo fija el ack del servidor); null = baja. */
+  readonly handRaisedAtUtc = signal<string | null>(null);
   readonly screenSharing = signal(false);
+  /** Comparto también el audio de la pantalla (D-41). */
+  readonly screenAudioSharing = signal(false);
+  /** Motivo de la restricción vigente (mute por eco/host, video pausado por red); null = ninguna. */
+  readonly muteReason = signal<MuteReason | null>(null);
+  readonly videoPausedByNetwork = signal(false);
+  /** El micrófono no se pudo capturar al entrar (sin dispositivo / bloqueado): "No microphone" en los controles. */
+  readonly microphoneError = signal<MediaAccessError | null>(null);
+  /** Calidad de conexión propia (D-39) y sus cifras (solo staff las ve). */
+  readonly connectionQuality = signal<ConnectionQuality | null>(null);
+  readonly connectionMetrics = signal<QualityMetrics | null>(null);
   /** Peers remotos y sus streams, por userId. */
   readonly peers = signal<Map<string, MeetingPeer>>(new Map());
 
   /** Chat del meeting (live-only en este slice: mensajes desde que entraste). */
   readonly chatMessages = signal<MeetingChatMessage[]>([]);
+  /** Mensajes ajenos llegados con el chat cerrado (badge de la sala y del mini-player). `markChatRead()` lo limpia. */
+  readonly chatUnread = signal(0);
+  /** F8 (D-64): ventana de edición del chat de la sala (llega con el historial). */
+  readonly chatEditPolicy = signal<ChatEditPolicy | null>(null);
+  /** F8a: subiendo un adjunto al chat de la sala. */
+  readonly chatUploading = signal(false);
+
+  // ---------- F5: reacciones (D-50) ----------
+  /** Burbujas vivas (se barren al vencer `reactions.durationSeconds`). Nunca van al historial del chat. */
+  readonly reactions = signal<readonly MeetingReaction[]>([]);
+  /** Última reacción por participante (burbuja sobre su tile). */
+  readonly reactionByUser = computed(() => latestReactionByUser(this.reactions()));
+  /** Texto para la región `aria-live` ("Ana reacted 👍"). */
+  readonly reactionAnnouncement = signal('');
+  readonly reactionsPolicy = computed(() => this.mediaPolicy.policy()?.reactions ?? null);
+  /** Oculto si la política las apaga (o el backend aún no la expone). */
+  readonly reactionsEnabled = computed(() => this.reactionsPolicy()?.enabled === true);
+  private reactionSeq = 0;
+  private reactionSweep: ReturnType<typeof setInterval> | null = null;
 
   // ---------- Grabación ----------
   readonly recordingState = signal<MeetingRecordingState>('Idle');
+  /** F7 — `Server` (el recorder captura del SFU) o `Client` (mezcla local); null hasta el primer estado. */
+  readonly recordingCaptureMode = signal<RecordingCaptureMode | null>(null);
+  /** Reloj del badge REC contra el reloj del servidor (`startedAtUtc`), con restante si hay tope. */
+  private readonly recordingClock = new RecordingClock(() => this.rtc.serverOffsetMs(), RECORDING_TICK_MS);
   /** Tiempo transcurrido de la grabación en curso (ms) para mostrar "REC 0:12" junto al badge. */
-  readonly recordingElapsedMs = signal(0);
-  readonly recordingElapsedLabel = computed(() => {
-    const s = Math.floor(this.recordingElapsedMs() / 1000);
-    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  });
-  private recordingTimer: ReturnType<typeof setInterval> | null = null;
-  private recordingStartedAt = 0;
+  readonly recordingElapsedMs = this.recordingClock.elapsedMs;
+  readonly recordingElapsedLabel = this.recordingClock.elapsedLabel;
+  /** F7 — restante hasta el tope de la grabación ("4:37"); null sin tope. */
+  readonly recordingRemainingLabel = this.recordingClock.remainingLabel;
+  /** F7 — terminó de grabar y el servidor la compone/procesa ("Processing recording…"). */
+  readonly recordingProcessing = computed(() => isRecordingProcessing(this.recordingState()));
   /** userId del que pidió grabar cuando ME toca responder el consentimiento (null = sin prompt). */
   readonly recordingConsentFrom = signal<string | null>(null);
   private readonly _recordingRequesterId = signal<string | null>(null);
   readonly isRecordingRequester = computed(
     () => !!this._recordingRequesterId() && this._recordingRequesterId() === (this.auth.currentUser()?.id ?? null),
   );
+  private readonly recording = new ClientRecordingSession();
 
+  /** Host o cohost: ven los controles de host. */
   readonly isHost = computed(() => this.yourRole() === 'Host' || this.yourRole() === 'Cohost');
-  /** "Terminar para todos" (POST /meetings/{id}/end) es solo del host principal. */
-  readonly canEndForAll = computed(() => this.yourRole() === 'Host');
+  /** Solo el host principal: "Make host". */
+  readonly isPrimaryHost = computed(() => this.yourRole() === 'Host');
+  /** "End meeting" (POST /meetings/{id}/end): host y cohost (D-07). */
+  readonly canEndForAll = computed(() => this.isHost());
 
   // ---------- Vista (sala completa vs mini-player) ----------
   /**
    * true mientras la sala completa (`app-meeting-room`) está montada. La pone/quita la sala en su
-   * ciclo de vida; el mini-player global se oculta mientras sea true. NO se toca en `reset()`: depende
-   * del componente, no de la sesión.
+   * ciclo de vida; el mini-player global se oculta mientras sea true. NO se toca en `reset()`.
    */
   readonly roomViewAttached = signal(false);
   /** El panel de chat de la sala está abierto: el mensaje entrante suena distinto (`chat-message`). */
@@ -152,26 +327,76 @@ export class ActiveMeetingService {
   readonly remoteParticipants = computed(() => this.joinedParticipants().filter(p => p.userId !== this.myUserId()));
   /** En sala de espera (solo el host los ve para admitir/denegar). */
   readonly waitingParticipants = computed(() => this.participants().filter(p => p.status === 'Waiting'));
+  /** F5 (D-49) — cola de manos, del que la levantó primero al último (incluida la mía). */
+  readonly raisedHands = computed(() => sortRaisedHands(this.participants()));
+  readonly raisedHandCount = computed(() => this.raisedHands().length);
+  /**
+   * F5 — mi fila del roster con MI estado local encima (mic/cámara/pantalla/mano/calidad son
+   * instantáneos aquí y llegan con retraso por el socket). Es lo que pinta el tile único "You".
+   */
+  readonly selfParticipant = computed<MeetingParticipantDto>(() => {
+    const me = this.myUserId();
+    const fromRoster = this.participants().find(p => p.userId === me);
+    // El guest nunca cae en la sesión de staff que pueda haber en este navegador.
+    const user = this.isGuest() ? null : this.auth.currentUser();
+    return {
+      userId: me ?? 'me',
+      displayName: fromRoster?.displayName ?? this.lastSelfDisplayName() ?? (user ? `${user.name} ${user.lastName}`.trim() || 'You' : 'You'),
+      actorType: fromRoster?.actorType,
+      avatarFileId: fromRoster?.avatarFileId ?? user?.avatarFileId ?? null,
+      role: fromRoster?.role ?? this.yourRole(),
+      status: 'Joined',
+      joinOrder: fromRoster?.joinOrder ?? -1,
+      audioEnabled: this.audioEnabled(),
+      videoEnabled: this.videoEnabled(),
+      screenSharing: this.screenSharing(),
+      handRaised: this.handRaised(),
+      handRaisedAtUtc: this.handRaised() ? (this.handRaisedAtUtc() ?? fromRoster?.handRaisedAtUtc ?? null) : null,
+      connectionQuality: this.connectionQuality(),
+    };
+  });
 
+  // ---------- Capa de media (F4) ----------
+  private policy: MediaPolicyDto | null = null;
+  private session: LocalMediaSession | null = null;
   private readonly peerConns = new Map<string, PeerConn>();
+  private monitor: QualityMonitor | null = null;
+  private echo: EchoDetector | null = null;
+  /** D-40: 0 = normal, 1 = capa media (recuperando), 2 = solo audio. */
+  private degradeStep = 0;
   private iceServers: IceServer[] = [];
-  /** Track de cámara (para restaurar tras compartir pantalla). */
-  private cameraTrack: MediaStreamTrack | null = null;
-  private screenTrack: MediaStreamTrack | null = null;
-  /** Stream de una pista de video negra deshabilitada — mantiene vivo el m-line de CÁMARA cuando no hay
-   * cámara, para que prender/compartir sea replaceTrack sin renegociar. Se crea una vez y se reusa. */
-  private placeholderStream: MediaStream | null = null;
-  /** Igual que `placeholderStream` pero para el 2º m-line (PANTALLA): mantiene vivo el screenSender
-   * mientras NO comparto, para que empezar/parar share sea replaceTrack sin renegociar. */
-  private screenPlaceholderStream: MediaStream | null = null;
+  /** Usuarios que salieron (Left) desde que entré: si vuelven, suena `rejoin` en vez de `join`. */
+  private readonly leftUserIds = new Set<string>();
   private chatHistoryLoaded = false;
   private listenersBound = false;
+  /** F5 — último estado de mano que PEDÍ (para reenviarlo tras una reconexión si el servidor lo perdió). */
+  private desiredHand = false;
+  /** Ack de `raise_hand` en vuelo: mientras tanto el `participant.changed` propio no pisa el optimista. */
+  private handAckPending = false;
+  /** F5 (T-69) — `meeting.speaking` acotado por `speaking.maxPerSecond`. */
+  private speakingThrottle: SpeakingThrottle | null = null;
+  private lastReportedSpeaking: boolean | null = null;
+  /** `meeting.leave` ya enviado por pagehide/beforeunload en esta sesión (los dos eventos pueden dispararse). */
+  private unloadLeaveSent = false;
+
+  constructor() {
+    // F3 — al cerrar sesión (logout / `session.revoked`) se sale de la reunión y se apaga la media
+    // antes de navegar al login. Registro, no inyección directa: AuthService no puede depender de este servicio.
+    inject(SessionTeardownRegistry).register(() => this.leave());
+  }
 
   private bindListenersOnce(): void {
     if (this.listenersBound) {
       return;
     }
     this.listenersBound = true;
+
+    // Cerrar/recargar la pestaña: avisar `meeting.leave` sin esperar ack (no hay tiempo), una sola vez.
+    if (typeof window !== 'undefined') {
+      const onUnload = () => this.leaveOnUnload();
+      window.addEventListener('pagehide', onUnload);
+      window.addEventListener('beforeunload', onUnload);
+    }
 
     // El backend NO emite `meeting.snapshot` para el join directo (el snapshot llega inline en el
     // ack del join → lo aplica `join()`); este evento solo se emite al ADMITIR desde la sala de
@@ -192,11 +417,10 @@ export class ActiveMeetingService {
       if (dto.meetingId !== this.meetingId()) {
         return;
       }
-      // El host ME sacó: antes solo se me quitaba del roster y la cámara/peers seguían vivos con la
-      // sala en 'joined'. Se trata como fin del meeting (pantalla de terminado / toast del mini-player).
+      // El host ME sacó: se trata como fin del meeting (pantalla de terminado / toast del mini-player).
       if (dto.participant.userId === this.myUserId() && dto.participant.status === 'Removed' && this.phase() !== 'idle') {
         this.errorMessage.set('You were removed from the meeting.');
-        this.sounds.play('leave');
+        this.sounds.play('leave', { isHost: this.isHost() });
         this.phase.set('ended');
         this.stopLocalMedia();
         return;
@@ -204,18 +428,38 @@ export class ActiveMeetingService {
       this.playParticipantSound(dto.participant);
       this.applyParticipantChange(dto.participant);
       const p = dto.participant;
-      if (p.userId === this.myUserId() || this.strategy() === 'Sfu') {
+      if (p.userId === this.myUserId()) {
+        if (p.displayName) this.lastSelfDisplayName.set(p.displayName);
+        // F3 — mi rol cambia por eventos (promote/demote, transfer, sucesión): el roster es la fuente.
+        if (p.status === 'Joined' || p.status === 'Waiting') {
+          this.yourRole.set(p.role);
+        }
+        // F5 — mi mano según el servidor (salvo que tenga un ack en vuelo que ya la cambió en local).
+        if (!this.handAckPending && p.status === 'Joined') {
+          this.setOwnHand(p.handRaised, p.handRaisedAtUtc ?? null);
+          this.desiredHand = p.handRaised;
+        }
+        return;
+      }
+      if (this.strategy() === 'Sfu') {
         return; // en SFU el media lo maneja mediasoup (consumers), no el mesh
       }
       if (p.status === 'Left' || p.status === 'Removed') {
         this.disconnectFromPeer(p.userId);
       } else if (p.status === 'Joined') {
-        // `connectToPeer` es auto-sanador: si ya hay un PC vivo con el MISMO joinOrder no hace nada
-        // (un media_status trae el mismo joinOrder → no resetea el PC en cada toggle); si el PC está
-        // muerto o el joinOrder es NUEVO (re-join), lo descarta y rearma. Así el re-join reconecta aunque
-        // el otro lado conservara un PC stale (que no ofertaba → tile no se refrescaba, sin error visible).
+        // `connectToPeer` es auto-sanador: PC vivo con el MISMO joinOrder → nada; muerto o joinOrder NUEVO
+        // (re-join) → lo descarta y rearma. Así el re-join reconecta aunque el otro lado tuviera un PC stale.
         this.connectToPeer(p.userId, p.joinOrder);
       }
+      this.updateMeshCameraProfile();
+    });
+
+    // F4 — calidad de cada participante (badge del tile; D-39).
+    this.rtc.onParticipantQualityChanged().subscribe(dto => {
+      if (dto.meetingId !== this.meetingId()) {
+        return;
+      }
+      this.participants.update(list => list.map(p => (p.userId === dto.userId ? { ...p, connectionQuality: dto.quality } : p)));
     });
 
     this.rtc.onSignalFrom().subscribe(dto => {
@@ -230,12 +474,7 @@ export class ActiveMeetingService {
         return;
       }
       // El host silenció a todos: bajo mi audio localmente y aviso.
-      this.audioEnabled.set(false);
-      this.localStream()
-        ?.getAudioTracks()
-        .forEach(t => (t.enabled = false));
-      this.rtc.mediaStatus(this.meetingId()!, false, this.videoEnabled(), false);
-      this.toast.info('You were muted by the host.');
+      void this.setAudioEnabled(false, 'host').then(() => this.toast.info('You were muted by the host.'));
     });
 
     this.rtc.onChatMessageNew().subscribe(dto => {
@@ -247,11 +486,48 @@ export class ActiveMeetingService {
           return list; // dedupe (el propio broadcast del remitente)
         }
         if (dto.senderId !== this.myUserId() && dto.kind !== 'System') {
-          // Con el chat abierto, un sonido de "mensaje recibido"; cerrado, el aviso general.
-          this.sounds.play(this.chatPanelOpen() ? 'chat-message' : 'notification');
+          // Con el chat abierto, un sonido de "mensaje recibido"; cerrado, el aviso general + badge.
+          this.sounds.play(this.chatPanelOpen() ? 'chat-message' : 'notification', { isHost: this.isHost() });
+          if (!this.chatPanelOpen()) {
+            this.chatUnread.update(n => n + 1);
+          }
         }
         return [...list, this.toChatView(dto)];
       });
+    });
+
+    // F8: ediciones y borrados del chat de la sala.
+    this.rtc.onChatMessageEdited().subscribe(edit => {
+      if (edit.conversationId !== this.conversationId()) return;
+      this.chatMessages.update(list =>
+        list.map(m => (m.id === edit.messageId ? { ...m, text: edit.body, isEdited: true, editCount: edit.editCount ?? m.editCount + 1 } : m)),
+      );
+    });
+    // F8d: reacciones en vivo del chat de la sala.
+    const onReaction = (change: { messageId: string; conversationId: string; userId: string; emoji: string }, delta: 1 | -1): void => {
+      if (change.conversationId !== this.conversationId()) return;
+      this.chatMessages.update(list =>
+        list.map(m => (m.id === change.messageId ? { ...m, reactions: applyReaction(m.reactions ?? [], change, delta) } : m)),
+      );
+    };
+    this.rtc.onChatReactionAdded().subscribe(change => onReaction(change, 1));
+    this.rtc.onChatReactionRemoved().subscribe(change => onReaction(change, -1));
+
+    // T-20: en revisión / bloqueado / aprobado por el revisor, en vivo.
+    this.rtc.onChatAttachmentFlagged().subscribe(flag => {
+      if (flag.conversationId !== this.conversationId()) return;
+      const status = moderationStateOf(flag.status);
+      this.attachmentNames.set(flag.fileId, { ...(this.attachmentNames.get(flag.fileId) ?? { name: 'Attachment', size: '' }), status });
+      this.chatMessages.update(list =>
+        list.map(m => (m.attachment?.fileId === flag.fileId ? { ...m, attachment: { ...m.attachment, status } } : m)),
+      );
+    });
+
+    this.rtc.onChatMessageDeleted().subscribe(deleted => {
+      if (deleted.conversationId !== this.conversationId()) return;
+      this.chatMessages.update(list =>
+        list.map(m => (m.id === deleted.messageId ? { ...m, isDeleted: true, text: '(message deleted)', attachment: undefined } : m)),
+      );
     });
 
     this.rtc.onStateChanged().subscribe(dto => {
@@ -259,13 +535,75 @@ export class ActiveMeetingService {
         return;
       }
       this.isLocked.set(dto.isLocked);
-      if (dto.status === 'Ended' || dto.status === 'Cancelled') {
-        if (this.phase() === 'joined') {
-          this.sounds.play('leave');
-        }
-        this.phase.set('ended');
-        this.stopLocalMedia(); // apagar cámara/mic al terminar el meeting (no se llega por leave())
+      // Solo el hostUserId: mi rol ya llegó por `participant.changed`/`host.changed` y NO se revierte acá.
+      this.hostUserId.set(dto.hostUserId);
+      if (dto.status === 'Ended' || dto.status === 'Expired') {
+        this.finishByServer(dto.status === 'Expired' ? 'Expired' : (dto.endReason ?? null));
+      } else if (dto.status === 'Cancelled') {
+        this.finishByServer(null, 'This meeting was cancelled.');
       }
+    });
+
+    // ----- F3: ciclo de vida, host y sesión -----
+    // Terminó (room de usuario). Si el `state.changed` de la sala no llegó (socket caído), esto cierra igual.
+    this.rtc.onEnded().subscribe(dto => {
+      if (dto.meetingId !== this.meetingId() || !IN_MEETING_PHASES.includes(this.phase())) {
+        return;
+      }
+      this.finishByServer(dto.reason ?? null);
+    });
+
+    this.rtc.onDurationWarning().subscribe(dto => {
+      if (dto.meetingId !== this.meetingId() || this.phase() !== 'joined') {
+        return;
+      }
+      this.endsAtUtc.set(dto.endsAtUtc);
+      this.durationWarning.set(dto);
+      this.sounds.play('notification', { isHost: this.isHost() });
+    });
+
+    // Llega DESPUÉS de los dos `participant.changed` (saliente Cohost, entrante Host) y ANTES del
+    // `state.changed`: acá se garantiza el rol propio y el roster aunque alguno se perdiera.
+    this.rtc.onHostChanged().subscribe(dto => {
+      if (dto.meetingId !== this.meetingId()) {
+        return;
+      }
+      const me = this.myUserId();
+      this.hostUserId.set(dto.newHostUserId);
+      if (dto.newHostUserId === me) {
+        this.yourRole.set('Host');
+      } else if (dto.previousHostUserId === me && this.yourRole() === 'Host') {
+        this.yourRole.set('Cohost');
+      }
+      this.participants.update(list =>
+        list.map(p =>
+          p.userId === dto.newHostUserId
+            ? { ...p, role: 'Host' as MeetingRole }
+            : p.userId === dto.previousHostUserId && p.role === 'Host'
+              ? { ...p, role: 'Cohost' as MeetingRole }
+              : p,
+        ),
+      );
+      if (dto.newHostUserId !== me && this.phase() === 'joined') {
+        const name = this.participants().find(p => p.userId === dto.newHostUserId)?.displayName ?? 'Someone';
+        this.toast.info(`${name} is now the host.`);
+      }
+    });
+
+    // El servidor me sacó (gracia vencida, sesión revocada/expirada, retiro, fin, expulsión): salida LOCAL,
+    // sin `meeting.leave` (ya no estoy en la room). El motivo va en un toast.
+    this.rtc.onYouRemoved().subscribe(dto => {
+      if (dto.meetingId !== this.meetingId() || this.phase() === 'idle') {
+        return;
+      }
+      const wasIn = this.phase() === 'joined';
+      const wasHost = this.isHost();
+      this.removedReason.set(dto.reason);
+      this.reset();
+      if (wasIn) {
+        this.sounds.play('leave', { isHost: wasHost });
+      }
+      this.toast.info(youRemovedMessage(dto.reason));
     });
 
     // ----- Grabación (consentimiento + estado) -----
@@ -279,7 +617,7 @@ export class ActiveMeetingService {
         void this.rtc.respondRecordingConsent(dto.meetingId, 'Accepted').catch(() => undefined); // el que pide, consiente
       } else {
         this.recordingConsentFrom.set(dto.requestedByUserId); // modal a los demás
-        this.sounds.play('notification');
+        this.sounds.play('notification', { isHost: this.isHost() });
       }
     });
 
@@ -296,21 +634,13 @@ export class ActiveMeetingService {
       if (dto.meetingId !== this.meetingId()) {
         return;
       }
-      this.recordingState.set(dto.state);
-      if (dto.state === 'Recording') {
-        this.startRecordingTimer();
-        if (this.isRecordingRequester()) {
-          const streams = [this.localStream(), ...[...this.peers().values()].map(p => p.cameraStream)];
-          this.recording.start(...streams);
-        }
-      } else {
-        this.stopRecordingTimer();
-        if (dto.state === 'Failed') {
-          this.toast.error('The recording failed.');
-        } else if (dto.state === 'Idle') {
-          this.recordingConsentFrom.set(null);
-          this._recordingRequesterId.set(null);
-        }
+      this.applyRecordingState(dto);
+    });
+
+    // F7 — aviso de tope de la grabación; al llegar al tope el servidor la para (la reunión sigue).
+    this.rtc.onRecordingLimitWarning().subscribe(dto => {
+      if (dto.meetingId === this.meetingId()) {
+        this.toast.info(recordingLimitWarningMessage(dto.remainingSeconds));
       }
     });
 
@@ -338,12 +668,66 @@ export class ActiveMeetingService {
       this.phase.set('ended');
       this.stopLocalMedia();
     });
+
+    // ----- F5: manos (D-49) y reacciones (D-50) -----
+    this.rtc.onHandLoweredByHost().subscribe(dto => {
+      if (dto.meetingId !== this.meetingId()) {
+        return;
+      }
+      this.setOwnHand(false, null);
+      this.desiredHand = false;
+      this.toast.info(dto.all ? 'The host lowered all hands.' : 'The host lowered your hand.');
+    });
+
+    this.rtc.onReactionReceived().subscribe(dto => {
+      if (dto.meetingId !== this.meetingId() || this.phase() !== 'joined') {
+        return;
+      }
+      this.showReaction(dto.userId, dto.displayName, dto.emoji, receivedAtMs(dto, Date.now()), false);
+    });
+  }
+
+  /** Pinta una burbuja (propia al ack o ajena al broadcast) y la anuncia en `aria-live`. */
+  private showReaction(userId: string, displayName: string, emoji: string, atMs: number, local: boolean): void {
+    const duration = this.reactionsPolicy()?.durationSeconds ?? 0;
+    if (duration <= 0) {
+      return; // política sin reacciones: nada que mostrar
+    }
+    const before = this.reactions();
+    const next = addReaction(before, { userId, displayName, emoji, local }, atMs, duration, ++this.reactionSeq);
+    this.reactions.set(next);
+    if (next.length > before.length) {
+      this.reactionAnnouncement.set(`${userId === this.myUserId() ? 'You' : displayName} reacted ${emoji}`);
+    }
+    this.startReactionSweep();
+  }
+
+  private startReactionSweep(): void {
+    if (this.reactionSweep) {
+      return;
+    }
+    this.reactionSweep = setInterval(() => {
+      const pruned = pruneReactions(this.reactions(), Date.now());
+      if (pruned !== this.reactions()) {
+        this.reactions.set(pruned);
+      }
+      if (pruned.length === 0) {
+        this.stopReactionSweep();
+      }
+    }, REACTION_SWEEP_MS);
+  }
+
+  private stopReactionSweep(): void {
+    if (this.reactionSweep) {
+      clearInterval(this.reactionSweep);
+      this.reactionSweep = null;
+    }
   }
 
   /**
    * Aplica el snapshot autoritativo de "ya estás dentro" (strategy, participantes, rol, conversationId):
    * llega inline en el ack del join directo, o por el evento `meeting.snapshot` al ser admitido desde la
-   * sala de espera. Idempotente (el snapshot del admit re-concilia la lista). Decide Mesh vs SFU (no soportado).
+   * sala de espera. Idempotente (el snapshot del admit re-concilia la lista). Decide Mesh vs SFU.
    */
   private applySnapshot(snap: MeetingSnapshotDto): void {
     if (snap.meetingId !== this.meetingId()) {
@@ -351,17 +735,32 @@ export class ActiveMeetingService {
     }
     this.strategy.set(snap.strategy);
     this.conversationId.set(snap.conversationId);
+    // El guest no tiene JWT para el historial HTTP: lo pide por el socket de la sala (F11).
     if (snap.conversationId && !this.chatHistoryLoaded) {
       this.chatHistoryLoaded = true;
-      this.loadChatHistory(snap.conversationId);
+      if (this.isGuest()) this.loadGuestChatHistory(snap.meetingId);
+      else this.loadChatHistory(snap.conversationId);
     }
     this.yourRole.set(snap.yourRole);
+    this.hostUserId.set(snap.hostUserId);
     this.isLocked.set(snap.isLocked);
+    this.applyLifecycle(snap);
     this.participants.set(mergeMeetingRoster(this.participants(), snap.participants));
+    const mine = snap.participants.find(p => p.userId === this.myUserId())?.displayName;
+    if (mine) this.lastSelfDisplayName.set(mine);
     if (this.phase() !== 'joined') {
-      this.sounds.play('join');
+      this.joinedAtMs ??= Date.now();
+      this.startClock();
+      this.sounds.play('join', { isHost: this.isHost(), fallbackText: 'You joined the meeting' });
+      // Re-join completo (recarga): la pantalla que compartía esta pestaña se perdió con el navegador.
+      if (!this.screenSharing() && this.readShareFlag(snap.meetingId)) {
+        this.screenShareInterrupted.set(true);
+      }
     }
     this.phase.set('joined');
+    // Mi estado inicial (mic/cámara/pantalla) para los que ya están.
+    this.publishMediaStatus();
+    this.startQualityMonitor();
 
     if (snap.strategy === 'Sfu') {
       void this.startSfu(); // >4: media por mediasoup (no mesh)
@@ -369,11 +768,72 @@ export class ActiveMeetingService {
     }
     // Mesh: conectar con cada participante presente y depurar los ausentes (idempotente).
     this.reconcileMeshPeers(snap.participants);
+    this.updateMeshCameraProfile();
+  }
+
+  /** F3 — tope/corte/duración del snapshot (join, admisión y rejoin); tolera snapshots viejos sin los campos. */
+  private applyLifecycle(snap: Partial<MeetingSnapshotDto>): void {
+    this.endsAtUtc.set(snap.endsAtUtc ?? null);
+    this.maxDurationMinutes.set(snap.maxDurationMinutes ?? null);
+    this.scheduledDurationMinutes.set(snap.scheduledDurationMinutes ?? null);
+  }
+
+  /**
+   * Fin decidido por el servidor (host, tope de tiempo, todos se fueron, cancelación…): pantalla de fin
+   * con el motivo y cámara/mic apagados. Idempotente: el `state.changed` y el `meeting.ended` pueden llegar los dos.
+   */
+  private finishByServer(reason: MeetingEndReason | 'Expired' | null, notice?: string): void {
+    if (this.phase() === 'ended' || this.phase() === 'idle') {
+      return;
+    }
+    if (this.phase() === 'joined') {
+      this.sounds.play('leave', { isHost: this.isHost() });
+    }
+    this.endReason.set(reason);
+    if (notice) {
+      this.errorMessage.set(notice); // cancelación: aviso, no "fin" (sin continuación)
+    }
+    this.meetingEnded.set(!notice);
+    this.durationWarning.set(null);
+    this.stopClock();
+    this.phase.set('ended');
+    this.stopLocalMedia(); // apagar cámara/mic al terminar el meeting (no se llega por leave())
+  }
+
+  private startClock(): void {
+    if (this.clockTimer) {
+      return;
+    }
+    this.nowMs.set(Date.now());
+    this.clockTimer = setInterval(() => this.nowMs.set(Date.now()), CLOCK_TICK_MS);
+  }
+
+  private stopClock(): void {
+    if (this.clockTimer) {
+      clearInterval(this.clockTimer);
+      this.clockTimer = null;
+    }
+  }
+
+  /**
+   * pagehide/beforeunload: `meeting.leave` fire-and-forget si seguimos dentro (una sola vez).
+   * El host principal NO lo manda: "Leave" nunca cede el host, así que cerrar la pestaña dejaría la sala
+   * sin nadie al mando; sin leave, el socket cae, corre la gracia y el servidor aplica la sucesión (D-08)
+   * — y una recarga dentro de la gracia lo devuelve como host.
+   */
+  private leaveOnUnload(): void {
+    const meetingId = this.meetingId();
+    if (!meetingId || this.unloadLeaveSent || !IN_MEETING_PHASES.includes(this.phase()) || this.isPrimaryHost()) {
+      return;
+    }
+    this.unloadLeaveSent = true;
+    this.rtc.leaveNoAck(meetingId);
   }
 
   /**
    * Sonido por el cambio de OTRO participante, comparando con su estado anterior (el mismo evento
    * llega en cada toggle de mic/cámara, así que solo suena en las transiciones que importan).
+   * Rejoin (Left→Joined según el servidor) suena distinto de una entrada nueva.
    */
   private playParticipantSound(next: MeetingParticipantDto): void {
     if (next.userId === this.myUserId() || this.phase() !== 'joined') {
@@ -381,17 +841,24 @@ export class ActiveMeetingService {
     }
     const prev = this.participants().find(p => p.userId === next.userId);
     const wasIn = prev?.status === 'Joined';
+    const isHost = this.isHost();
     if (!wasIn && next.status === 'Joined') {
-      this.sounds.play('join');
+      const rejoin = this.leftUserIds.delete(next.userId);
+      this.sounds.play(rejoin ? 'rejoin' : 'join', { isHost, fallbackText: `${next.displayName} ${rejoin ? 'rejoined' : 'joined'}` });
     } else if (wasIn && (next.status === 'Left' || next.status === 'Removed')) {
-      this.sounds.play('leave');
-    } else if (next.status === 'Waiting' && prev?.status !== 'Waiting' && this.isHost()) {
-      this.sounds.play('notification'); // alguien pide entrar: solo el host puede admitirlo
+      if (next.status === 'Left') {
+        this.leftUserIds.add(next.userId);
+      }
+      this.sounds.play('leave', { isHost, fallbackText: `${next.displayName} left` });
+    } else if (next.status === 'Waiting' && prev?.status !== 'Waiting' && isHost) {
+      this.sounds.play('notification', { isHost }); // alguien pide entrar: solo el host puede admitirlo
     } else if (wasIn && next.status === 'Joined') {
       if (!prev.screenSharing && next.screenSharing) {
-        this.sounds.play('screen-share');
-      } else if (!prev.handRaised && next.handRaised) {
-        this.sounds.play('notification');
+        this.sounds.play('screen-share', { isHost, fallbackText: `${next.displayName} is sharing their screen` });
+      } else if (!prev.handRaised && next.handRaised && isHost) {
+        // F5 — solo host/cohost se enteran (son quienes pueden darle la palabra o bajarla).
+        this.sounds.play('notification', { isHost });
+        this.toast.info(`${next.displayName} raised their hand`);
       }
     }
   }
@@ -409,73 +876,112 @@ export class ActiveMeetingService {
     });
   }
 
-  async join(meetingId: string, title: string): Promise<void> {
+  /**
+   * Entra a la reunión: política de media → captura local (preferencias `joinMuted`/`joinCameraOff`/
+   * `preferAudioOnly` salvo que el lobby mande otra cosa) → `meeting.join`.
+   */
+  async join(meetingId: string, title: string, media: MeetingJoinMediaOptions = {}): Promise<void> {
     if (this.phase() !== 'idle') {
       return;
     }
+    // T-58: una llamada 1:1 en curso tiene el micrófono; se ofrece colgar y entrar.
+    if (this.activeCall.phase() !== 'idle') {
+      this.toast.info("You're already in a call.", {
+        action: { label: 'Leave and join', run: () => void this.activeCall.endCall().then(() => this.join(meetingId, title, media)) },
+      });
+      return;
+    }
+    await this.start(meetingId, title, media, null);
+  }
+
+  /**
+   * F6 (D-47) — entra como INVITADO EXTERNO desde la página pública `/meet/:token`: el socket ya está
+   * conectado con `auth.ticket` (`CommunicationRealtimeService.connectAsGuest`), la política de media ya
+   * está en `MediaPolicyService.prime` (del contexto público) y el ICE llega en el ack de `meeting.join`.
+   * Mi userId es el propio `guestInvitationId` (así me nombra el servidor en el roster).
+   */
+  async joinAsGuest(meetingId: string, title: string, guestInvitationId: string, media: MeetingJoinMediaOptions = {}): Promise<void> {
+    if (this.phase() !== 'idle') {
+      return;
+    }
+    await this.start(meetingId, title, media, guestInvitationId);
+  }
+
+  /** Arranque común de `join` / `joinAsGuest`: estado limpio → política → ICE → captura local → `meeting.join`. */
+  private async start(meetingId: string, title: string, media: MeetingJoinMediaOptions, guestInvitationId: string | null): Promise<void> {
     this.bindListenersOnce();
     this.errorMessage.set(null);
+    this.removedReason.set(null);
     this.meetingId.set(meetingId);
     this.meetingTitle.set(title);
-    this.myUserId.set(this.auth.currentUser()?.id ?? null);
+    this.isGuest.set(guestInvitationId !== null);
+    this.guestInvitationId = guestInvitationId;
+    this.lastSelfDisplayName.set(null);
+    // F6: el userId del guest es el propio invitationId (UUID), igual que el principal del servidor.
+    this.myUserId.set(guestInvitationId ?? (this.auth.currentUser()?.id ?? null));
     this.participants.set([]);
     this.peers.set(new Map());
+    this.leftUserIds.clear();
     this.audioEnabled.set(true);
     this.videoEnabled.set(true);
     this.handRaised.set(false);
+    this.handRaisedAtUtc.set(null);
+    this.desiredHand = false;
+    this.chatUnread.set(0);
+    this.unloadLeaveSent = false;
+    this.degradeStep = 0;
     this.phase.set('joining');
 
     try {
-      const ice = await firstValueFrom(this.calls.getIceServers());
-      this.iceServers = ice.iceServers;
+      this.policy = await this.mediaPolicy.ensureLoaded();
     } catch {
-      this.iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+      this.errorMessage.set('Could not load the meeting settings.');
+      this.reset();
+      return;
+    }
+    const policy = this.policy;
+    if (this.phase() !== 'joining') {
+      return; // se salió mientras cargaba
     }
 
-    // Media: cámara+mic; si la cámara está ocupada (típico en pruebas locales con 2 pestañas) se cae a
-    // solo-audio; y SIEMPRE se asegura una pista de video (placeholder negro deshabilitado) para que el
-    // m-line de video exista desde el join, creado UNA sola vez. Así prender cámara / compartir pantalla
-    // es un replaceTrack SIN renegociar — evita el bug de Chromium "BUNDLE codec collision for header
-    // extension id" y el screen-share remoto que no llegaba (porque creaba el m-line de video tarde).
-    let stream: MediaStream | null = null;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-    } catch {
+    // El guest no tiene JWT para `GET /webrtc/ice`: usa el `iceServers` del ack del join (ver `attemptJoin`).
+    if (guestInvitationId) {
+      this.iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+    } else {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        this.videoEnabled.set(false);
+        const ice = await firstValueFrom(this.calls.getIceServers());
+        this.iceServers = ice.iceServers;
       } catch {
-        this.videoEnabled.set(false);
-        this.audioEnabled.set(false);
-        this.errorMessage.set('Could not access your camera/microphone.');
+        this.iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
       }
     }
-    this.cameraTrack = stream?.getVideoTracks()[0] ?? null;
-    if (!this.cameraTrack) {
-      // Placeholder negro para tener el m-line de video aunque no haya cámara (creado una vez). En un
-      // entorno sin soporte de media (jsdom en tests) canvas.captureStream/MediaStream no existen → se
-      // ignora y se sigue sin video, igual que antes.
-      try {
-        const placeholder = this.ensurePlaceholderVideoTrack();
-        if (stream) {
-          stream.addTrack(placeholder);
-        } else {
-          stream = new MediaStream([placeholder]);
-        }
-      } catch {
-        /* sin soporte de media (tests): sin placeholder */
-      }
-      this.videoEnabled.set(false);
+
+    // Captura con la política (AEC/NS/AGC, resolución). Si la cámara está ocupada se cae a solo audio;
+    // SIEMPRE queda una pista de video (placeholder) para que el m-line exista desde el join.
+    const session = this.sessionFactory.create(policy, {
+      onLocalTrackReplaced: (source, track) => this.applyLocalTrack(source, track),
+      onScreenShareStopped: () => this.onScreenShareStopped(),
+    });
+    this.session = session;
+    // "Join muted" captura igual el micrófono (en mute): así el medidor avisa "You're muted" y el unmute es inmediato.
+    const wantAudio = true;
+    const wantVideo = (media.video ?? !policy.preferences.joinCameraOff) && !policy.preferences.preferAudioOnly;
+    const acquired = await session.acquire({ audio: wantAudio, video: wantVideo, profile: 'camera' });
+    this.microphoneError.set(acquired.audioError);
+    if (!acquired.audio && !acquired.video) {
+      this.errorMessage.set(acquired.audioError?.message ?? acquired.videoError?.message ?? 'Could not access your camera/microphone.');
     }
-    this.localStream.set(stream);
+    if (acquired.audio && (media.audio === undefined ? policy.preferences.joinMuted : !media.audio)) {
+      await session.setAudioEnabled(false, 'user');
+    }
+    this.syncFromSession();
 
     await this.attemptJoin();
   }
 
   /**
    * Un intento de `meeting.join` (con o sin passcode). Si el meeting exige passcode y no se dio / es
-   * incorrecto, el backend responde `Meeting.InvalidPasscode`: en vez de tirar un error genérico, se
-   * pasa a la fase `passcode` para que el room muestre el prompt y el usuario reintente con el código.
+   * incorrecto, el backend responde `Meeting.InvalidPasscode`: se pasa a la fase `passcode`.
    */
   private async attemptJoin(passcode?: string): Promise<void> {
     const meetingId = this.meetingId();
@@ -484,15 +990,23 @@ export class ActiveMeetingService {
     }
     this.phase.set('joining');
     try {
-      const ack = await this.rtc.join(meetingId, passcode ? { passcode } : undefined);
+      const guest = this.guestInvitationId;
+      const opts = { ...(passcode ? { passcode } : {}), ...(guest ? { guestInvitationId: guest } : {}) };
+      const ack = await this.rtc.join(meetingId, Object.keys(opts).length ? opts : undefined);
       this.errorMessage.set(null);
+      // ICE del ack (paridad con el Portal): es la ÚNICA fuente para el guest; al staff le vale también.
+      if (ack.iceServers?.iceServers?.length) {
+        this.iceServers = ack.iceServers.iceServers;
+      }
       if (ack.requiresAdmission) {
         // Al admitirnos, el backend emite `meeting.snapshot` → applySnapshot pone 'joined'/'unsupported'.
         this.phase.set('waiting');
       } else {
-        // Join directo: el snapshot NO llega por evento, viene inline en el ack. Sin esto el CRM
-        // quedaba colgado en 'joining' esperando un `meeting.snapshot` que nunca se emitía.
+        // Join directo: el snapshot NO llega por evento, viene inline en el ack.
         this.applySnapshot(ack.snapshot);
+        if (ack.handLoweredOnRejoin) {
+          this.toast.info('Your hand was lowered when you left.'); // D-49: el re-join completo baja la mano
+        }
       }
     } catch (err) {
       if ((err as { code?: string }).code === 'Meeting.InvalidPasscode') {
@@ -516,8 +1030,8 @@ export class ActiveMeetingService {
 
   /**
    * Reconnect transparente del socket a mitad de meeting: re-une la room `m:` (backend) y reconcilia
-   * el roster con el snapshot del ack. NO toca la media viva ni el conversationId (se conserva); si el
-   * mesh quedó incompleto durante el corte, `reconcileMeshPeers` re-conecta a los peers faltantes.
+   * el roster con el snapshot del ack. NO toca la media viva ni el conversationId; si el mesh quedó
+   * incompleto durante el corte, `reconcileMeshPeers` re-conecta a los peers faltantes.
    */
   private async handleSocketReconnected(): Promise<void> {
     const id = this.meetingId();
@@ -530,12 +1044,29 @@ export class ActiveMeetingService {
         return;
       }
       this.yourRole.set(snapshot.yourRole);
+      this.hostUserId.set(snapshot.hostUserId);
       this.isLocked.set(snapshot.isLocked);
+      this.applyLifecycle(snapshot);
       this.participants.set(mergeMeetingRoster(this.participants(), snapshot.participants));
       this.reconcileMeshPeers(snapshot.participants);
+      this.reconcileOwnHand(snapshot.participants);
     } catch {
       // Best-effort: si el rejoin falla (ya no sos participante / meeting terminó), no rompemos el
       // estado local; el próximo evento o una recarga lo resuelven.
+    }
+  }
+
+  /**
+   * F5 (D-49) — mano tras la reconexión transparente (`meeting.rejoin` la conserva): se reenvía lo que
+   * yo PEDÍ cuando difiere del snapshot. El re-join COMPLETO va por `meeting.join` (`handLoweredOnRejoin`).
+   */
+  private reconcileOwnHand(participants: readonly MeetingParticipantDto[]): void {
+    const mine = participants.find(p => p.userId === this.myUserId());
+    const serverRaised = mine?.handRaised ?? false;
+    if (serverRaised !== this.desiredHand) {
+      void this.sendHand(this.desiredHand);
+    } else {
+      this.setOwnHand(serverRaised, mine?.handRaisedAtUtc ?? null);
     }
   }
 
@@ -550,168 +1081,120 @@ export class ActiveMeetingService {
     [...this.peerConns.keys()].filter(id => !present.has(id)).forEach(id => this.disconnectFromPeer(id));
   }
 
-  // ---------- Mesh WebRTC (perfect negotiation por peer) ----------
+  /** Mesh con ≥ N participantes → cámara reducida (`meshCamera`); menos → perfil completo. */
+  private updateMeshCameraProfile(): void {
+    if (this.strategy() !== 'Mesh' || !this.session) {
+      return;
+    }
+    const crowded = this.joinedParticipants().length >= MESH_REDUCED_PROFILE_FROM;
+    void this.session.applyCameraProfile(crowded ? 'meshCamera' : 'camera');
+  }
+
+  // ---------- Mesh WebRTC (perfect negotiation por peer, vía PeerLink) ----------
 
   /**
-   * Idempotente y AUTO-SANADOR: si ya hay un PC vivo con el mismo joinOrder no hace nada; si el PC está
-   * muerto (failed/closed/disconnected) o el joinOrder es NUEVO (el peer RE-ENTRÓ con PeerConnections
-   * frescas), descarta el PC stale y rearma. Sin esto, el otro lado se quedaba con un PC viejo que ya no
-   * ofertaba → el re-join no reconectaba y NO salía ningún error (silencioso).
+   * Idempotente y AUTO-SANADOR: si ya hay un enlace vivo con el mismo joinOrder no hace nada; si está
+   * muerto (failed/closed) o el joinOrder es NUEVO (el peer RE-ENTRÓ), descarta el stale y rearma.
    */
   private connectToPeer(peerUserId: string, joinOrder?: number): void {
     const myId = this.myUserId();
-    if (!myId || peerUserId === myId) {
+    const session = this.session;
+    if (!myId || peerUserId === myId || !session) {
       return;
     }
     const existing = this.peerConns.get(peerUserId);
     if (existing) {
       // 'disconnected' puede recuperarse solo → NO se recrea por eso; el re-join se detecta por joinOrder.
-      const dead = existing.pc.connectionState === 'failed' || existing.pc.connectionState === 'closed';
-      // joinOrder nuevo = re-join. Si alguno es undefined (PC creado por una señal antes de conocerlo) no
-      // se fuerza el rearmado: solo se refina el dato. Solo un cambio ENTRE dos valores definidos rearma.
-      // Rearma SOLO si el joinOrder entrante es MAYOR (re-join real; joinOrder es monótono creciente). Antes
-      // cualquier diferencia rearmaba y la carrera leave+join entregaba eventos stale con joinOrder VIEJO
-      // intercalados con el nuevo → recreaba el PC en bucle (thrashing). Un joinOrder menor se ignora.
+      const state = existing.link.connectionState;
+      const dead = state === 'failed' || state === 'closed';
+      // Rearma SOLO si el joinOrder entrante es MAYOR (re-join real; joinOrder es monótono creciente).
+      // Antes cualquier diferencia rearmaba y la carrera leave+join recreaba el PC en bucle.
       const rejoined = joinOrder !== undefined && existing.joinOrder !== undefined && joinOrder > existing.joinOrder;
       if (!dead && !rejoined) {
         if (existing.joinOrder === undefined && joinOrder !== undefined) {
           existing.joinOrder = joinOrder;
         }
-        return; // PC vivo y vigente → nada que hacer
+        return; // enlace vivo y vigente → nada que hacer
       }
       this.disconnectFromPeer(peerUserId); // stale (muerto o re-join) → recrear limpio
     }
-    const pc = new RTCPeerConnection({ iceServers: this.iceServers as RTCIceServer[] });
-    // Polite/impolite DETERMINISTA por userId: ambos lados calculan la misma relación, así el glare (los
-    // dos ofertan al agregar tracks) se resuelve por perfect-negotiation sin romper la negociación.
-    const conn: PeerConn = {
-      pc,
-      isPolite: myId < peerUserId,
-      joinOrder,
-      makingOffer: false,
-      ignoreOffer: false,
-      isSettingRemoteAnswerPending: false,
-      cameraSender: null,
-      screenSender: null,
-    };
-    this.peerConns.set(peerUserId, conn);
 
-    // Dos streams remotos por peer: cámara (con el audio) y pantalla. Se pintan en tiles distintos.
-    const cameraStream = new MediaStream();
-    const screenStream = new MediaStream();
+    const policy = this.policy;
+    let link: PeerLink;
+    try {
+      link = this.peerFactory.create({
+        iceServers: this.iceServers as RTCIceServer[],
+        // Polite/impolite DETERMINISTA por userId: ambos lados calculan la misma relación.
+        isPolite: () => myId < peerUserId,
+        canOffer: () => true, // ambos pueden ofertar; el glare lo resuelve perfect-negotiation
+        local: {
+          microphone: session.audioOutTrack(),
+          camera: session.cameraOutTrack(),
+          screen: session.screenOutTrack(),
+          screenAudio: session.screenAudioOutTrack(),
+          stream: session.stream(),
+          screenStream: session.screenOutStream(),
+        },
+        opus: policy ? { fec: policy.audio.opusFec, dtx: policy.audio.opusDtx, maxAverageBitrateKbps: policy.audio.maxAverageBitrateKbps } : null,
+        signal: (kind, data) => this.rtc.signal(this.meetingId()!, peerUserId, kind, data),
+        onLinkState: () => this.recomputeMediaState(),
+        onClosed: () => this.disconnectFromPeer(peerUserId),
+      });
+    } catch {
+      return; // sin soporte de WebRTC (tests): sin enlace
+    }
+    this.peerConns.set(peerUserId, { link, joinOrder });
+    // Dos streams remotos por peer (los arma el enlace): cámara (con el audio) y pantalla (con su audio).
     this.peers.update(map => {
       const next = new Map(map);
-      next.set(peerUserId, { userId: peerUserId, cameraStream, screenStream });
+      next.set(peerUserId, { userId: peerUserId, cameraStream: link.remoteCameraStream, screenStream: link.remoteScreenStream });
       return next;
     });
-
-    // ORDEN DETERMINISTA de m-lines en AMBOS peers: audio, cámara, pantalla. Así los m-lines se aparean por
-    // índice y la pantalla del remoto SIEMPRE cae en el screenSender (no en la cámara). addTrack (NO
-    // addTransceiver: dispara el bug "BUNDLE codec collision" de Chromium). El sender de cámara se guarda
-    // para prender/apagar con replaceTrack sin renegociar (apagar = detener la pista → LED off + placeholder).
-    const local = this.localStream();
-    local?.getAudioTracks().forEach(track => pc.addTrack(track, local));
-    const cameraTrack = local?.getVideoTracks()[0];
-    if (cameraTrack && local) {
-      conn.cameraSender = pc.addTrack(cameraTrack, local);
-    }
-
-    // 2º m-line de video dedicado a la PANTALLA, pre-creado con placeholder (o con mi pantalla actual si
-    // YA estoy compartiendo → un late-joiner la recibe de inmediato). Pre-crearlo desde la oferta inicial
-    // hace que empezar/parar el share sea replaceTrack puro, SIN renegociar. try/catch por jsdom (tests).
-    try {
-      const screenTrack = this.screenTrack ?? this.ensureScreenPlaceholderTrack();
-      const screenOut = this.localScreenStream() ?? new MediaStream([screenTrack]);
-      conn.screenSender = pc.addTrack(screenTrack, screenOut);
-    } catch {
-      /* sin soporte de media (tests): sin screenSender */
-    }
-
-    // Clasificación cámara vs pantalla en el receptor SIN señalización extra ni carreras: se compara el
-    // sender de MI transceiver (cameraSender/screenSender) contra el del track entrante. El de la pantalla
-    // va al screenStream; cámara y audio al cameraStream (así suena en el tile de la persona).
-    pc.ontrack = event => {
-      if (conn.screenSender && event.transceiver.sender === conn.screenSender) {
-        screenStream.addTrack(event.track);
-      } else {
-        cameraStream.addTrack(event.track);
-      }
-    };
-    pc.onicecandidate = event => {
-      if (event.candidate) {
-        this.rtc.signal(this.meetingId()!, peerUserId, 'ice', event.candidate.toJSON() as unknown as Record<string, unknown>);
-      }
-    };
-    pc.onnegotiationneeded = async () => {
-      // Perfect-negotiation: AMBOS pueden ofertar; la colisión (glare) se resuelve en handleSignal por
-      // polite/impolite. Que ambos oferten es resiliente a que a un lado se le pierda el disparo de
-      // conexión (el otro igual arranca la negociación) — clave para que el re-join reconecte siempre.
-      try {
-        conn.makingOffer = true;
-        await pc.setLocalDescription();
-        this.rtc.signal(this.meetingId()!, peerUserId, 'offer', pc.localDescription as unknown as Record<string, unknown>);
-      } catch (err) {
-        console.error('[ActiveMeeting] negotiationneeded error:', err);
-      } finally {
-        conn.makingOffer = false;
-      }
-    };
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-        this.disconnectFromPeer(peerUserId);
-      }
-    };
   }
 
-  private async handleSignal(fromPeerUserId: string, kind: 'offer' | 'answer' | 'ice', data: unknown): Promise<void> {
+  private recomputeMediaState(): void {
+    this.mediaState.set(aggregateMediaState([...this.peerConns.values()].map(c => c.link.linkState)));
+  }
+
+  /**
+   * Reintento manual tras "Media connection failed": en SFU rearma los dos transports (y vuelve a
+   * publicar la pantalla si se estaba compartiendo); en mesh recrea solo los peers caídos.
+   */
+  async retryMedia(): Promise<void> {
+    if (this.phase() !== 'joined') {
+      return;
+    }
+    this.mediaState.set('reconnecting');
+    if (this.strategy() === 'Sfu') {
+      this.sfu.leave();
+      await this.startSfu(); // `startSfu` vuelve a producir cámara, micro y pantalla desde la sesión
+      return;
+    }
+    for (const [peerUserId, conn] of [...this.peerConns]) {
+      if (conn.link.linkState !== 'failed') {
+        continue;
+      }
+      this.disconnectFromPeer(peerUserId);
+      const participant = this.participants().find(p => p.userId === peerUserId);
+      if (participant?.status === 'Joined') {
+        this.connectToPeer(peerUserId, participant.joinOrder);
+      }
+    }
+    this.recomputeMediaState();
+  }
+
+  private async handleSignal(fromPeerUserId: string, kind: PeerSignalKind, data: unknown): Promise<void> {
     if (!this.peerConns.has(fromPeerUserId)) {
       this.connectToPeer(fromPeerUserId);
     }
-    const conn = this.peerConns.get(fromPeerUserId);
-    if (!conn) {
-      return;
-    }
-    const pc = conn.pc;
-    try {
-      if (kind === 'offer' || kind === 'answer') {
-        const description = data as RTCSessionDescriptionInit;
-        // Colisión de ofertas (glare), patrón MDN: el impolite ignora el offer entrante; el polite lo
-        // acepta (rollback implícito). `isSettingRemoteAnswerPending` cubre la ventana async entre
-        // aceptar un answer y que quede aplicado, para no marcar colisión de más.
-        const readyForOffer =
-          !conn.makingOffer && (pc.signalingState === 'stable' || conn.isSettingRemoteAnswerPending);
-        const offerCollision = kind === 'offer' && !readyForOffer;
-        conn.ignoreOffer = !conn.isPolite && offerCollision;
-        if (conn.ignoreOffer) {
-          return;
-        }
-        conn.isSettingRemoteAnswerPending = kind === 'answer';
-        await pc.setRemoteDescription(description);
-        conn.isSettingRemoteAnswerPending = false;
-        if (kind === 'offer') {
-          await pc.setLocalDescription();
-          this.rtc.signal(this.meetingId()!, fromPeerUserId, 'answer', pc.localDescription as unknown as Record<string, unknown>);
-        }
-      } else if (kind === 'ice') {
-        // SIN buffer manual: el RTCPeerConnection encola addIceCandidate detrás de setRemoteDescription.
-        // Los errores acá son INOFENSIVOS y esperados con glare: candidatos de una generación de oferta
-        // vieja/ignorada ("Unknown ufrag") o que llegan antes de que ese lado tenga remoteDescription
-        // (offer ignorado → "remote description was null"). Los candidatos de la generación buena SÍ se
-        // aplican y el ICE completa — se ignoran en silencio para no ensuciar la consola ni alarmar.
-        try {
-          await pc.addIceCandidate(data as RTCIceCandidateInit);
-        } catch {
-          /* candidato obsoleto por glare — inofensivo */
-        }
-      }
-    } catch (err) {
-      console.error('[ActiveMeeting] signal handling error:', err);
-    }
+    await this.peerConns.get(fromPeerUserId)?.link.handleSignal(kind, data);
   }
 
   private disconnectFromPeer(peerUserId: string): void {
-    this.peerConns.get(peerUserId)?.pc.close();
+    const conn = this.peerConns.get(peerUserId);
+    conn?.link.close();
     this.peerConns.delete(peerUserId);
+    this.recomputeMediaState();
     this.peers.update(map => {
       if (!map.has(peerUserId)) {
         return map;
@@ -726,16 +1209,34 @@ export class ActiveMeetingService {
 
   private async startSfu(): Promise<void> {
     const meetingId = this.meetingId();
-    if (!meetingId) {
+    const session = this.session;
+    const policy = this.policy;
+    if (!meetingId || !session || !policy) {
       return;
     }
-    const ok = await this.sfu.join(meetingId, this.localStream(), {
-      onRemoteStream: (userId, source, stream) => this.setSfuPeer(userId, source, stream),
-      onRemovePeer: userId => this.disconnectFromPeer(userId),
-    });
+    const ok = await this.sfu.join(
+      meetingId,
+      {
+        audio: session.audioOutTrack(),
+        camera: session.cameraOutTrack(),
+        screen: session.screenSharing() ? session.screenOutTrack() : null,
+        screenAudio: session.screenAudioTrack(),
+      },
+      {
+        onRemoteStream: (userId, source, stream) => this.setSfuPeer(userId, source, stream),
+        onRemovePeer: userId => this.disconnectFromPeer(userId),
+        onMediaState: state => this.mediaState.set(state),
+      },
+      policy,
+    );
     if (!ok) {
       // El SFU no pudo arrancar (device/transport): degradar con mensaje claro.
       this.phase.set('unsupported');
+      return;
+    }
+    this.mediaState.set('ok');
+    if (policy.preferences.preferAudioOnly) {
+      void this.sfu.setReceiveLowLayers(true); // "prefer audio on poor connections": capa baja de entrada
     }
   }
 
@@ -751,113 +1252,154 @@ export class ActiveMeetingService {
     });
   }
 
-  // ---------- Controles de media ----------
+  // ---------- Controles de media (delegan en la sesión local) ----------
 
-  /**
-   * Pista de video "vacía": un canvas 2×2 negro capturado a 1 fps y DESHABILITADO (no transmite). Sirve
-   * para que el m-line/sender de video exista aunque no haya cámara, y así prender la cámara o compartir
-   * pantalla sea un `replaceTrack` (sin crear el m-line tarde, que disparaba el bug de Chromium y dejaba
-   * el screen share sin llegar al remoto). Se crea una vez y se reusa.
-   */
-  private ensurePlaceholderVideoTrack(): MediaStreamTrack {
-    const existing = this.placeholderStream?.getVideoTracks()[0];
-    if (existing && existing.readyState === 'live') {
-      return existing;
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width = 2;
-    canvas.height = 2;
-    canvas.getContext('2d')?.fillRect(0, 0, 2, 2);
-    this.placeholderStream = (
-      canvas as HTMLCanvasElement & { captureStream(frameRate?: number): MediaStream }
-    ).captureStream(1);
-    const track = this.placeholderStream.getVideoTracks()[0];
-    track.enabled = false;
-    return track;
+  async toggleAudio(): Promise<void> {
+    await this.setAudioEnabled(!this.audioEnabled(), 'user');
   }
 
-  /**
-   * Placeholder negro deshabilitado para el 2º m-line (PANTALLA): mantiene vivo el `screenSender` mientras
-   * NO comparto, para que empezar/parar el share sea `replaceTrack` sin renegociar. Track propio (distinto
-   * al de la cámara: una misma pista no puede ir en dos senders del mismo PeerConnection). Se crea una vez.
-   */
-  private ensureScreenPlaceholderTrack(): MediaStreamTrack {
-    const existing = this.screenPlaceholderStream?.getVideoTracks()[0];
-    if (existing && existing.readyState === 'live') {
-      return existing;
+  private async setAudioEnabled(enabled: boolean, reason: MuteReason): Promise<void> {
+    if (!this.session) {
+      this.audioEnabled.set(enabled);
+      this.publishMediaStatus();
+      return;
     }
-    const canvas = document.createElement('canvas');
-    canvas.width = 2;
-    canvas.height = 2;
-    canvas.getContext('2d')?.fillRect(0, 0, 2, 2);
-    this.screenPlaceholderStream = (
-      canvas as HTMLCanvasElement & { captureStream(frameRate?: number): MediaStream }
-    ).captureStream(1);
-    const track = this.screenPlaceholderStream.getVideoTracks()[0];
-    track.enabled = false;
-    return track;
-  }
-
-  toggleAudio(): void {
-    const enabled = !this.audioEnabled();
-    this.audioEnabled.set(enabled);
-    this.localStream()
-      ?.getAudioTracks()
-      .forEach(t => (t.enabled = enabled));
+    await this.session.setAudioEnabled(enabled, reason);
+    this.syncFromSession();
     this.publishMediaStatus();
   }
 
   async toggleVideo(): Promise<void> {
-    const enabling = !this.videoEnabled();
-    // La cámara es INDEPENDIENTE del screen share (cada uno tiene su propio sender): se puede prender/apagar
-    // la cámara mientras comparto pantalla y viceversa. Sin early-return de screenshare (antes no dejaba).
-
-    if (!enabling) {
-      // Ocultar el video PRIMERO (muestra el avatar) para que no se vea el último frame CONGELADO de la
-      // pista al detenerla. Luego apagar de VERDAD: DETENER la pista de cámara apaga el hardware/LED (no
-      // basta `enabled=false`, que la deja adquirida). Placeholder negro (deshabilitado) en el stream local
-      // y en el cameraSender de cada peer con replaceTrack — mantiene el m-line vivo → SIN renegociación.
-      this.videoEnabled.set(false);
-      this.publishMediaStatus();
-      let placeholder: MediaStreamTrack | null = null;
-      try {
-        placeholder = this.ensurePlaceholderVideoTrack();
-      } catch {
-        /* jsdom (tests): sin placeholder */
-      }
-      this.cameraTrack?.stop();
-      this.cameraTrack = null;
-      this.swapLocalVideoTrack(placeholder);
-      await this.applyCameraTrack(placeholder);
+    if (!this.session) {
       return;
     }
-
-    // Encender: adquirir la cámara y publicarla con replaceTrack sobre el cameraSender persistente (sin renegociar).
-    let cam: MediaStream;
-    try {
-      cam = await navigator.mediaDevices.getUserMedia({ video: true });
-    } catch {
-      this.videoEnabled.set(false); // sin permiso: no marcar como encendida
-      return;
-    }
-    const track = cam.getVideoTracks()[0] ?? null;
-    if (track) {
-      this.cameraTrack = track;
-      await this.applyCameraTrack(track);
-      this.swapLocalVideoTrack(track);
-    }
-    this.videoEnabled.set(true);
+    // Cámara INDEPENDIENTE del screen share (cada uno tiene su propio sender/producer).
+    await this.session.setVideoEnabled(!this.session.videoEnabled());
+    this.syncFromSession();
     this.publishMediaStatus();
   }
 
-  toggleHandRaise(): void {
+  /** Cambio de micrófono en caliente (panel Devices). */
+  async swapMicrophone(deviceId: string): Promise<boolean> {
+    const ok = (await this.session?.swapMicrophone(deviceId)) ?? false;
+    if (!ok) this.toast.error('Could not switch the microphone. Keeping the current one.');
+    this.syncFromSession();
+    return ok;
+  }
+
+  /** Cambio de cámara en caliente (panel Devices). */
+  async swapCamera(deviceId: string): Promise<boolean> {
+    const ok = (await this.session?.swapCamera(deviceId)) ?? false;
+    if (!ok) this.toast.error('Could not switch the camera. Keeping the current one.');
+    this.syncFromSession();
+    return ok;
+  }
+
+  /** F5 (D-49) — optimista + ack; si el servidor lo rechaza vuelve atrás con el motivo. */
+  async toggleHandRaise(): Promise<void> {
+    const raised = !this.handRaised();
+    this.desiredHand = raised;
+    await this.sendHand(raised);
+  }
+
+  private async sendHand(raised: boolean): Promise<void> {
     const meetingId = this.meetingId();
-    if (!meetingId) {
+    if (!meetingId || this.phase() !== 'joined') {
       return;
     }
-    const raised = !this.handRaised();
+    const previous = { raised: this.handRaised(), at: this.handRaisedAtUtc() };
+    this.setOwnHand(raised, raised ? (previous.at ?? new Date().toISOString()) : null);
+    this.handAckPending = true;
+    try {
+      const ack = await this.rtc.raiseHand(meetingId, raised);
+      if (this.desiredHand === raised) {
+        this.setOwnHand(ack.handRaised, ack.handRaisedAtUtc ?? null);
+      }
+    } catch (err) {
+      if (this.desiredHand === raised) {
+        this.setOwnHand(previous.raised, previous.at); // rollback
+        this.desiredHand = previous.raised;
+        this.toast.error(handErrorMessage((err as { code?: string })?.code, raised));
+      }
+    } finally {
+      this.handAckPending = false;
+    }
+  }
+
+  /** Mi mano en los signals y en mi fila del roster (para que la cola y los tiles coincidan). */
+  private setOwnHand(raised: boolean, at: string | null): void {
     this.handRaised.set(raised);
-    this.rtc.raiseHand(meetingId, raised);
+    this.handRaisedAtUtc.set(raised ? at : null);
+    const me = this.myUserId();
+    if (me) {
+      this.participants.update(list =>
+        list.map(p => (p.userId === me && (p.handRaised !== raised || p.handRaisedAtUtc !== at) ? { ...p, handRaised: raised, handRaisedAtUtc: raised ? at : null } : p)),
+      );
+    }
+  }
+
+  // ---------- F5: reacciones (D-50) ----------
+
+  /** Envía una reacción del catálogo; la burbuja propia se pinta al ack, el broadcast no la duplica. */
+  async react(emoji: string): Promise<void> {
+    const meetingId = this.meetingId();
+    if (!meetingId || this.phase() !== 'joined' || !this.reactionsEnabled()) {
+      return;
+    }
+    try {
+      await this.rtc.react(meetingId, emoji);
+      const me = this.myUserId();
+      if (me) {
+        this.showReaction(me, this.selfParticipant().displayName, emoji, Date.now(), true);
+      }
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      this.toast.error(isSocketRateLimited(socketErrorCode(err)) ? SOCKET_RATE_LIMITED_MESSAGE : reactionErrorMessage(code));
+    }
+  }
+
+  // ---------- F5: hablante propio (T-69) ----------
+
+  /** Pista clonada del micrófono para medir mi nivel (también en mute → "You're muted"). */
+  localMeterTrack(): MediaStreamTrack | null {
+    return this.session?.meterTrack() ?? null;
+  }
+
+  /** Mi estado de habla cambió (lo decide `MeetingActiveSpeakerService`): `meeting.speaking` acotado por la política. */
+  reportSpeaking(speaking: boolean): void {
+    const meetingId = this.meetingId();
+    const policy = this.policy;
+    if (!meetingId || !policy || this.phase() !== 'joined' || this.lastReportedSpeaking === speaking) {
+      return;
+    }
+    this.lastReportedSpeaking = speaking;
+    this.speakingThrottle ??= new SpeakingThrottle(policy.speaking?.maxPerSecond ?? 1, value => this.rtc.speaking(meetingId, value));
+    this.speakingThrottle.push(speaking);
+  }
+
+  /** Chat visto: el badge de no leídos se limpia (sala y mini-player). */
+  markChatRead(): void {
+    this.chatUnread.set(0);
+  }
+
+  /** F5 — una acción del menú del tile / panel de participantes, por nombre (un solo mapeo para sala y mini-player). */
+  performHostAction(action: MeetingHostTileAction, targetUserId: string): void {
+    switch (action) {
+      case 'promote':
+        return this.promoteCohost(targetUserId);
+      case 'demote':
+        return this.demoteCohost(targetUserId);
+      case 'makeHost':
+        return this.transferHost(targetUserId);
+      case 'lowerHand':
+        return this.lowerHand(targetUserId);
+      case 'remove':
+        return this.removeParticipant(targetUserId);
+      case 'admit':
+        return this.admit(targetUserId);
+      case 'deny':
+        return this.deny(targetUserId);
+    }
   }
 
   private publishMediaStatus(): void {
@@ -867,134 +1409,393 @@ export class ActiveMeetingService {
     }
   }
 
+  /** Copia a los signals públicos el estado de la sesión local (única fuente de verdad de mic/cámara/pantalla). */
+  private syncFromSession(): void {
+    const session = this.session;
+    if (!session) {
+      return;
+    }
+    this.audioEnabled.set(session.audioEnabled());
+    this.videoEnabled.set(session.videoEnabled());
+    this.screenSharing.set(session.screenSharing());
+    this.screenAudioSharing.set(!!session.screenAudioTrack());
+    this.localStream.set(session.stream());
+    this.localScreenStream.set(session.screenStream());
+    this.muteReason.set(session.muteReason());
+    this.videoPausedByNetwork.set(session.videoPausedByNetwork());
+  }
+
+  /** Una pista local cambió (cámara, micro, pantalla): aplicarla a cada enlace mesh o al producer SFU. */
+  private async applyLocalTrack(source: LocalTrackSource, track: MediaStreamTrack | null): Promise<void> {
+    this.syncFromSession();
+    if (this.strategy() === 'Sfu') {
+      const key: SfuProducerKey = source === 'microphone' ? 'audio' : source;
+      await this.sfu.replaceTrack(key, track);
+      return;
+    }
+    for (const conn of this.peerConns.values()) {
+      await conn.link.replaceTrack(source, track);
+    }
+  }
+
   /**
-   * Pide la capa de simulcast de un peer (solo SFU; no-op en mesh). Lo usa el driver de "spotlight" del
-   * meeting-room: tile destacado = alta (spatial 2), thumbnails = baja (spatial 0). Fire-and-forget.
+   * Pide la capa de simulcast de un peer por FUENTE (solo SFU; no-op en mesh). Lo usa el driver de
+   * "spotlight" del meeting-room: tile destacado = alta (spatial 2), thumbnails = baja (spatial 0).
+   * La pantalla nunca se degrada. Fire-and-forget.
    */
-  setPeerPreferredLayers(userId: string, spatialLayer: number, temporalLayer?: number): void {
+  setPeerPreferredLayers(userId: string, source: 'camera' | 'screen', spatialLayer: number, temporalLayer?: number): void {
     if (this.strategy() !== 'Sfu') {
       return;
     }
-    void this.sfu.setPeerPreferredLayers(userId, spatialLayer, temporalLayer);
+    void this.sfu.setPeerPreferredLayers(userId, source, spatialLayer, temporalLayer);
   }
 
-  // ---------- Screen share (replaceTrack por peer, sin renegociar) ----------
+  // ---------- Screen share (sesión local → replaceTrack por peer / producer, sin renegociar) ----------
 
-  async startScreenShare(): Promise<void> {
+  /** `withAudio` (D-41): audio de la pantalla si el usuario lo pide y la política lo permite. */
+  async startScreenShare(withAudio = false): Promise<void> {
     const meetingId = this.meetingId();
-    if (!meetingId || this.phase() !== 'joined' || this.screenSharing()) {
+    const session = this.session;
+    if (!meetingId || this.phase() !== 'joined' || !session || session.screenSharing()) {
       return;
     }
-    let display: MediaStream;
-    try {
-      display = await navigator.mediaDevices.getDisplayMedia({ video: true });
-    } catch {
+    const started = await session.startScreenShare({ withAudio: withAudio && (this.policy?.screenShare.audioAllowed ?? false) });
+    if (!started) {
       return; // el usuario canceló el selector
     }
-    const track = display.getVideoTracks()[0];
-    if (!track) {
-      return;
-    }
-    this.screenTrack = track;
-    this.localScreenStream.set(display); // escenario local (separado de la cámara)
-    await this.applyScreenTrack(track); // al screenSender de cada peer (o producer 'screen' en SFU), sin renegociar
-    track.onended = () => void this.stopScreenShare(); // botón nativo "Dejar de compartir"
-    this.screenSharing.set(true);
-    this.sounds.play('screen-share');
+    this.syncFromSession();
+    this.screenShareInterrupted.set(false);
+    this.writeShareFlag(meetingId, true);
+    this.sounds.play('screen-share', { isHost: this.isHost() });
     this.publishMediaStatus();
   }
 
   async stopScreenShare(): Promise<void> {
-    if (!this.screenSharing()) {
-      return;
-    }
-    this.screenTrack?.stop();
-    this.screenTrack = null;
-    this.localScreenStream.set(null);
-    // Volver el screenSender al placeholder (conserva el m-line, sin renegociar). NO toca la cámara.
-    let placeholder: MediaStreamTrack | null = null;
-    try {
-      placeholder = this.ensureScreenPlaceholderTrack();
-    } catch {
-      /* jsdom (tests): sin placeholder */
-    }
-    await this.applyScreenTrack(placeholder);
-    this.screenSharing.set(false);
+    await this.session?.stopScreenShare(); // `onScreenShareStopped` publica el estado
+  }
+
+  private onScreenShareStopped(): void {
+    this.writeShareFlag(this.meetingId(), false);
+    this.syncFromSession();
     this.publishMediaStatus();
   }
 
-  /** Aplica el track de CÁMARA a los peers: mesh = replaceTrack en cameraSender; SFU = producer 'camera'. */
-  private async applyCameraTrack(track: MediaStreamTrack | null): Promise<void> {
-    if (this.strategy() === 'Sfu') {
-      await this.sfu.replaceVideoTrack('camera', track);
+  /** El usuario acepta retomar la pantalla tras el re-join: abre el selector de nuevo. */
+  async resumeSharing(): Promise<void> {
+    this.screenShareInterrupted.set(false);
+    await this.startScreenShare();
+  }
+
+  dismissResumeSharing(): void {
+    this.screenShareInterrupted.set(false);
+    this.writeShareFlag(this.meetingId(), false);
+  }
+
+  /**
+   * Marca por pestaña de "estaba compartiendo" (sessionStorage): sobrevive a una recarga, no a cerrar
+   * la pestaña. Envuelto en try/catch: puede no existir (ventana privada, tests).
+   */
+  private shareFlagKey(meetingId: string): string {
+    return `taxvision.meeting.sharing:${meetingId}`;
+  }
+
+  private writeShareFlag(meetingId: string | null, sharing: boolean): void {
+    if (!meetingId) {
       return;
     }
-    const stream = this.localStream();
-    for (const conn of this.peerConns.values()) {
-      if (conn.cameraSender) {
-        await conn.cameraSender.replaceTrack(track);
-      } else if (track && stream) {
-        conn.cameraSender = conn.pc.addTrack(track, stream);
+    try {
+      if (sharing) {
+        sessionStorage.setItem(this.shareFlagKey(meetingId), '1');
+      } else {
+        sessionStorage.removeItem(this.shareFlagKey(meetingId));
       }
+    } catch {
+      /* sin storage */
     }
   }
 
-  /** Aplica el track de PANTALLA a los peers: mesh = replaceTrack en screenSender; SFU = producer 'screen'. */
-  private async applyScreenTrack(track: MediaStreamTrack | null): Promise<void> {
-    if (this.strategy() === 'Sfu') {
-      await this.sfu.replaceVideoTrack('screen', track);
-      return;
-    }
-    for (const conn of this.peerConns.values()) {
-      if (conn.screenSender) {
-        await conn.screenSender.replaceTrack(track); // real al compartir, placeholder al parar (sin renegociar)
-      } else if (track) {
-        const out = this.localScreenStream() ?? new MediaStream([track]);
-        conn.screenSender = conn.pc.addTrack(track, out);
-      }
+  private readShareFlag(meetingId: string): boolean {
+    try {
+      return sessionStorage.getItem(this.shareFlagKey(meetingId)) === '1';
+    } catch {
+      return false;
     }
   }
 
-  /** Deja en el localStream (preview) solo el track de video indicado — sin detener la cámara. */
-  private swapLocalVideoTrack(track: MediaStreamTrack | null): void {
-    const stream = this.localStream();
-    if (!stream) {
+  // ---------- Calidad (T-48 / D-39 / D-40) y eco (T-68) ----------
+
+  private startQualityMonitor(): void {
+    const policy = this.policy;
+    if (!policy || this.monitor) {
       return;
     }
-    stream.getVideoTracks().forEach(t => {
-      if (t !== track) {
-        stream.removeTrack(t); // removeTrack NO detiene la cámara (se restaura luego)
-      }
+    this.echo = policy.echo.detectionEnabled ? new EchoDetector(undefined, () => this.onEchoSuspected()) : null;
+    this.monitor = new QualityMonitor({
+      policy: policy.quality,
+      sample: () => this.sampleStats(),
+      isConnected: () => this.isMediaConnected(),
+      onLevelChanged: (level, metrics) => this.onQualityChanged(level, metrics),
+      onSample: reports => this.echo?.push(reports),
+      onSustainedPoor: () => this.enterAudioOnly(),
+      onRecovered: () => this.stepRecovery(),
     });
-    if (track && !stream.getVideoTracks().includes(track)) {
-      stream.addTrack(track);
+    this.monitor.start();
+  }
+
+  private async sampleStats(): Promise<RTCStatsReport[]> {
+    if (this.strategy() === 'Sfu') {
+      return this.sfu.collectStats();
+    }
+    return Promise.all([...this.peerConns.values()].map(c => c.link.collectStats()));
+  }
+
+  private isMediaConnected(): boolean {
+    if (this.strategy() === 'Sfu') {
+      return this.sfu.isConnected();
+    }
+    const links = [...this.peerConns.values()];
+    return links.length === 0 || links.some(c => c.link.connectionState === 'connected');
+  }
+
+  /** Nivel propio: se refleja en mi tile y se manda al servidor SOLO al cambiar. */
+  private onQualityChanged(level: ConnectionQuality, metrics: QualityMetrics | null): void {
+    this.connectionQuality.set(level);
+    this.connectionMetrics.set(metrics);
+    const meetingId = this.meetingId();
+    const me = this.myUserId();
+    if (meetingId && this.phase() === 'joined') {
+      this.rtc.connectionQuality(meetingId, level, metrics);
+    }
+    if (me) {
+      this.participants.update(list => list.map(p => (p.userId === me ? { ...p, connectionQuality: level } : p)));
+    }
+  }
+
+  /** Poor sostenido (D-40): pausar mi video para proteger el audio, sin tocar el estado del usuario. */
+  private enterAudioOnly(): void {
+    if (!this.session || this.degradeStep === 2) {
+      return;
+    }
+    this.degradeStep = 2;
+    this.session.pauseVideoForNetwork();
+    if (this.strategy() === 'Sfu') {
+      void this.sfu.setAudioOnly(true);
+    }
+    this.syncFromSession();
+    this.toast.info('Video paused to protect audio');
+  }
+
+  /** Recuperación gradual: SFU 2 → capa media → completa; mesh reanuda de una. true = recuperado del todo. */
+  private stepRecovery(): boolean {
+    if (this.degradeStep === 0) {
+      return true;
+    }
+    if (this.strategy() !== 'Sfu') {
+      this.degradeStep = 0;
+      this.session?.resumeVideoAfterNetwork();
+      this.syncFromSession();
+      return true;
+    }
+    if (this.degradeStep === 2) {
+      this.degradeStep = 1;
+      this.session?.resumeVideoAfterNetwork();
+      this.syncFromSession();
+      void this.sfu.setAudioOnly(false).then(() => this.sfu.setMaxSendSpatialLayer(1));
+      return false;
+    }
+    this.degradeStep = 0;
+    void this.sfu.setMaxSendSpatialLayer(TOP_SPATIAL_LAYER);
+    return true;
+  }
+
+  private onEchoSuspected(): void {
+    const policy = this.policy;
+    if (!policy || !this.session) {
+      return;
+    }
+    this.toast.info(ECHO_NOTICE);
+    if (policy.echo.muteOnEcho && this.session.audioEnabled()) {
+      void this.setAudioEnabled(false, 'echo');
     }
   }
 
   private toChatView(dto: MeetingChatMessageDto): MeetingChatMessage {
     const myId = this.myUserId();
+    const fileId = !dto.isDeleted && dto.kind === 'Attachment' ? dto.attachmentFileId : null;
+    if (fileId) this.resolveChatAttachment(fileId);
     return {
       id: dto.id,
       senderName: dto.senderDisplayName,
-      text: dto.isDeleted ? '(message deleted)' : (dto.body ?? ''),
+      text: dto.isDeleted ? '(message deleted)' : (dto.body ?? (fileId ? 'Shared a file' : '')),
       time: new Date(dto.createdAtUtc).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
       isMine: !!myId && dto.senderId === myId,
+      senderUserId: dto.senderId,
+      createdAtUtc: dto.createdAtUtc,
+      isEdited: dto.isEdited,
+      editCount: dto.editCount ?? 0,
+      isDeleted: dto.isDeleted,
+      ...(fileId ? { attachment: { fileId, name: 'Attachment', size: '', ...this.attachmentNames.get(fileId) } } : {}),
+      ...(dto.reactions?.length ? { reactions: dto.reactions } : {}),
     };
   }
 
+  /** Nombre, tamaño, tipo y estado de escaneo de cada adjunto de la sala (Communication valida la membresía). */
+  private readonly attachmentNames = new Map<string, Omit<NonNullable<MeetingChatMessage['attachment']>, 'fileId'>>();
+  private resolveChatAttachment(fileId: string): void {
+    if (this.attachmentNames.has(fileId)) return;
+    this.attachmentNames.set(fileId, { name: 'Attachment', size: '' });
+    this.fetchAttachmentMeta(fileId);
+  }
+
+  private fetchAttachmentMeta(fileId: string, attempt = 0): void {
+    const meetingId = this.meetingId();
+    if (!meetingId) return;
+    // Por el socket de la sala: vale igual para invitados (sin JWT) y cuentas.
+    from(this.rtc.chatAttachmentMeta(meetingId, fileId)).subscribe({
+      next: meta => {
+        const status = toAttachmentScanState(meta.status);
+        this.setAttachmentMeta(fileId, {
+          name: meta.fileName ?? this.attachmentNames.get(fileId)?.name ?? 'Attachment',
+          size: meta.sizeBytes != null ? formatBytes(meta.sizeBytes) : (this.attachmentNames.get(fileId)?.size ?? ''),
+          contentType: meta.contentType,
+          ...(status === 'Available' ? {} : { status }),
+        });
+        if (status === 'Pending') this.scheduleAttachmentRecheck(fileId, attempt);
+      },
+      error: () => undefined,
+    });
+  }
+
+  /**
+   * Respaldo del aviso en vivo (`attachment_flagged` → Available): si el escaneo terminó antes de que el
+   * mensaje existiera, el aviso no llega y la metadata lo sana al volver a pedirla. Pocas veces y espaciadas.
+   */
+  /** URL presignada de un adjunto listo del chat de la sala (visor y descarga), también para invitados. */
+  async chatAttachmentUrl(fileId: string): Promise<string> {
+    const meetingId = this.meetingId();
+    if (!meetingId) throw new Error('Not in a meeting.');
+    return (await this.rtc.chatAttachmentDownloadUrl(meetingId, fileId)).downloadUrl;
+  }
+
+  private scheduleAttachmentRecheck(fileId: string, attempt: number): void {
+    const delay = ATTACHMENT_RECHECK_DELAYS_MS[attempt];
+    if (delay === undefined) return;
+    setTimeout(() => {
+      if (this.attachmentNames.get(fileId)?.status === 'Pending') this.fetchAttachmentMeta(fileId, attempt + 1);
+    }, delay);
+  }
+
+  private setAttachmentMeta(fileId: string, meta: Omit<NonNullable<MeetingChatMessage['attachment']>, 'fileId'>): void {
+    this.attachmentNames.set(fileId, meta);
+    this.chatMessages.update(list => list.map(m => (m.attachment?.fileId === fileId ? { ...m, attachment: { fileId, ...meta } } : m)));
+  }
+
+  /**
+   * F8a (D-15): adjunto en el chat de la sala; los topes por minuto y por meeting los aplica el servidor.
+   * El mensaje aparece al instante como "Sending…" y sigue así mientras el archivo se escanea: nadie ve un
+   * error por algo que solo está en proceso. Solo un fallo real (subida o rechazo del servidor) avisa.
+   */
+  async sendChatAttachment(file: File): Promise<void> {
+    const meetingId = this.meetingId();
+    const conversationId = this.conversationId();
+    if (!meetingId || !conversationId || this.chatUploading()) return;
+    this.chatUploading.set(true);
+    const placeholderId = `local:${crypto.randomUUID()}`;
+    const now = new Date();
+    this.chatMessages.update(list => [
+      ...list,
+      {
+        id: placeholderId,
+        senderName: this.lastSelfDisplayName() ?? 'You',
+        text: '',
+        time: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+        isMine: true,
+        senderUserId: this.myUserId() ?? '',
+        createdAtUtc: now.toISOString(),
+        isEdited: false,
+        editCount: 0,
+        isDeleted: false,
+        sending: true,
+        attachment: { fileId: placeholderId, name: file.name, size: formatBytes(file.size), status: 'Pending', contentType: file.type || null },
+      },
+    ]);
+    try {
+      const initiated = await firstValueFrom(
+        this.conversationAttachments.initiateUpload(conversationId, {
+          originalName: file.name,
+          contentType: file.type || 'application/octet-stream',
+          sizeBytes: file.size,
+        }),
+      );
+      await firstValueFrom(this.cloudStorage.uploadToPresignedUrl(initiated.uploadUrl, initiated.formData, file));
+      const completed = await firstValueFrom(this.conversationAttachments.completeUpload(conversationId, initiated.fileId));
+      const status = toAttachmentScanState(completed.status);
+      this.attachmentNames.set(initiated.fileId, {
+        name: file.name,
+        size: formatBytes(file.size),
+        contentType: file.type || null,
+        ...(status === 'Available' ? {} : { status }),
+      });
+      await this.rtc.chatSend(meetingId, null, initiated.fileId);
+      if (status === 'Pending') this.scheduleAttachmentRecheck(initiated.fileId, 0);
+    } catch (err) {
+      this.toast.error(meetingChatErrorMessage(socketErrorCode(err)) ?? "Couldn't send the file. Try again.");
+    } finally {
+      // El real ya llegó por el broadcast de la sala (o falló): el marcador se va.
+      this.chatMessages.update(list => list.filter(m => m.id !== placeholderId));
+      this.chatUploading.set(false);
+    }
+  }
+
+  /** F8 (D-64): editar un mensaje propio de la sala. */
+  editChatMessage(messageId: string, body: string): void {
+    const meetingId = this.meetingId();
+    const trimmed = body.trim();
+    if (!meetingId || !trimmed) return;
+    this.rtc
+      .chatEdit(meetingId, messageId, trimmed)
+      .catch(err => this.toast.error(editErrorMessage(socketErrorCode(err) ?? '') ?? "Couldn't edit the message."));
+  }
+
+  /** F8d: agrega o quita mi reacción; el estado llega con el evento (también el mío). */
+  toggleChatReaction(messageId: string, emoji: string): void {
+    const message = this.chatMessages().find(m => m.id === messageId);
+    const add = !hasMyReaction(message?.reactions, emoji, this.myUserId());
+    this.rtc.chatReact(messageId, emoji, add).catch((err: { code?: string }) => this.toast.error(reactionErrorText(err?.code)));
+  }
+
+  deleteChatMessage(messageId: string): void {
+    const meetingId = this.meetingId();
+    if (!meetingId) return;
+    this.rtc.chatDelete(meetingId, messageId).catch(() => this.toast.error("Couldn't delete the message."));
+  }
+
   /** Carga el historial previo del chat del meeting (el backend pagina DESC → se invierte a ASC). */
+  /** F11: el invitado recibe el historial por el socket (misma regla que la ficha del meeting, D-01). */
+  private loadGuestChatHistory(meetingId: string): void {
+    from(this.rtc.chatHistory(meetingId, 50)).subscribe({
+      next: page => this.mergeChatHistory(page.items),
+      error: () => undefined, // sin historial no es bloqueante
+    });
+  }
+
+  /** Historial (DESC) antes de lo que ya llegó en vivo, sin duplicar. */
+  private mergeChatHistory(itemsDesc: readonly MeetingChatMessageDto[]): void {
+    const history = [...itemsDesc].reverse().map(dto => this.toChatView(dto));
+    this.chatMessages.update(live => {
+      const liveIds = new Set(live.map(m => m.id));
+      return [...history.filter(m => !liveIds.has(m.id)), ...live];
+    });
+  }
+
   private loadChatHistory(conversationId: string): void {
     const url = this.api.tenantUrl(`/communication/conversations/${conversationId}/messages`);
     this.http
-      .get<{ items: MeetingChatMessageDto[] }>(url, { params: new HttpParams().set('take', 50) })
+      .get<{ items: MeetingChatMessageDto[]; editPolicy?: ChatEditPolicy }>(url, { params: new HttpParams().set('take', 50) })
       .subscribe({
         next: page => {
-          const history = [...page.items].reverse().map(dto => this.toChatView(dto)); // DESC→ASC
-          this.chatMessages.update(live => {
-            const liveIds = new Set(live.map(m => m.id));
-            const olderNew = history.filter(m => !liveIds.has(m.id));
-            return [...olderNew, ...live]; // historial (más viejo) antes de lo que llegó en vivo
-          });
+          this.chatEditPolicy.set(page.editPolicy ?? null);
+          this.mergeChatHistory(page.items);
         },
         error: () => undefined, // sin historial no es bloqueante
       });
@@ -1011,7 +1812,9 @@ export class ActiveMeetingService {
       .chatSend(meetingId, trimmed)
       .catch(err =>
         this.toast.error(
-          isSocketRateLimited(socketErrorCode(err)) ? SOCKET_RATE_LIMITED_MESSAGE : 'Message could not be sent.',
+          isSocketRateLimited(socketErrorCode(err))
+            ? SOCKET_RATE_LIMITED_MESSAGE
+            : (meetingChatErrorMessage(socketErrorCode(err)) ?? 'Message could not be sent.'),
         ),
       );
   }
@@ -1023,7 +1826,42 @@ export class ActiveMeetingService {
     if (!meetingId || this.phase() !== 'joined' || this.recordingState() !== 'Idle') {
       return;
     }
-    this.rtc.requestRecording(meetingId).catch(() => this.toast.error('Could not start recording.'));
+    this.rtc.requestRecording(meetingId).catch(err => {
+      const code = socketErrorCode(err);
+      this.toast.error(
+        recordingStartErrorMessage(code) ?? (isSocketRateLimited(code) ? SOCKET_RATE_LIMITED_MESSAGE : 'Could not start recording.'),
+      );
+    });
+  }
+
+  /**
+   * F7 — aplica `meeting.recording.state_changed`. Con `captureMode: 'Server'` el navegador NO mezcla
+   * ni sube (el recorder captura del SFU); la mezcla local queda para `Client` o sin campo.
+   */
+  private applyRecordingState(dto: MeetingRecordingStateChangedDto): void {
+    this.recordingState.set(dto.state);
+    if (dto.captureMode !== undefined) {
+      this.recordingCaptureMode.set(dto.captureMode);
+    }
+    if (dto.state === 'Recording') {
+      this.recordingClock.start(dto.startedAtUtc, dto.maxDurationSeconds);
+      if (usesClientCapture(dto) && this.isRecordingRequester() && this.policy && !this.recording.active) {
+        const streams = [this.localStream(), ...[...this.peers().values()].map(p => p.cameraStream)];
+        void this.recording.start(streams, this.policy.audio.clientRecordingKbps);
+      }
+      return;
+    }
+    this.recordingClock.stop();
+    const notice = recordingStateNotice(dto);
+    if (notice?.tone === 'error') {
+      this.toast.error(notice.message);
+    } else if (notice) {
+      this.toast.info(notice.message);
+    }
+    if (dto.state === 'Idle') {
+      this.recordingConsentFrom.set(null);
+      this._recordingRequesterId.set(null);
+    }
   }
 
   respondRecordingConsent(accepted: boolean): void {
@@ -1046,69 +1884,24 @@ export class ActiveMeetingService {
     }
     const blob = await this.recording.stop();
     if (blob) {
-      void this.uploadAndAttach(meetingId, blob);
+      void this.uploadRecording(meetingId, blob);
     }
   }
 
   private finalizeRecordingBackground(): void {
-    if (!this.isRecordingRequester()) {
-      return;
-    }
     const meetingId = this.meetingId();
-    if (!meetingId) {
+    if (!this.isRecordingRequester() || !meetingId || !this.recording.active) {
       return;
     }
     void this.recording.stop().then(blob => {
       if (blob && blob.size > 0) {
-        void this.uploadAndAttach(meetingId, blob);
+        void this.uploadRecording(meetingId, blob);
       }
     });
   }
 
-  private async uploadAndAttach(meetingId: string, blob: Blob): Promise<void> {
-    if (blob.size === 0) {
-      return;
-    }
-    const file = new File([blob], `meeting-recording-${meetingId}.webm`, { type: 'audio/webm' });
-    const request: InitiateUploadRequest = {
-      originalName: file.name,
-      contentType: 'audio/webm',
-      sizeBytes: file.size,
-      ownerType: 'Communication',
-      ownerId: meetingId,
-      // La grabación (audio mezclado, audio/webm) va a la carpeta Recordings — OtherPolicy no admite
-      // audio/* y devolvía 400 ("Could not save the recording"). RecordingsPolicy acepta audio/webm.
-      folderType: 'Recordings',
-      taxYear: null,
-    };
-    // Paso 1: subir a CloudStorage. Si esto falla, la grabación se perdió → toast de error.
-    let fileId: string;
-    try {
-      fileId = await firstValueFrom(
-        this.cloudStorage.initiateUpload(request).pipe(
-          switchMap(init =>
-            this.cloudStorage.uploadToPresignedUrl(init.uploadUrl, init.formData, file).pipe(
-              switchMap(() => this.cloudStorage.completeUpload(init.fileId)),
-              map(() => init.fileId),
-            ),
-          ),
-        ),
-      );
-    } catch {
-      this.toast.error('Could not save the recording.');
-      return;
-    }
-    // Paso 2: enlazar el fileId al meeting. El archivo YA está guardado; el attach puede perder la carrera
-    // con el fin del meeting. Idempotente → un reintento; si aun así falla NO se muestra error.
-    try {
-      await this.rtc.attachRecording(meetingId, fileId);
-    } catch {
-      try {
-        await this.rtc.attachRecording(meetingId, fileId);
-      } catch {
-        /* la grabación quedó guardada; sin toast de error. */
-      }
-    }
+  private uploadRecording(meetingId: string, blob: Blob): Promise<void> {
+    return this.recordingUpload.uploadAndAttach(meetingId, 'meeting-recording', blob, fileId => this.rtc.attachRecording(meetingId, fileId));
   }
 
   // ---------- Host controls (el backend valida Host/Cohost; la UI los muestra solo al host) ----------
@@ -1138,19 +1931,35 @@ export class ActiveMeetingService {
   demoteCohost(targetUserId: string): void {
     this.hostAction(id => this.rtc.demoteCohost(id, targetUserId));
   }
+  /** F5 — bajar la mano de otro (host/cohost). La mía se baja con `toggleHandRaise`. */
+  lowerHand(targetUserId: string): void {
+    if (targetUserId === this.myUserId()) {
+      if (this.handRaised()) {
+        void this.toggleHandRaise();
+      }
+      return;
+    }
+    this.hostAction(id => this.rtc.lowerHand(id, targetUserId));
+  }
+  lowerAllHands(): void {
+    this.hostAction(id => this.rtc.lowerAllHands(id));
+  }
 
-  /** El estado real (lock/roles/admisión) llega por snapshot/participant.changed; acá solo se dispara y se surface el error. */
+  /**
+   * El estado real (lock/roles/admisión) llega por snapshot/participant.changed; acá solo se dispara y se
+   * muestra el `code` del ack real con copy legible — sin inferir fracaso por timeout.
+   */
   private hostAction(run: (meetingId: string) => Promise<unknown>): void {
     const meetingId = this.meetingId();
     if (!meetingId) {
       return;
     }
-    run(meetingId).catch(() => this.toast.error('That action could not be completed.'));
+    run(meetingId).catch((err: { code?: string }) => this.toast.error(hostActionErrorMessage(err?.code)));
   }
 
   async leave(): Promise<void> {
     const meetingId = this.meetingId();
-    // Si estoy grabando, capturo el blob ANTES de cortar los tracks (la subida va en background).
+    // Si estoy grabando, capturo el blob ANTES de cortar las pistas (la subida va en background).
     let pendingBlob: Blob | null = null;
     if (this.isRecordingRequester() && this.recordingState() === 'Recording') {
       if (meetingId) {
@@ -1163,26 +1972,23 @@ export class ActiveMeetingService {
       pendingBlob = await this.recording.stop();
     }
     if (this.phase() === 'joined') {
-      this.sounds.play('leave');
+      this.sounds.play('leave', { isHost: this.isHost() });
     }
-    // Reset LOCAL SINCRÓNICO (phase→'idle' YA). Antes se hacía `await rtc.leave()` y LUEGO reset(), así
-    // que phase quedaba en 'joined' unos ms; si el usuario le daba a Join enseguida, el guard de join()
-    // (`if phase !== 'idle' return`) descartaba ese Join en silencio y el reset() tardío lo sacaba ("la
-    // primera me saca; a la segunda sí"). Reseteando sync, al re-entrar phase ya es 'idle' → entra a la
-    // primera y no queda ningún reset en vuelo que lo eche. El aviso de leave al backend va en background.
+    // Reset LOCAL SINCRÓNICO (phase→'idle' YA): si el usuario le da a Join enseguida, el guard de join()
+    // ya ve 'idle' y no queda ningún reset en vuelo que lo eche. El aviso de leave al backend va en background.
     this.reset();
     if (meetingId) {
       void this.rtc.leave(meetingId).catch(() => undefined);
       if (pendingBlob) {
-        void this.uploadAndAttach(meetingId, pendingBlob);
+        void this.uploadRecording(meetingId, pendingBlob);
       }
     }
   }
 
   /**
    * Termina el meeting PARA TODOS (solo host): `POST /communication/meetings/{id}/end` — el mismo
-   * endpoint que usa la fila de la agenda — y luego sale localmente con `leave()` (corta tracks, peers
-   * y SFU sin recargar). Devuelve false si el backend lo rechazó (se avisa con toast y se sigue dentro).
+   * endpoint que usa la fila de la agenda — y luego sale localmente con `leave()`. Devuelve false si el
+   * backend lo rechazó (se avisa con toast y se sigue dentro).
    */
   async endForAll(): Promise<boolean> {
     const meetingId = this.meetingId();
@@ -1210,77 +2016,129 @@ export class ActiveMeetingService {
   }
 
   /**
-   * Apaga la cámara/micrófono (libera el hardware) + cierra los peer connections/SFU, SIN tocar el
+   * "Start a new meeting" (D-34, sin prórroga): tras un fin por tiempo/host, el host o cohost crea la
+   * continuación (`POST /meetings/{id}/continue` → "X (cont.)" con los mismos invitados), la inicia
+   * (`/start`) y entra con el flujo normal de join. Devuelve false si el backend lo rechazó (toast).
+   */
+  async startContinuation(): Promise<boolean> {
+    const meetingId = this.meetingId();
+    if (!meetingId || this.phase() !== 'ended' || !this.canEndForAll()) {
+      return false;
+    }
+    const title = this.meetingTitle();
+    let created: { meetingId: string };
+    try {
+      created = await firstValueFrom(
+        this.http.post<{ meetingId: string }>(this.api.tenantUrl(`/communication/meetings/${meetingId}/continue`), {}),
+      );
+      await firstValueFrom(this.http.post(this.api.tenantUrl(`/communication/meetings/${created.meetingId}/start`), {}));
+    } catch (err) {
+      this.toast.error(toApiError(err).message);
+      return false;
+    }
+    this.reset();
+    await this.join(created.meetingId, `${title} (cont.)`);
+    return true;
+  }
+
+  /**
+   * Apaga cámara/micrófono (libera el hardware), el monitor de calidad y los enlaces/SFU, SIN tocar el
    * resto del estado ni la fase. Se llama cuando el meeting termina por EVENTO (Ended/Cancelled/Denied)
-   * para que la cámara no quede encendida mientras se muestra la pantalla de "terminado" — antes el CRM
-   * solo ponía phase='ended' y la cámara seguía prendida. `reset()` lo repite al cerrar del todo (idempotente).
+   * para que la cámara no quede encendida en la pantalla de "terminado". `reset()` lo repite (idempotente).
    */
   private stopLocalMedia(): void {
+    this.monitor?.stop();
+    this.monitor = null;
+    this.echo = null;
+    this.degradeStep = 0;
     this.sfu.leave();
-    this.peerConns.forEach(conn => conn.pc.close());
+    this.peerConns.forEach(conn => conn.link.close());
     this.peerConns.clear();
+    this.mediaState.set('ok');
+    // Salida real (leave, fin, expulsión): la marca de "estaba compartiendo" ya no aplica.
+    if (this.screenSharing()) {
+      this.writeShareFlag(this.meetingId(), false);
+    }
     this.peers.set(new Map());
-    this.screenTrack?.stop();
-    this.screenTrack = null;
-    this.localScreenStream()?.getTracks().forEach(t => t.stop());
-    this.localScreenStream.set(null);
-    // cameraTrack puede estar FUERA del localStream — detenerla explícitamente o la cámara queda encendida.
-    this.cameraTrack?.stop();
-    this.cameraTrack = null;
-    this.localStream()
-      ?.getTracks()
-      .forEach(t => t.stop());
+    this.session?.release();
+    this.session = null;
     this.localStream.set(null);
-    this.placeholderStream?.getTracks().forEach(t => t.stop());
-    this.placeholderStream = null;
-    this.screenPlaceholderStream?.getTracks().forEach(t => t.stop());
-    this.screenPlaceholderStream = null;
+    this.localScreenStream.set(null);
     this.screenSharing.set(false);
+    this.screenAudioSharing.set(false);
+    this.muteReason.set(null);
+    this.videoPausedByNetwork.set(false);
+    this.microphoneError.set(null);
+    this.connectionQuality.set('Good');
+    this.connectionMetrics.set(null);
   }
 
   private reset(): void {
     // Fin abrupto (meeting terminó, me sacaron) mientras grababa: rescatar lo grabado.
     this.finalizeRecordingBackground();
     this.stopLocalMedia();
+    this.policy = null;
     this.chatMessages.set([]);
+    this.chatEditPolicy.set(null);
     this.chatHistoryLoaded = false;
     this.iceServers = [];
+    this.leftUserIds.clear();
     this.phase.set('idle');
     this.meetingId.set(null);
     this.meetingTitle.set('');
     this.conversationId.set(null);
     this.participants.set([]);
     this.yourRole.set('Attendee');
+    this.hostUserId.set(null);
     this.strategy.set('Mesh');
     this.isLocked.set(false);
+    this.stopClock();
+    this.joinedAtMs = null;
+    this.endsAtUtc.set(null);
+    this.maxDurationMinutes.set(null);
+    this.scheduledDurationMinutes.set(null);
+    this.endReason.set(null);
+    this.meetingEnded.set(false);
+    this.durationWarning.set(null);
     this.audioEnabled.set(true);
     this.videoEnabled.set(true);
     this.handRaised.set(false);
+    this.handRaisedAtUtc.set(null);
+    this.desiredHand = false;
+    this.handAckPending = false;
+    this.chatUnread.set(0);
+    this.reactions.set([]);
+    this.reactionAnnouncement.set('');
+    this.stopReactionSweep();
+    this.speakingThrottle?.dispose();
+    this.speakingThrottle = null;
+    this.lastReportedSpeaking = null;
+    this.screenShareInterrupted.set(false);
     this.pinnedUserId.set(null);
     this.recordingState.set('Idle');
-    this.stopRecordingTimer();
+    this.recordingCaptureMode.set(null);
+    this.recordingClock.stop();
     this.recordingConsentFrom.set(null);
     this._recordingRequesterId.set(null);
     this.myUserId.set(null);
+    this.isGuest.set(false);
+    this.guestInvitationId = null;
   }
+}
 
-  /** Cronómetro de la grabación en curso ("REC 0:12"). Tolera reentradas del evento Recording. */
-  private startRecordingTimer(): void {
-    if (this.recordingTimer) {
-      return;
-    }
-    this.recordingStartedAt = Date.now();
-    this.recordingElapsedMs.set(0);
-    this.recordingTimer = setInterval(() => {
-      this.recordingElapsedMs.set(Date.now() - this.recordingStartedAt);
-    }, 250);
-  }
+/** Respaldo del aviso en vivo de escaneo terminado: vuelve a preguntar a los 4, 10 y 25 s (después, al reabrir). */
+const ATTACHMENT_RECHECK_DELAYS_MS: readonly number[] = [4_000, 10_000, 25_000];
 
-  private stopRecordingTimer(): void {
-    if (this.recordingTimer) {
-      clearInterval(this.recordingTimer);
-      this.recordingTimer = null;
-    }
-    this.recordingElapsedMs.set(0);
+/** Estados de moderación del aviso en vivo (T-20): en revisión, bloqueado o ya no disponible; el resto, disponible. */
+function moderationStateOf(status: string): AttachmentScanState | undefined {
+  switch (status) {
+    case 'PendingReview':
+    case 'BlockedByPolicy':
+      return toAttachmentScanState(status);
+    case 'Infected':
+    case 'Deleted':
+      return 'Unavailable';
+    default:
+      return undefined;
   }
 }

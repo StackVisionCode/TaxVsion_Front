@@ -52,6 +52,13 @@ describe('NotificationRouteResolver', () => {
     });
   });
 
+  it('F8b: "added you to a group" abre el chat con el parámetro que lee la página', () => {
+    expect(resolver.resolve(notification({ resourceType: 'conversation', resourceId: 'g1', resourceContext: {} }))).toEqual({
+      commands: ['/chat'],
+      queryParams: { conversation: 'g1' },
+    });
+  });
+
   it('routes unknown resource types to notification detail', () => {
     expect(resolver.resolve(notification({ resourceType: 'future_resource' }))).toEqual({
       commands: ['/notifications'],

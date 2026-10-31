@@ -6,7 +6,8 @@ import type { Socket } from 'socket.io-client';
 import { Observable, Subject, filter, map } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { TokenService } from '@core/auth/token.service';
-import { SocketAck, SocketEnvelope } from './realtime.model';
+import { AuthRefreshResult, SocketAck, SocketEnvelope } from './realtime.model';
+import { estimateServerOffsetMs } from '@core/communication/meeting-clock.util';
 
 const ACK_TIMEOUT_MS = 10_000;
 /** Tope del anillo de eventId vistos — cubre ráfagas de re-entrega sin crecer sin límite. */
@@ -36,6 +37,12 @@ export class CommunicationRealtimeService {
 
   /** true mientras el transporte Socket.IO está conectado. */
   readonly connected = signal(false);
+
+  /**
+   * F3 (T-41) — desfase reloj servidor − reloj navegador (ms), estimado con el `emittedAtUtc` de cada
+   * sobre que llega. El reloj de la reunión cuenta contra el servidor: `Date.now() + serverOffsetMs()`.
+   */
+  readonly serverOffsetMs = signal(0);
 
   private readonly events$ = new Subject<{ event: string; payload: unknown }>();
 
@@ -121,6 +128,48 @@ export class CommunicationRealtimeService {
     }
   }
 
+  /**
+   * F6 (D-47) — conexión de INVITADO EXTERNO (página pública `/meet/:token`): sin JWT, el handshake
+   * lleva `auth: { ticket }` (el `shortLivedJoinTicket` de `POST /meetings/join-by-token`). El ticket
+   * es fijo (no se renueva: no hay `session.expiring` ni `auth.refresh` para guests), así que acá sí va
+   * un objeto, no un callback. Reemplaza cualquier socket previo. Resuelve al conectar; rechaza si el
+   * servidor rechaza el handshake o no responde en `ACK_TIMEOUT_MS`.
+   */
+  async connectAsGuest(ticket: string): Promise<void> {
+    this.disconnect();
+    const generation = this.generation;
+    this.opening = true;
+    try {
+      const { io } = await import('socket.io-client');
+      if (generation !== this.generation) {
+        throw new Error('Guest connection cancelled.');
+      }
+      const socket = io(this.api.tenantBase(), {
+        path: '/communication/socket.io',
+        transports: ['websocket', 'polling'],
+        auth: { ticket },
+        withCredentials: true,
+      });
+      this.socket = socket;
+      this.bind(socket);
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('Could not connect to the meeting server.')), ACK_TIMEOUT_MS);
+        socket.once('connect', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+        socket.once('connect_error', err => {
+          clearTimeout(timer);
+          reject(err instanceof Error ? err : new Error('Could not connect to the meeting server.'));
+        });
+      });
+    } finally {
+      if (generation === this.generation) {
+        this.opening = false;
+      }
+    }
+  }
+
   disconnect(): void {
     // Invalida cualquier apertura en vuelo antes de soltar el estado.
     this.generation++;
@@ -186,6 +235,14 @@ export class CommunicationRealtimeService {
     this.socket?.emit(event, payload);
   }
 
+  /**
+   * F3 — renueva el principal del socket SIN reconectar (`auth.refresh`): mismo usuario y oficina,
+   * token nuevo. Se manda al recibir `session.expiring` con el access token ya renovado por HTTP.
+   */
+  refreshAuth(token: string): Promise<SocketAck<AuthRefreshResult>> {
+    return this.emitAck<AuthRefreshResult>('auth.refresh', { token });
+  }
+
   newClientKey(): string {
     return typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()
@@ -225,6 +282,10 @@ export class CommunicationRealtimeService {
     socket.onAny((event: string, envelope: SocketEnvelope<unknown>) => {
       if (this.isDuplicate(envelope)) {
         return;
+      }
+      const offset = estimateServerOffsetMs(envelope?.emittedAtUtc, Date.now());
+      if (offset !== null) {
+        this.serverOffsetMs.set(offset);
       }
       this.events$.next({ event, payload: envelope?.payload ?? envelope });
     });

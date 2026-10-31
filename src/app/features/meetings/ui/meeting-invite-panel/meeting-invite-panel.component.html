@@ -1,0 +1,149 @@
+<app-drawer [isOpen]="isOpen" heading="Invite people" subheading="Add participants to this meeting" width="md" bodyClass="p-6" (closed)="close()">
+  <div class="flex flex-col gap-4">
+    <!-- Código de la reunión -->
+    @if (shortCode) {
+      <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-gray-50/60 px-4 py-3" data-role="meeting-code">
+        <div class="min-w-0">
+          <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Meeting code</p>
+          <p class="font-mono text-base font-bold tracking-widest text-gray-900">{{ shortCode }}</p>
+        </div>
+        <button type="button" (click)="copyCode()" data-role="copy-code"
+          class="flex shrink-0 items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100">
+          <ion-icon [name]="copiedKey() === 'code' ? 'checkmark-outline' : 'copy-outline'" class="text-sm"></ion-icon>
+          {{ copiedKey() === 'code' ? 'Copied' : 'Copy code' }}
+        </button>
+      </div>
+    }
+
+    <!-- Picker (equipo / clientes) + externo por email -->
+    <div class="relative" appClickOutside [clickOutsideEnabled]="isInviteeOpen()" (appClickOutside)="isInviteeOpen.set(false)">
+      <div class="flex h-10 items-center rounded-full border border-gray-200 bg-white transition-colors focus-within:border-gray-300">
+        <input type="text" placeholder="Invite by name or email" [ngModel]="inviteeSearch()" name="inviteeSearch" data-role="invitee-search"
+          (ngModelChange)="onInviteeSearchChange($event)" (keydown.enter)="addExternal()" autocomplete="off"
+          class="h-full w-full rounded-full bg-transparent px-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+      </div>
+
+      @if (isInviteeOpen()) {
+        <div class="absolute left-0 right-0 top-full z-20 mt-2 max-h-60 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg" data-role="invitee-results">
+          @if (inviteeResults().employees.length > 0) {
+            <p class="px-4 pb-1 pt-2.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Team</p>
+            @for (entry of inviteeResults().employees; track entry.userId) {
+              <button type="button" (click)="addEmployee(entry)" class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50">
+                <app-avatar [name]="entry.displayName" [seed]="entry.userId" [imageUrl]="entry.avatarFileId | avatarUrl" size="xs" />
+                <span class="min-w-0 flex-1 truncate text-left">{{ entry.displayName }}</span>
+                <span class="shrink-0 text-xs text-gray-400">{{ entry.email }}</span>
+              </button>
+            }
+          }
+          @if (inviteeResults().customers.length > 0) {
+            <p class="px-4 pb-1 pt-2.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Clients</p>
+            @for (entry of inviteeResults().customers; track entry.customerId) {
+              <button type="button" (click)="addCustomer(entry)" class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50">
+                <app-avatar [name]="entry.displayName" [seed]="entry.customerId" [imageUrl]="entry.avatarFileId | avatarUrl" size="xs" />
+                <span class="min-w-0 flex-1 truncate text-left">{{ entry.displayName }}</span>
+                <span class="shrink-0 text-xs text-gray-400">{{ entry.email }}</span>
+              </button>
+            }
+          }
+          @if (externalCandidate(); as email) {
+            <div class="flex flex-col gap-2 border-t border-gray-100 px-4 py-3" data-role="external-candidate">
+              <p class="text-xs text-gray-500">Invite <span class="font-medium text-gray-700">{{ email }}</span> as an external guest</p>
+              <div class="flex items-center gap-2">
+                <input type="text" placeholder="Guest name (optional)" [ngModel]="externalName()" name="externalName" data-role="external-name"
+                  (ngModelChange)="externalName.set($event)" (keydown.enter)="addExternal()" autocomplete="off"
+                  class="h-9 min-w-0 flex-1 rounded-full border border-gray-200 bg-white px-3 text-sm text-gray-700 placeholder-gray-400 focus:border-gray-300 focus:outline-none" />
+                <button type="button" (click)="addExternal()" data-role="add-external"
+                  class="flex shrink-0 items-center gap-1 rounded-full bg-brand-bold px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-ink">
+                  <ion-icon name="mail-outline" class="text-sm"></ion-icon> Add
+                </button>
+              </div>
+            </div>
+          } @else if (inviteeResults().employees.length === 0 && inviteeResults().customers.length === 0) {
+            <p class="px-4 py-3 text-sm text-gray-400">No matches — type a full email to invite an external guest.</p>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Chips elegidos + Send -->
+    @if (invitees().length > 0) {
+      <div class="flex flex-wrap gap-2" data-role="invitee-chips">
+        @for (invitee of invitees(); track $index; let i = $index) {
+          <span class="flex items-center gap-2 rounded-full border border-gray-200 py-1 pl-1 pr-3 text-xs font-medium text-gray-700">
+            <app-avatar [name]="invitee.name" [seed]="invitee.userId || invitee.customerId || invitee.email || invitee.name" [imageUrl]="invitee.avatarFileId | avatarUrl" size="xs" />
+            {{ invitee.name }}
+            <span class="text-[0.625rem] text-gray-400">{{ kindLabel(invitee.kind) }}</span>
+            <button type="button" (click)="removeInvitee(i)" class="text-gray-400 hover:text-gray-700" aria-label="Remove invitee">
+              <ion-icon name="close-outline" class="text-sm"></ion-icon>
+            </button>
+          </span>
+        }
+      </div>
+      <button type="button" (click)="send()" [disabled]="!canSend()" data-role="send"
+        class="flex items-center gap-1.5 self-start rounded-full bg-brand-bold px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
+        <ion-icon name="send-outline" class="text-sm"></ion-icon>
+        {{ busy() ? 'Sending…' : 'Send invitations' }}
+      </button>
+    }
+
+    @if (error(); as err) {
+      <div class="flex items-center justify-between gap-3 rounded-xl bg-red-50 px-3 py-2" role="alert" data-role="error">
+        <p class="text-xs text-red-600">{{ err }}</p>
+        <button type="button" (click)="loadInvitations()" class="shrink-0 text-xs font-semibold text-red-600 transition-colors hover:text-red-800">Retry</button>
+      </div>
+    }
+
+    <!-- Links recién emitidos: única vez que se ven -->
+    @if (newLinks().length > 0) {
+      <div class="flex flex-col gap-2" data-role="new-links">
+        <p class="text-xs font-medium text-amber-600">Links are shown only once — copy them now if you need to share them manually (invitees also get them by email).</p>
+        @for (link of newLinks(); track link.id) {
+          <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 px-4 py-2.5" [attr.data-link]="link.id">
+            <div class="min-w-0">
+              <p class="truncate text-xs font-medium text-gray-900">{{ link.inviteeEmail || 'Guest link' }}</p>
+              <p class="truncate text-[0.6875rem] text-gray-400">{{ link.joinUrl }}</p>
+            </div>
+            <button type="button" (click)="copyLink(link)" data-role="copy-link"
+              class="flex shrink-0 items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100">
+              <ion-icon [name]="copiedKey() === link.id ? 'checkmark-outline' : 'link-outline'" class="text-sm"></ion-icon>
+              {{ copiedKey() === link.id ? 'Copied' : 'Copy link' }}
+            </button>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Invitaciones existentes -->
+    <section aria-label="Invitations" data-role="invitations">
+      <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Invitations</p>
+      @if (loading()) {
+        <div class="mt-3 flex items-center gap-2 text-sm text-gray-400"><app-infinity-loader size="xs" /> Loading invitations…</div>
+      } @else if (invitations().length === 0) {
+        <p class="mt-3 text-sm text-gray-400">No invitations sent yet.</p>
+      } @else {
+        <ul class="mt-2 flex flex-col">
+          @for (invitation of invitations(); track invitation.id) {
+            <li class="flex items-center justify-between gap-3 border-b border-gray-50 py-2.5 last:border-b-0" [attr.data-invitation]="invitation.id">
+              <div class="min-w-0">
+                <p class="truncate text-sm text-gray-700">{{ labelOf(invitation) }}</p>
+                <p class="text-[0.6875rem] text-gray-400">
+                  {{ invitation.inviteeKind }}
+                  @if (useHint(invitation); as hint) { · {{ hint }} }
+                </p>
+              </div>
+              <div class="flex shrink-0 items-center gap-2">
+                <app-status-pill [tone]="toneOf(invitation)" size="xs" [dot]="false">{{ stateLabelOf(invitation) }}</app-status-pill>
+                @if (canRevoke(invitation)) {
+                  <button type="button" (click)="revoke(invitation)" [disabled]="revokingId() !== null" data-role="revoke"
+                    class="text-xs font-medium text-red-400 transition-colors hover:text-red-600 disabled:opacity-50">
+                    {{ revokingId() === invitation.id ? 'Revoking…' : 'Revoke' }}
+                  </button>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  </div>
+</app-drawer>

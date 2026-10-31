@@ -60,7 +60,12 @@
     @if (statusKind === 'blocked') {
       <p class="mt-4 flex items-start gap-2 rounded-xl bg-red-50 px-3 py-2.5 text-xs leading-relaxed text-red-600">
         <ion-icon name="alert-circle-outline" class="mt-0.5 text-sm"></ion-icon>
-        <span>Blocked — this file may be unsafe. It can't be opened or downloaded.</span>
+        <span>{{ blockedMessage }}</span>
+      </p>
+    } @else if (statusKind === 'review') {
+      <p class="mt-4 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-700">
+        <ion-icon name="shield-outline" class="mt-0.5 text-sm"></ion-icon>
+        <span>{{ underReviewMessage }}</span>
       </p>
     }
 

@@ -4,13 +4,22 @@ import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
 import { SocketAck, USER_PROFILE_CHANGED_EVENT, UserProfileChangedEvent } from '@core/realtime/realtime.model';
+import { ConnectionQuality } from './media/media-policy.model';
+import { QualityMetrics } from './media/derive-quality';
+import type { types as MsTypes } from 'mediasoup-client';
 import {
+  CallCaptureRequestedDto,
+  CallCaptureStoppedDto,
+  CallDurationWarningDto,
   CallKind,
   CallMediaStatusDto,
+  CallPeerQualityChangedDto,
   CallPeerDto,
   CallRecordingConsentRecordedDto,
   CallRecordingConsentRequestedDto,
+  CallRecordingLimitWarningDto,
   CallRecordingStateChangedDto,
+  CallSfuTransportParams,
   CallSignalDto,
   CallStateDto,
   CallTranscriptReadyDto,
@@ -34,6 +43,9 @@ export class CallsService {
   private get base(): string {
     return this.api.tenantUrl('/communication');
   }
+
+  /** F7 — desfase servidor−cliente (ms) para el reloj de la grabación. */
+  readonly serverOffsetMs = this.realtime.serverOffsetMs;
 
   getIceServers(ttlSeconds = 300): Observable<IceResponse> {
     const params = new HttpParams().set('ttl', ttlSeconds);
@@ -83,9 +95,24 @@ export class CallsService {
     this.realtime.emitNoAck('call.media_status', { callId, audioEnabled, videoEnabled, screenSharing });
   }
 
-  /** Reporta la calidad de conexión local (para el registro del backend). Sin ack. */
-  connectionQuality(callId: string, quality: 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Disconnected'): void {
-    this.realtime.emitNoAck('call.connection_quality', { callId, quality });
+  /** Reporta la calidad de conexión local, solo al cambiar de nivel (el server la persiste y avisa al par). Sin ack. */
+  connectionQuality(callId: string, quality: ConnectionQuality, metrics?: QualityMetrics | null): void {
+    this.realtime.emitNoAck('call.connection_quality', {
+      callId,
+      quality,
+      ...(metrics
+        ? {
+            metrics: {
+              rttMs: metrics.rttMs,
+              lossPct: metrics.lossPct,
+              jitterMs: metrics.jitterMs,
+              viaRelay: metrics.viaRelay,
+              inKbps: metrics.inKbps,
+              outKbps: metrics.outKbps,
+            },
+          }
+        : {}),
+    });
   }
 
   /** Pasa una llamada de audio a video (el media se cambia con replaceTrack, sin renegociar). */
@@ -122,6 +149,27 @@ export class CallsService {
     return this.emitOrThrow('call.recording.attach', { clientKey: this.realtime.newClientKey(), callId, fileId });
   }
 
+  // ---------- F7 (D-56): captura de la grabación vía SFU (solo envío; la llamada sigue mesh) ----------
+
+  /** Transport de envío contra el router `call:{callId}`. */
+  sfuCreateTransport(callId: string): Promise<CallSfuTransportParams> {
+    return this.emitOrThrow('call.sfu.create_transport', { callId });
+  }
+
+  sfuConnectTransport(callId: string, transportId: string, dtlsParameters: MsTypes.DtlsParameters): Promise<unknown> {
+    return this.emitOrThrow('call.sfu.connect_transport', { callId, transportId, dtlsParameters });
+  }
+
+  sfuProduce(
+    callId: string,
+    transportId: string,
+    kind: MsTypes.MediaKind,
+    rtpParameters: MsTypes.RtpParameters,
+    source: 'camera' | 'screen' = 'camera',
+  ): Promise<{ producerId: string }> {
+    return this.emitOrThrow('call.sfu.produce', { callId, transportId, kind, rtpParameters, source });
+  }
+
   // ---------- Eventos ----------
 
   onIncoming(): Observable<IncomingCallDto> {
@@ -143,6 +191,14 @@ export class CallsService {
   onMediaStatusChanged(): Observable<CallMediaStatusDto> {
     return this.realtime.on<CallMediaStatusDto>('call.media_status_changed');
   }
+  /** F4 — calidad del PAR (badge de "su" conexión). */
+  onPeerQualityChanged(): Observable<CallPeerQualityChangedDto> {
+    return this.realtime.on<CallPeerQualityChangedDto>('call.peer_quality_changed');
+  }
+  /** F4 — aviso de tope de minutos (el corte lo hace el servidor con `endReason: 'MaxDurationReached'`). */
+  onDurationWarning(): Observable<CallDurationWarningDto> {
+    return this.realtime.on<CallDurationWarningDto>('call.duration.warning');
+  }
   onUpgradedToVideo(): Observable<CallUpgradedToVideoDto> {
     return this.realtime.on<CallUpgradedToVideoDto>('call.upgraded_to_video');
   }
@@ -157,6 +213,18 @@ export class CallsService {
   }
   onTranscriptReady(): Observable<CallTranscriptReadyDto> {
     return this.realtime.on<CallTranscriptReadyDto>('call.transcript_ready');
+  }
+  /** F7 — aviso de tope de la grabación; al llegar al tope el servidor la para (la llamada sigue). */
+  onRecordingLimitWarning(): Observable<CallRecordingLimitWarningDto> {
+    return this.realtime.on<CallRecordingLimitWarningDto>('call.recording.limit_warning');
+  }
+  /** F7 (D-56) — el servidor pide publicar mi media al SFU de grabación. */
+  onCaptureRequested(): Observable<CallCaptureRequestedDto> {
+    return this.realtime.on<CallCaptureRequestedDto>('call.recording.capture_requested');
+  }
+  /** F7 (D-56) — fin de la captura: cerrar el transport. */
+  onCaptureStopped(): Observable<CallCaptureStoppedDto> {
+    return this.realtime.on<CallCaptureStoppedDto>('call.recording.capture_stopped');
   }
 
   /** emitAck no lanza (devuelve SocketAck); acá convertimos el fallo en excepción para el try/catch del state machine. */

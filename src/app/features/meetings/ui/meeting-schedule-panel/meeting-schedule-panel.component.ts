@@ -21,19 +21,27 @@ import { ClickOutsideDirective } from '@shared/directives/click-outside.directiv
 import { ClipboardService } from '@shared/services/clipboard.service';
 import { toApiError } from '@core/models/api-error.model';
 import { InviteeSearchResult, MeetingCreationOutcome, MeetingsStore } from '../../data-access/meetings.store';
+import { MeetingsService } from '../../data-access/meetings.service';
 import {
   CreatedMeetingInvitation,
   MeetingFormValue,
+  MeetingLimits,
+  buildDurationOptions,
   MeetingInvitationListItem,
   MeetingInviteeDraft,
   MeetingItem,
 } from '../../data-access/meeting.model';
+import {
+  InvitationState,
+  canRevokeInvitation,
+  invitationLabel,
+  invitationState,
+  invitationStateLabel,
+  invitationTone,
+} from '../../utils/invitation-state';
 
 const INVITEE_SEARCH_DEBOUNCE_MS = 250;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/** Estado derivado de una invitación existente (para el chip de la lista). */
-type InvitationState = 'active' | 'used' | 'revoked' | 'expired';
 
 /**
  * Overlay de programar/gestionar reunión contra Communication. Un componente,
@@ -75,6 +83,7 @@ export class MeetingSchedulePanelComponent implements OnChanges {
   @Output() rescheduleRequested = new EventEmitter<{ meeting: MeetingItem; scheduledForUtc: string | null }>();
 
   private readonly store = inject(MeetingsStore);
+  private readonly service = inject(MeetingsService);
   private readonly clipboard = inject(ClipboardService);
 
   /** Signal propia porque `meeting` es un @Input plano (mismo criterio que task-create-panel). */
@@ -89,6 +98,17 @@ export class MeetingSchedulePanelComponent implements OnChanges {
   readonly requireWaitingRoom = signal(false);
   readonly passcode = signal('');
   readonly recordingRequested = signal(false);
+  /**
+   * "Duration": opciones y valor por defecto salen de los límites efectivos de la oficina
+   * (GET /meetings/limits); sin límites cargados no se manda el campo y el backend aplica el suyo.
+   * La reunión corta a esta duración (D-35 revisada), dentro del máximo; no hay "Extend" (D-34).
+   */
+  readonly limits = signal<MeetingLimits | null>(null);
+  readonly durationOptions = computed<number[]>(() => {
+    const limits = this.limits();
+    return limits ? buildDurationOptions(limits) : [];
+  });
+  readonly scheduledDurationMinutes = signal<number | null>(null);
 
   // ---------- Picker de invitados ----------
   readonly inviteeSearch = signal('');
@@ -133,6 +153,9 @@ export class MeetingSchedulePanelComponent implements OnChanges {
       this.resetForm();
       if (this.isOpen && this.meeting?.isHost) {
         this.loadInvitations();
+      }
+      if (this.isOpen && this.meeting === null) {
+        this.loadLimits();
       }
     }
   }
@@ -191,9 +214,12 @@ export class MeetingSchedulePanelComponent implements OnChanges {
   }
 
   private addInvitee(draft: MeetingInviteeDraft): void {
+    // El email solo deduplica externos: un empleado y un cliente pueden compartir correo (cuentas staff + portal).
     const duplicated = this.invitees().some(
       existing =>
-        (draft.userId && existing.userId === draft.userId) || (draft.email && existing.email === draft.email),
+        (draft.userId && existing.userId === draft.userId) ||
+        (draft.customerId && existing.customerId === draft.customerId) ||
+        (draft.kind === 'external' && existing.kind === 'external' && !!draft.email && existing.email === draft.email),
     );
     if (!duplicated) {
       this.invitees.update(list => [...list, draft]);
@@ -239,35 +265,25 @@ export class MeetingSchedulePanelComponent implements OnChanges {
     });
   }
 
+  // Estado/tono/etiqueta compartidos con el panel Invite de la sala (utils/invitation-state, F6).
   invitationState(invitation: MeetingInvitationListItem): InvitationState {
-    if (invitation.revokedAt) {
-      return 'revoked';
-    }
-    if (invitation.usedAt) {
-      return 'used';
-    }
-    if (new Date(invitation.expiresAt).getTime() < Date.now()) {
-      return 'expired';
-    }
-    return 'active';
+    return invitationState(invitation);
   }
 
-  /** Tono de la píldora de cada invitación existente. */
   invitationTone(invitation: MeetingInvitationListItem): StatusTone {
-    switch (this.invitationState(invitation)) {
-      case 'active':
-        return 'success';
-      case 'used':
-        return 'brand';
-      case 'revoked':
-        return 'danger';
-      default:
-        return 'muted';
-    }
+    return invitationTone(invitationState(invitation));
+  }
+
+  invitationStateLabel(invitation: MeetingInvitationListItem): string {
+    return invitationStateLabel(invitationState(invitation));
+  }
+
+  canRevoke(invitation: MeetingInvitationListItem): boolean {
+    return canRevokeInvitation(invitationState(invitation));
   }
 
   invitationLabel(invitation: MeetingInvitationListItem): string {
-    return invitation.inviteeName || invitation.inviteeEmail || invitation.inviteeUserId || 'Guest';
+    return invitationLabel(invitation);
   }
 
   revokeInvitation(invitation: MeetingInvitationListItem): void {
@@ -356,6 +372,26 @@ export class MeetingSchedulePanelComponent implements OnChanges {
       requireWaitingRoom: this.requireWaitingRoom(),
       passcode: this.passcode().trim() || null,
       recordingRequested: this.recordingRequested(),
+      scheduledDurationMinutes: this.scheduledDurationMinutes(),
+    });
+  }
+
+  setDuration(value: string | number): void {
+    const minutes = Number(value);
+    this.scheduledDurationMinutes.set(Number.isFinite(minutes) && minutes > 0 ? minutes : (this.limits()?.defaultDurationMinutes ?? null));
+  }
+
+  /** Límites efectivos de la oficina; en cada apertura, para reflejar cambios de plataforma/plan sin recargar. */
+  private loadLimits(): void {
+    this.service.limits().subscribe({
+      next: limits => {
+        this.limits.set(limits);
+        this.scheduledDurationMinutes.set(Math.min(limits.defaultDurationMinutes, limits.maxDurationMinutes));
+      },
+      error: () => {
+        this.limits.set(null);
+        this.scheduledDurationMinutes.set(null);
+      },
     });
   }
 
@@ -381,6 +417,7 @@ export class MeetingSchedulePanelComponent implements OnChanges {
     this.requireWaitingRoom.set(false);
     this.passcode.set('');
     this.recordingRequested.set(false);
+    this.scheduledDurationMinutes.set(this.limits() ? this.durationOptions()[0] ?? null : null);
     this.invitees.set(meeting ? [] : [...this.initialInvitees]);
     this.inviteeSearch.set('');
     this.inviteeResults.set({ employees: [], customers: [] });

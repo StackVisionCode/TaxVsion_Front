@@ -5,14 +5,21 @@
  * el contrato real anida `participant` con `status`. Acá se usa el contrato real.
  */
 
+import type { ConnectionQuality } from './media/media-policy.model';
+import type { RecordingLimitWarning, RecordingState, RecordingStateChange } from './recording-status';
+
 export type MeetingStrategy = 'Mesh' | 'Sfu';
 export type MeetingRole = 'Host' | 'Cohost' | 'Attendee';
 export type MeetingParticipantStatus = 'Waiting' | 'Joined' | 'Left' | 'Removed';
-export type MeetingStatus = 'Scheduled' | 'Live' | 'Ended' | 'Cancelled';
+export type MeetingStatus = 'Scheduled' | 'Live' | 'Ended' | 'Cancelled' | 'Expired';
+/** F3 — por qué terminó (lo pone el servidor). */
+export type MeetingEndReason = 'Host' | 'MaxDurationReached' | 'NoParticipants' | 'Offboarding' | 'Backfill';
 
 export interface MeetingParticipantDto {
   userId: string;
   displayName: string;
+  /** F3 — 'TenantEmployee' | 'TenantAdmin' | 'CustomerPortal' | 'Guest'…: decide badges y elegibilidad a host/cohost. */
+  actorType?: string;
   /**
    * Foto (`/storage/avatars/{id}`): llega en el snapshot y al entrar; ausente en los cambios de
    * media/mano/salida (conservar la conocida). null = sin foto.
@@ -25,6 +32,44 @@ export interface MeetingParticipantDto {
   videoEnabled: boolean;
   screenSharing: boolean;
   handRaised: boolean;
+  /** F5 (D-49) — cuándo levantó la mano (ISO); null = mano baja. Ordena la cola de manos. */
+  handRaisedAtUtc: string | null;
+  /** F4 — última calidad reportada por ese participante (snapshot y `participant.changed`); ausente = desconocida. */
+  connectionQuality?: ConnectionQuality | null;
+}
+
+/** F5 — ack de `meeting.raise_hand`. */
+export interface MeetingRaiseHandAck {
+  handRaised: boolean;
+  handRaisedAtUtc: string | null;
+}
+
+/** F5 — `meeting.hand.lowered_by_host` (room de usuario del afectado). `all` = "Lower all". */
+export interface MeetingHandLoweredByHostDto {
+  meetingId: string;
+  byUserId: string;
+  all: boolean;
+}
+
+/** Ack de `meeting.rejoin` (reconexión transparente: la mano se conserva). */
+export interface MeetingRejoinAck {
+  snapshot: MeetingSnapshotDto;
+}
+
+/** F5 (D-50) — `meeting.reaction.received` (emisión volátil a la room). */
+export interface MeetingReactionReceivedDto {
+  meetingId: string;
+  userId: string;
+  displayName: string;
+  emoji: string;
+  at: string;
+}
+
+/** F4 — `meeting.participant.quality_changed` a la room. */
+export interface MeetingParticipantQualityChangedDto {
+  meetingId: string;
+  userId: string;
+  quality: ConnectionQuality;
 }
 
 export interface MeetingSnapshotDto {
@@ -38,6 +83,14 @@ export interface MeetingSnapshotDto {
   sequence: number;
   /** null mientras estás en la sala de espera (aún no admitido). */
   conversationId: string | null;
+  /** F3 — informativa (la pidió el host al agendar). */
+  scheduledDurationMinutes: number | null;
+  /** F3 — tope de la oficina; el corte real es `endsAtUtc`. */
+  maxDurationMinutes: number | null;
+  /** F3 — instante del corte según el servidor (ISO); null = sin tope. */
+  endsAtUtc: string | null;
+  endReason: MeetingEndReason | null;
+  continuationOfMeetingId: string | null;
 }
 
 export interface MeetingParticipantChangedDto {
@@ -52,6 +105,40 @@ export interface MeetingStateDto {
   isLocked: boolean;
   hostUserId: string;
   sequence: number;
+  /** F3 — presente cuando `status` es Ended. */
+  endReason?: MeetingEndReason | null;
+}
+
+/** F3 — `meeting.duration.warning`: una vez por umbral (600/300/60 s) a la room del meeting. */
+export interface MeetingDurationWarningDto {
+  meetingId: string;
+  remainingSeconds: number;
+  endsAtUtc: string;
+}
+
+/**
+ * F3 — `meeting.host.changed`: llega DESPUÉS de los dos `participant.changed` (saliente Cohost, entrante
+ * Host) y ANTES del `state.changed` con el `hostUserId` real.
+ */
+export interface MeetingHostChangedDto {
+  meetingId: string;
+  previousHostUserId: string;
+  newHostUserId: string;
+  reason: 'Transfer' | 'Succession' | 'Offboarding';
+}
+
+export type MeetingYouRemovedReason = 'Grace' | 'Revoked' | 'Expired' | 'Offboarding' | 'MeetingEnded' | 'RemovedByHost';
+
+/** F3 — `meeting.you.removed`: el servidor sacó a ESTE socket; salir localmente sin `meeting.leave`. */
+export interface MeetingYouRemovedDto {
+  meetingId: string;
+  reason: MeetingYouRemovedReason;
+}
+
+/** F3 — `meeting.ended` (room de usuario, para las listas) ahora con motivo. */
+export interface MeetingEndedDto {
+  meetingId: string;
+  reason: MeetingEndReason | 'Expired';
 }
 
 export interface MeetingParticipantDeniedDto {
@@ -108,24 +195,24 @@ export interface SfuRemoteProducer {
 export interface MeetingJoinAck {
   requiresAdmission: boolean;
   snapshot: MeetingSnapshotDto;
+  /** F5 (D-49) — este join es un re-join completo (recarga / sesión nueva) de alguien que ya estaba. */
+  rejoined?: boolean;
+  /** F5 (D-49) — el re-join completo bajó la mano que tenía levantada: se avisa con toast. */
+  handLoweredOnRejoin?: boolean;
   iceServers?: { iceServers: { urls: string | string[]; username?: string; credential?: string }[]; expiresAtUtc: string };
 }
 
 export interface MeetingJoinOptions {
   passcode?: string;
   invitationToken?: string;
+  /** F6 — invitado externo (socket con `auth.ticket`): su userId es `guest:{guestInvitationId}`. */
+  guestInvitationId?: string;
   audioDefault?: boolean;
   videoDefault?: boolean;
 }
 
-export type MeetingRecordingState =
-  | 'Idle'
-  | 'Requesting'
-  | 'Recording'
-  | 'Stopping'
-  | 'Processing'
-  | 'Ready'
-  | 'Failed';
+/** F7 — mismo ciclo que las llamadas (incluye `Composing`, solo con captura en servidor). */
+export type MeetingRecordingState = RecordingState;
 
 export interface MeetingRecordingConsentRequestedDto {
   meetingId: string;
@@ -140,10 +227,24 @@ export interface MeetingRecordingConsentRecordedDto {
   respondedAtUtc: string;
 }
 
-export interface MeetingRecordingStateChangedDto {
+/** F7 — `meeting.recording.state_changed`: + `captureMode`, `startedAtUtc`, `maxDurationSeconds`, `reason`. */
+export interface MeetingRecordingStateChangedDto extends RecordingStateChange {
   meetingId: string;
-  state: MeetingRecordingState;
-  updatedAtUtc: string;
+}
+
+/** F7 — `meeting.recording.limit_warning`: queda poco del tope de la grabación (la reunión sigue). */
+export interface MeetingRecordingLimitWarningDto extends RecordingLimitWarning {
+  meetingId: string;
+}
+
+/** F7 — `meeting.transcript_ready` (v2: JSON con hablantes). */
+export interface MeetingTranscriptReadyDto {
+  meetingId: string;
+  transcriptFileId?: string | null;
+  transcriptJsonFileId?: string | null;
+  speakerCount?: number | null;
+  segmentCount?: number | null;
+  language?: string | null;
 }
 
 /** Mensaje del chat del meeting (`meeting.chat.message.new`) — mismo shape que MessageDto. */
@@ -157,5 +258,9 @@ export interface MeetingChatMessageDto {
   attachmentFileId: string | null;
   createdAtUtc: string;
   isEdited: boolean;
+  /** F8: cuántas veces se editó. */
+  editCount?: number;
   isDeleted: boolean;
+  /** F8d (T-26): solo en el historial. */
+  reactions?: { emoji: string; count: number; userIds: string[] }[];
 }

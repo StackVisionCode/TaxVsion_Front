@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { readOnlyRequestContext } from '@core/http/read-only-request';
-import { CustomerDirectoryEntry, EmployeeDirectoryEntry } from './chat.model';
+import { CustomerDirectoryEntry, DirectoryPage, EmployeeDirectoryEntry } from './chat.model';
 
 /**
  * Cliente HTTP del directorio de Communication (`/communication/directory`), staff-only.
@@ -23,6 +23,27 @@ export class ChatDirectoryService {
   searchEmployees(term: string, limit = 10): Observable<EmployeeDirectoryEntry[]> {
     const params = new HttpParams().set('q', term).set('limit', limit);
     return this.http.get<EmployeeDirectoryEntry[]>(`${this.base}/employees`, { params });
+  }
+
+  /** F8c (T-14): página del rail Team; sin término = primera página por nombre. */
+  pageEmployees(term: string | null, cursor: string | null = null): Observable<DirectoryPage<EmployeeDirectoryEntry>> {
+    let params = new HttpParams();
+    if (term) {
+      params = params.set('q', term);
+    }
+    if (cursor) {
+      params = params.set('cursor', cursor);
+    }
+    return this.http.get<DirectoryPage<EmployeeDirectoryEntry>>(`${this.base}/employees/page`, { params });
+  }
+
+  /** F8c (T-14): página del rail Clients (ABAC en el servidor); el término va en el cuerpo. */
+  pageCustomers(term: string | null, cursor: string | null = null): Observable<DirectoryPage<CustomerDirectoryEntry>> {
+    return this.http.post<DirectoryPage<CustomerDirectoryEntry>>(
+      `${this.base}/customers/page`,
+      { ...(term ? { q: term } : {}), ...(cursor ? { cursor } : {}) },
+      { context: readOnlyRequestContext() },
+    );
   }
 
   /** POST .../customers/search: el término (a menudo un email) va en el cuerpo, no en la URL. */

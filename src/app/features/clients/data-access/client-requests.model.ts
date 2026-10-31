@@ -1,3 +1,5 @@
+import { FILE_UNDER_REVIEW_LABEL } from '@shared/utils/file-moderation';
+
 /**
  * Espejo del contrato de ClientRequests (TaxVision.Tasks.Api, `/tasks/client-requests`) para la
  * sección "Requests from client" de la pestaña Work + su view-model.
@@ -12,7 +14,21 @@
 export type ClientRequestStatus = 'Pending' | 'Submitted' | 'Accepted' | 'Rejected' | 'Cancelled';
 
 /** Espejo de AttachmentStatus (Domain). */
-export type ClientRequestDocumentStatus = 'Pending' | 'Available' | 'Rejected' | 'Detached';
+export type ClientRequestDocumentStatus = 'Pending' | 'Available' | 'Rejected' | 'Detached' | 'UnderReview';
+
+/** Estado del documento cuando todavía no sirve; null si está listo (o retirado). */
+export function documentStatusLabel(status: ClientRequestDocumentStatus): string | null {
+  switch (status) {
+    case 'Pending':
+      return 'Scanning…';
+    case 'UnderReview':
+      return FILE_UNDER_REVIEW_LABEL;
+    case 'Rejected':
+      return 'Blocked';
+    default:
+      return null;
+  }
+}
 
 /** Espejo de ClientRequestResolution (request de resolve). */
 export type ClientRequestResolution = 'Accept' | 'Reject' | 'Cancel';

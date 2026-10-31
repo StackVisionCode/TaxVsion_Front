@@ -1,10 +1,13 @@
 import { Injectable, effect, inject, signal, untracked } from '@angular/core';
+import { ToastService } from '@shared/ui/toast/toast.service';
 import { ActiveMeetingService } from './active-meeting.service';
 import {
   DEFAULT_SPEAKER_OPTIONS,
   INITIAL_SPEAKER_STATE,
   SpeakerState,
   isSpeakingNow,
+  levelBars,
+  rmsLevel,
   stepActiveSpeaker,
 } from './active-speaker.util';
 
@@ -24,6 +27,13 @@ interface LevelProbe {
 
 /** Cada cuánto se mide el audio (ms). 150 ms basta para la voz y no carga la CPU. */
 const TICK_MS = 150;
+/** Clave del nivel PROPIO en `levelBars` (los remotos van por userId). */
+export const SELF_LEVEL_KEY = 'self';
+/** Ticks seguidos con voz en mute antes de avisar "You're muted" (≈ 0,45 s: una palabra, no un roce). */
+const MUTED_TALKING_TICKS = 3;
+/** Gap mínimo entre dos avisos de "You're muted". */
+const MUTED_NOTICE_GAP_MS = 15_000;
+const MUTED_NOTICE = "You're muted. Unmute to speak.";
 
 /**
  * Detector de hablante activo + fuente ÚNICA del audio remoto de un meeting.
@@ -36,12 +46,24 @@ const TICK_MS = 150;
  *  2. Mide el nivel RMS de cada pista con un AnalyserNode (sin conectarlo a la salida) y aplica la
  *     histéresis de `stepActiveSpeaker` → `activeSpeakerId` y `speakingIds`.
  *
+ *  3. F4 (D-41): descubre la pista de AUDIO de cada pantalla compartida (`screenStream`) y la publica
+ *     en `remoteScreenAudio`, con volumen propio por participante (`screenAudioVolume`), para que el
+ *     mini-player la reproduzca en su propio `<audio>` (el `<video>` de la sala va muted).
+ *
+ *  4. F5 (T-69): mide MI micrófono por el clon de medición (`localMeterTrack`, capta aunque esté en
+ *     mute): `selfSpeaking` + anillo/medidor propios, "You're muted" si hablo con el mic apagado (toast
+ *     con gap) y `reportSpeaking` al orquestador cuando cambia mi estado (él aplica el tope de la
+ *     política). `levelBars` da las 3 barras del medidor por participante (y `SELF_LEVEL_KEY` la mía).
+ *     El `AudioContext` se crea en el gesto de entrar (`primeAudioContext`) y `audioSuspended` avisa
+ *     si el navegador lo dejó suspendido.
+ *
  * Sin WebAudio (jsdom, navegador viejo) el audio se sigue publicando; solo no hay detección.
  * Uso: inyectarlo y leer los signals; arranca/para solo con la fase del meeting.
  */
 @Injectable({ providedIn: 'root' })
 export class MeetingActiveSpeakerService {
   private readonly meeting = inject(ActiveMeetingService);
+  private readonly toast = inject(ToastService);
 
   /** Remoto que tiene la palabra (con histéresis); se conserva el último aunque calle. */
   readonly activeSpeakerId = signal<string | null>(null);
@@ -51,12 +73,26 @@ export class MeetingActiveSpeakerService {
   readonly lastVoiceAt = signal<Readonly<Record<string, number>>>({});
   /** Audio remoto a reproducir (una entrada por pista). */
   readonly remoteAudio = signal<readonly RemoteAudioSource[]>([]);
+  /** Audio de las pantallas compartidas (una entrada por participante compartiendo con audio). */
+  readonly remoteScreenAudio = signal<readonly RemoteAudioSource[]>([]);
+  /** Volumen (0–1) por participante del audio de SU pantalla; ausente = 1. */
+  readonly screenAudioVolumes = signal<Readonly<Record<string, number>>>({});
+  /** F5 — barras del medidor (0–3) por userId remoto y `SELF_LEVEL_KEY`; solo cambia cuando cambia alguna barra. */
+  readonly levelBars = signal<Readonly<Record<string, number>>>({});
+  /** F5 — estoy hablando (mic abierto y voz reciente, con la misma cola anti-parpadeo). */
+  readonly selfSpeaking = signal(false);
+  /** F5 — el navegador mantiene el AudioContext suspendido (sin gesto): la sala ofrece "Enable audio". */
+  readonly audioSuspended = signal(false);
 
   private state: SpeakerState = INITIAL_SPEAKER_STATE;
   private timer: ReturnType<typeof setInterval> | null = null;
   private ctx: AudioContext | null = null;
   private audioUnsupported = false;
   private readonly probes = new Map<string, LevelProbe>();
+  private selfProbe: LevelProbe | null = null;
+  private selfLastVoiceAt = -Infinity;
+  private mutedTalkingTicks = 0;
+  private lastMutedNoticeAt = -Infinity;
 
   constructor() {
     // Solo depende de la fase: el primer tick (que lee peers/participantes) va fuera del tracking.
@@ -64,6 +100,41 @@ export class MeetingActiveSpeakerService {
       const joined = this.meeting.phase() === 'joined';
       untracked(() => (joined ? this.start() : this.stop()));
     });
+  }
+
+  screenAudioVolume(userId: string): number {
+    return this.screenAudioVolumes()[userId] ?? 1;
+  }
+
+  /** Barras (0–3) de un participante; `SELF_LEVEL_KEY` para mí. */
+  barsOf(userId: string): number {
+    return this.levelBars()[userId] ?? 0;
+  }
+
+  /**
+   * F5 — crear/reanudar el AudioContext DENTRO de un gesto del usuario (el clic de "Join" / "Enable
+   * audio"): sin gesto, Chrome lo deja `suspended` y no hay detección ni medidor.
+   */
+  async primeAudioContext(): Promise<boolean> {
+    if (this.audioUnsupported || typeof AudioContext === 'undefined') {
+      return false;
+    }
+    try {
+      this.ctx ??= new AudioContext();
+      if (this.ctx.state === 'suspended') {
+        await this.ctx.resume();
+      }
+    } catch {
+      /* sin WebAudio o sin gesto: se queda suspendido */
+    }
+    const running = this.ctx?.state === 'running';
+    this.audioSuspended.set(!running);
+    return running;
+  }
+
+  setScreenAudioVolume(userId: string, volume: number): void {
+    const clamped = Math.max(0, Math.min(1, volume));
+    this.screenAudioVolumes.update(map => ({ ...map, [userId]: clamped }));
   }
 
   private start(): void {
@@ -81,6 +152,10 @@ export class MeetingActiveSpeakerService {
     }
     this.probes.forEach(probe => this.disposeProbe(probe));
     this.probes.clear();
+    if (this.selfProbe) {
+      this.disposeProbe(this.selfProbe);
+      this.selfProbe = null;
+    }
     void this.ctx?.close().catch(() => undefined);
     this.ctx = null;
     this.state = INITIAL_SPEAKER_STATE;
@@ -88,6 +163,13 @@ export class MeetingActiveSpeakerService {
     this.speakingIds.set(new Set());
     this.lastVoiceAt.set({});
     this.remoteAudio.set([]);
+    this.remoteScreenAudio.set([]);
+    this.screenAudioVolumes.set({});
+    this.levelBars.set({});
+    this.selfSpeaking.set(false);
+    this.audioSuspended.set(false);
+    this.selfLastVoiceAt = -Infinity;
+    this.mutedTalkingTicks = 0;
   }
 
   private tick(): void {
@@ -96,13 +178,23 @@ export class MeetingActiveSpeakerService {
     const now = performance.now();
     const levels: Record<string, number> = {};
     const audio: RemoteAudioSource[] = [];
+    const screenAudio: RemoteAudioSource[] = [];
     const previous = new Map(this.remoteAudio().map(source => [source.userId, source]));
+    const previousScreen = new Map(this.remoteScreenAudio().map(source => [source.userId, source]));
 
     for (const participant of remotes) {
-      const track = peers
-        .get(participant.userId)
-        ?.cameraStream.getAudioTracks()
-        .find(t => t.readyState === 'live');
+      const peer = peers.get(participant.userId);
+      // Audio de la pantalla (D-41): solo mientras el roster dice que comparte y la pista está viva.
+      const screenTrack = participant.screenSharing ? peer?.screenStream.getAudioTracks().find(t => t.readyState === 'live') : undefined;
+      if (screenTrack) {
+        const knownScreen = previousScreen.get(participant.userId);
+        screenAudio.push(
+          knownScreen && knownScreen.trackId === screenTrack.id
+            ? knownScreen
+            : { userId: participant.userId, trackId: screenTrack.id, stream: new MediaStream([screenTrack]) },
+        );
+      }
+      const track = peer?.cameraStream.getAudioTracks().find(t => t.readyState === 'live');
       if (!track) {
         levels[participant.userId] = 0;
         this.dropProbe(participant.userId);
@@ -121,6 +213,9 @@ export class MeetingActiveSpeakerService {
     if (!sameAudio(this.remoteAudio(), audio)) {
       this.remoteAudio.set(audio);
     }
+    if (!sameAudio(this.remoteScreenAudio(), screenAudio)) {
+      this.remoteScreenAudio.set(screenAudio);
+    }
 
     this.state = stepActiveSpeaker(this.state, levels, now);
     if (this.state.current !== this.activeSpeakerId()) {
@@ -130,6 +225,63 @@ export class MeetingActiveSpeakerService {
     if (!sameSet(this.speakingIds(), speaking)) {
       this.speakingIds.set(speaking);
       this.lastVoiceAt.set(this.state.lastVoiceAt);
+    }
+
+    // F5 — mi propio nivel (clon del micrófono: mide también en mute) → medidor, anillo, "You're muted" y timeline.
+    const selfLevel = this.selfLevel();
+    const bars: Record<string, number> = {};
+    for (const id of Object.keys(levels)) {
+      bars[id] = levelBars(levels[id]);
+    }
+    bars[SELF_LEVEL_KEY] = levelBars(selfLevel);
+    if (!sameRecord(this.levelBars(), bars)) {
+      this.levelBars.set(bars);
+    }
+    this.trackSelfSpeaking(selfLevel, now);
+  }
+
+  /** Nivel RMS de mi micrófono (0 sin pista, sin WebAudio o con el hardware liberado). */
+  private selfLevel(): number {
+    const track = this.meeting.localMeterTrack();
+    if (!track) {
+      if (this.selfProbe) {
+        this.disposeProbe(this.selfProbe);
+        this.selfProbe = null;
+      }
+      return 0;
+    }
+    if (this.selfProbe && this.selfProbe.trackId !== track.id) {
+      this.disposeProbe(this.selfProbe);
+      this.selfProbe = null;
+    }
+    this.selfProbe ??= this.createProbe(track);
+    if (!this.selfProbe) {
+      return 0;
+    }
+    this.selfProbe.analyser.getByteTimeDomainData(this.selfProbe.buffer);
+    return rmsLevel(this.selfProbe.buffer);
+  }
+
+  private trackSelfSpeaking(level: number, now: number): void {
+    const voice = level >= DEFAULT_SPEAKER_OPTIONS.threshold;
+    const micOpen = this.meeting.audioEnabled();
+    if (voice) {
+      this.selfLastVoiceAt = now;
+    }
+    const speaking = micOpen && now - this.selfLastVoiceAt <= DEFAULT_SPEAKER_OPTIONS.holdMs;
+    if (speaking !== this.selfSpeaking()) {
+      this.selfSpeaking.set(speaking);
+      this.meeting.reportSpeaking(speaking);
+    }
+    // Hablo con el micrófono en mute: aviso (con gap para no insistir en cada frase).
+    if (!micOpen && voice) {
+      this.mutedTalkingTicks++;
+      if (this.mutedTalkingTicks >= MUTED_TALKING_TICKS && now - this.lastMutedNoticeAt >= MUTED_NOTICE_GAP_MS) {
+        this.lastMutedNoticeAt = now;
+        this.toast.info(MUTED_NOTICE);
+      }
+    } else {
+      this.mutedTalkingTicks = 0;
     }
   }
 
@@ -148,12 +300,7 @@ export class MeetingActiveSpeakerService {
       this.probes.set(userId, probe);
     }
     probe.analyser.getByteTimeDomainData(probe.buffer);
-    let sum = 0;
-    for (const value of probe.buffer) {
-      const centered = (value - 128) / 128;
-      sum += centered * centered;
-    }
-    return Math.sqrt(sum / probe.buffer.length);
+    return rmsLevel(probe.buffer);
   }
 
   private createProbe(track: MediaStreamTrack): LevelProbe | null {
@@ -165,6 +312,7 @@ export class MeetingActiveSpeakerService {
       if (this.ctx.state === 'suspended') {
         void this.ctx.resume().catch(() => undefined); // sin gesto previo puede seguir suspendido; best-effort
       }
+      this.audioSuspended.set(this.ctx.state === 'suspended');
       const source = this.ctx.createMediaStreamSource(new MediaStream([track]));
       const analyser = this.ctx.createAnalyser();
       analyser.fftSize = 512;
@@ -196,6 +344,11 @@ export class MeetingActiveSpeakerService {
 
 function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
   return a.size === b.size && [...a].every(id => b.has(id));
+}
+
+function sameRecord(a: Readonly<Record<string, number>>, b: Readonly<Record<string, number>>): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every(k => a[k] === b[k]);
 }
 
 function sameAudio(a: readonly RemoteAudioSource[], b: readonly RemoteAudioSource[]): boolean {
