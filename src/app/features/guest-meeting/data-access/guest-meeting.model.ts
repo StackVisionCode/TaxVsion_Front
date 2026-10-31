@@ -6,7 +6,7 @@ import type { MediaPolicyDto } from '@core/communication/media/media-policy.mode
  * expirado responde 404 uniforme (anti-enumeración) y el abuso 429.
  */
 
-/** GET /communication/meetings/guest/:token/context */
+/** POST /communication/meetings/guest/context ({ token }) */
 export interface GuestMeetingContext {
   meetingTitle: string;
   hostDisplayName: string;

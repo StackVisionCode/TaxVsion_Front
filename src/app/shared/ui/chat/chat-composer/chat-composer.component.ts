@@ -36,6 +36,8 @@ export class ChatComposerComponent implements OnDestroy {
   @Input() uploading = false;
   /** F8a: la sala de un meeting no graba notas de voz (sin texto, el botón queda en "enviar" deshabilitado). */
   @Input() allowVoiceNotes = true;
+  /** D-14: el invitado sin cuenta solo escribe texto; sin esto ve un clip que el servidor rechazaría. */
+  @Input() allowAttachments = true;
   @Output() send = new EventEmitter<string>();
   @Output() attach = new EventEmitter<File>();
   /** true en cada pulsación con texto, false al enviar o vaciar/blur. El padre lo throttlea al socket. */

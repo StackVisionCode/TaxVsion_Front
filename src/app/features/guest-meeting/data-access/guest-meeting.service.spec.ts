@@ -20,11 +20,12 @@ describe('GuestMeetingService (F6)', () => {
 
   afterEach(() => TestBed.resetTestingModule());
 
-  it('pide el contexto como petición anónima (sin Bearer, sin refresh)', () => {
+  it('pide el contexto como petición anónima, con el token en el cuerpo (nunca en la URL)', () => {
     const { service, http } = setup();
     service.context('tok/1').subscribe();
-    const req = http.expectOne('https://api.test/communication/meetings/guest/tok%2F1/context');
-    expect(req.request.method).toBe('GET');
+    const req = http.expectOne('https://api.test/communication/meetings/guest/context');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ token: 'tok/1' });
     expect(req.request.context.get(ANONYMOUS_REQUEST)).toBe(true);
     req.flush({});
     http.verify();

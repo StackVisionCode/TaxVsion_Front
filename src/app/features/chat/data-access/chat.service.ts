@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
+import { ConversationAttachmentsService } from '@core/communication/conversation-attachments.service';
 import { AttachmentMetaDto, ConversationContentPage, ConversationContentTab, ConversationKind, GroupActivityPage, GroupAvatarUpload, InitiatedAttachmentUpload, MessageEditsDto, MessageSearchResponse, MessageTranscriptUpdatedDto, MessagesPage, PagedConversations } from './chat.model';
 
 /**
@@ -15,6 +16,7 @@ import { AttachmentMetaDto, ConversationContentPage, ConversationContentTab, Con
 export class ChatService {
   private readonly http = inject(HttpClient);
   private readonly api = inject(ApiConfigService);
+  private readonly attachments = inject(ConversationAttachmentsService);
   private get base(): string {
     return this.api.tenantUrl('/communication');
   }
@@ -72,21 +74,21 @@ export class ChatService {
     conversationId: string,
     file: { originalName: string; contentType: string; sizeBytes: number },
   ): Observable<InitiatedAttachmentUpload> {
-    return this.http.post<InitiatedAttachmentUpload>(`${this.base}/conversations/${conversationId}/attachments/upload`, file);
+    return this.attachments.initiateUpload(conversationId, file);
   }
 
   completeAttachmentUpload(conversationId: string, fileId: string): Observable<{ fileId: string; status: string }> {
-    return this.http.post<{ fileId: string; status: string }>(`${this.base}/conversations/${conversationId}/attachments/${fileId}/complete`, {});
+    return this.attachments.completeUpload(conversationId, fileId);
   }
 
   /** Metadata, tipo real y estado del escaneo (Pending → "Scanning"; rechazado → "Unavailable"). */
   getAttachmentMeta(conversationId: string, fileId: string): Observable<AttachmentMetaDto> {
-    return this.http.get<AttachmentMetaDto>(`${this.base}/conversations/${conversationId}/attachments/${fileId}`);
+    return this.attachments.getMeta(conversationId, fileId);
   }
 
   /** URL presignada (solo si está disponible). */
   getAttachmentDownloadUrl(conversationId: string, fileId: string): Observable<{ downloadUrl: string }> {
-    return this.http.post<{ downloadUrl: string }>(`${this.base}/conversations/${conversationId}/attachments/${fileId}/download-url`, {});
+    return this.attachments.getDownloadUrl(conversationId, fileId);
   }
 
   /** F8d — una pestaña de Info (Media, Documents, Audio o Links), más reciente primero. */

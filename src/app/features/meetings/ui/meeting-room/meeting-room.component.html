@@ -7,7 +7,7 @@
   <!-- Lobby (pre-join, D-45): vista previa, dispositivos y "Join muted / camera off" antes de entrar -->
   @if (phase() === 'idle' && lobby; as target) {
     @defer (on immediate) {
-      <app-media-lobby [meetingTitle]="target.title" (join)="joinFromLobby($event)" (cancel)="cancelLobby()" />
+      <app-media-lobby [meetingTitle]="target.title" [clearShellNotch]="true" (join)="joinFromLobby($event)" (cancel)="cancelLobby()" />
     } @placeholder {
       <div class="flex flex-1 flex-col items-center justify-center gap-3 text-center">
         <app-infinity-loader size="md" />
@@ -442,10 +442,10 @@
           [reactionCatalog]="chatReactionCatalog()" [canReact]="!isGuest() && chatReactionCatalog().length > 0" [currentUserId]="myUserId()"
           (reactionToggled)="meeting.toggleChatReaction($event.messageId, $event.emoji)"
           (editSubmitted)="meeting.editChatMessage($event.id, $event.text)" (deleteRequested)="meeting.deleteChatMessage($event)"
-          (editExpired)="onChatEditExpired()" (attachmentClicked)="downloadChatAttachment($event)"></app-chat-thread>
+          (editExpired)="onChatEditExpired()" (attachmentClicked)="openChatAttachment($event)"></app-chat-thread>
       </div>
       <div class="border-t border-gray-100 p-3">
-        <app-chat-composer [uploading]="chatUploading()" [allowVoiceNotes]="false" (send)="meeting.sendChatMessage($event)"
+        <app-chat-composer [uploading]="chatUploading()" [allowVoiceNotes]="false" [allowAttachments]="!isGuest()" (send)="meeting.sendChatMessage($event)"
           (attach)="meeting.sendChatAttachment($event)"></app-chat-composer>
       </div>
     </aside>
@@ -471,3 +471,10 @@
   message="Everyone will be disconnected and the meeting will move to your history." confirmLabel="End meeting"
   busyLabel="Ending…" [busy]="endBusy()" icon="power-outline" (confirmed)="confirmEndForAll()"
   (cancelled)="endConfirmOpen.set(false)"></app-confirm-dialog>
+
+<!-- Visor de adjuntos del chat de la sala -->
+@defer (when viewerOpen()) {
+  <app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"
+    (indexChange)="viewerIndex.set($event)" (download)="onViewerDownload($event)"
+    (closed)="viewerOpen.set(false)"></app-file-viewer>
+}

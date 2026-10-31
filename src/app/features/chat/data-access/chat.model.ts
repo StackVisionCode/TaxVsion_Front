@@ -344,22 +344,8 @@ export interface MessageReactionChangedDto {
   emoji: string;
 }
 
-/** F8d: metadata y estado del escaneo de un adjunto (mediado por Communication). */
-export interface AttachmentMetaDto {
-  fileId: string;
-  fileName: string | null;
-  sizeBytes: number | null;
-  contentType: string | null;
-  status: 'Pending' | 'Available' | 'Infected' | 'Deleted' | 'BlockedByPolicy' | 'PendingReview';
-}
-
-/** F8d: subida mediada de un adjunto (URL presignada de MinIO). */
-export interface InitiatedAttachmentUpload {
-  fileId: string;
-  uploadUrl: string;
-  formData: Record<string, string>;
-  expiresAtUtc: string;
-}
+/** F8d: los contratos de adjuntos viven con su servicio en core (también los usa la sala de reuniones). */
+export type { AttachmentMetaDto, InitiatedAttachmentUpload } from '@core/communication/conversation-attachments.service';
 
 /** F8d (ADD-01 §13): pestañas de Info. */
 export type ConversationContentTab = 'Media' | 'Documents' | 'Audio' | 'Links';

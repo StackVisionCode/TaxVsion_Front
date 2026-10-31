@@ -29,10 +29,17 @@ import { featureById } from './features';
  * Sigue sin ser la barrera: el backend autoriza igual. Esto solo evita pintar una pantalla muerta.
  */
 export const accessCanMatch: CanMatchFn = (route: Route, segments: UrlSegment[]) =>
-  decide(featureIdOf(route.data), '/' + segments.map(segment => segment.path).join('/'));
+  decide(featureIdOf(route.data), attemptedUrlOf(segments));
 
 export const accessCanActivateChild: CanActivateChildFn = (route: ActivatedRouteSnapshot, state) =>
   decide(featureIdOf(route.data), state.url);
+
+/** En una ruta anidada `segments` trae solo lo que falta emparejar; la URL completa sale de la navegación. */
+function attemptedUrlOf(segments: UrlSegment[]): string {
+  const router = inject(Router);
+  const url = router.currentNavigation()?.extractedUrl;
+  return url ? router.serializeUrl(url) : '/' + segments.map(segment => segment.path).join('/');
+}
 
 function featureIdOf(data: Record<string, unknown> | undefined): string | undefined {
   const feature = data?.['feature'];

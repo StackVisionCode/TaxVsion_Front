@@ -29,7 +29,7 @@ const MAX_NAME_LENGTH = 80;
 /**
  * F6 (D-47) — Página PÚBLICA de invitado externo `/meet/:token` (fuera del shell, sin `authGuard`, sin JWT).
  *
- * Flujo: `GET guest/:token/context` → (404 uniforme → "not valid" · `guestsAllowed:false` → "no guests" ·
+ * Flujo: `POST guest/context` → (404 uniforme → "not valid" · `guestsAllowed:false` → "no guests" ·
  * `Ended` → "has ended") → nombre visible (prefill `inviteeName`) → `app-media-lobby` con la política del
  * contexto (`MediaPolicyService.prime`) → `POST join-by-token` → `connectAsGuest(ticket)` →
  * `ActiveMeetingService.joinAsGuest` → `app-meeting-room` en modo guest (sala de espera, revocación,

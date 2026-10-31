@@ -2,7 +2,7 @@ import { applyReaction, hasMyReaction, reactionErrorText } from '@shared/ui/chat
 import { toAttachmentScanState, type AttachmentScanState, type MessageReactionSummary } from '@shared/ui/chat/chat-message.model';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, from } from 'rxjs';
 import { AuthService } from '@core/auth/auth.service';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { ToastService } from '@shared/ui/toast/toast.service';
@@ -10,6 +10,7 @@ import { toApiError } from '@core/models/api-error.model';
 import { SOCKET_RATE_LIMITED_MESSAGE, isSocketRateLimited, socketErrorCode } from '@core/errors/throttling';
 import { MeetingChatMessageDto } from './meeting.model';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { ConversationAttachmentsService } from './conversation-attachments.service';
 import { formatBytes } from '@core/cloud-storage/cloud-storage.model';
 import { editErrorMessage, type ChatEditPolicy } from '@shared/ui/chat/message-edit';
 import { meetingChatErrorMessage } from './meeting-chat-errors';
@@ -106,8 +107,10 @@ export interface MeetingChatMessage {
   isEdited: boolean;
   editCount: number;
   isDeleted: boolean;
-  /** T-20: `status` solo cuando la moderación lo retuvo (en revisión o bloqueado). */
-  attachment?: { fileId: string; name: string; size: string; status?: AttachmentScanState };
+  /** Sin `status` = disponible; `Pending` = aún subiendo o escaneando; T-20: en revisión o bloqueado. */
+  attachment?: { fileId: string; name: string; size: string; status?: AttachmentScanState; contentType?: string | null };
+  /** Mensaje propio que todavía se está enviando (marcador local hasta que vuelve el real). */
+  sending?: boolean;
   /** F8d (T-26): reacciones del mensaje. */
   reactions?: MessageReactionSummary[];
 }
@@ -158,6 +161,7 @@ export class ActiveMeetingService {
   private readonly sounds = inject(SoundsService);
   private readonly http = inject(HttpClient);
   private readonly cloudStorage = inject(CloudStorageUploadService);
+  private readonly conversationAttachments = inject(ConversationAttachmentsService);
   private readonly api = inject(ApiConfigService);
   private readonly mediaPolicy = inject(MediaPolicyService);
   private readonly sessionFactory = inject(LocalMediaSessionFactory);
@@ -731,10 +735,11 @@ export class ActiveMeetingService {
     }
     this.strategy.set(snap.strategy);
     this.conversationId.set(snap.conversationId);
-    // El guest no tiene JWT para el historial HTTP: ve solo lo que llega en vivo.
-    if (snap.conversationId && !this.chatHistoryLoaded && !this.isGuest()) {
+    // El guest no tiene JWT para el historial HTTP: lo pide por el socket de la sala (F11).
+    if (snap.conversationId && !this.chatHistoryLoaded) {
       this.chatHistoryLoaded = true;
-      this.loadChatHistory(snap.conversationId);
+      if (this.isGuest()) this.loadGuestChatHistory(snap.meetingId);
+      else this.loadChatHistory(snap.conversationId);
     }
     this.yourRole.set(snap.yourRole);
     this.hostUserId.set(snap.hostUserId);
@@ -1634,46 +1639,110 @@ export class ActiveMeetingService {
     };
   }
 
-  /** Nombre, tamaño y estado de moderación de un adjunto de la sala (CloudStorage), una vez por archivo. */
-  private readonly attachmentNames = new Map<string, { name: string; size: string; status?: AttachmentScanState }>();
+  /** Nombre, tamaño, tipo y estado de escaneo de cada adjunto de la sala (Communication valida la membresía). */
+  private readonly attachmentNames = new Map<string, Omit<NonNullable<MeetingChatMessage['attachment']>, 'fileId'>>();
   private resolveChatAttachment(fileId: string): void {
     if (this.attachmentNames.has(fileId)) return;
     this.attachmentNames.set(fileId, { name: 'Attachment', size: '' });
-    this.cloudStorage.getFile(fileId).subscribe({
-      next: file => {
-        const meta = { name: file.originalName, size: formatBytes(file.sizeBytes), status: moderationStateOf(file.status) };
-        this.attachmentNames.set(fileId, meta);
-        this.chatMessages.update(list => list.map(m => (m.attachment?.fileId === fileId ? { ...m, attachment: { fileId, ...meta } } : m)));
+    this.fetchAttachmentMeta(fileId);
+  }
+
+  private fetchAttachmentMeta(fileId: string, attempt = 0): void {
+    const meetingId = this.meetingId();
+    if (!meetingId) return;
+    // Por el socket de la sala: vale igual para invitados (sin JWT) y cuentas.
+    from(this.rtc.chatAttachmentMeta(meetingId, fileId)).subscribe({
+      next: meta => {
+        const status = toAttachmentScanState(meta.status);
+        this.setAttachmentMeta(fileId, {
+          name: meta.fileName ?? this.attachmentNames.get(fileId)?.name ?? 'Attachment',
+          size: meta.sizeBytes != null ? formatBytes(meta.sizeBytes) : (this.attachmentNames.get(fileId)?.size ?? ''),
+          contentType: meta.contentType,
+          ...(status === 'Available' ? {} : { status }),
+        });
+        if (status === 'Pending') this.scheduleAttachmentRecheck(fileId, attempt);
       },
       error: () => undefined,
     });
   }
 
-  /** F8a (D-15): adjunto en el chat de la sala; los topes por minuto y por meeting los aplica el servidor. */
+  /**
+   * Respaldo del aviso en vivo (`attachment_flagged` → Available): si el escaneo terminó antes de que el
+   * mensaje existiera, el aviso no llega y la metadata lo sana al volver a pedirla. Pocas veces y espaciadas.
+   */
+  /** URL presignada de un adjunto listo del chat de la sala (visor y descarga), también para invitados. */
+  async chatAttachmentUrl(fileId: string): Promise<string> {
+    const meetingId = this.meetingId();
+    if (!meetingId) throw new Error('Not in a meeting.');
+    return (await this.rtc.chatAttachmentDownloadUrl(meetingId, fileId)).downloadUrl;
+  }
+
+  private scheduleAttachmentRecheck(fileId: string, attempt: number): void {
+    const delay = ATTACHMENT_RECHECK_DELAYS_MS[attempt];
+    if (delay === undefined) return;
+    setTimeout(() => {
+      if (this.attachmentNames.get(fileId)?.status === 'Pending') this.fetchAttachmentMeta(fileId, attempt + 1);
+    }, delay);
+  }
+
+  private setAttachmentMeta(fileId: string, meta: Omit<NonNullable<MeetingChatMessage['attachment']>, 'fileId'>): void {
+    this.attachmentNames.set(fileId, meta);
+    this.chatMessages.update(list => list.map(m => (m.attachment?.fileId === fileId ? { ...m, attachment: { fileId, ...meta } } : m)));
+  }
+
+  /**
+   * F8a (D-15): adjunto en el chat de la sala; los topes por minuto y por meeting los aplica el servidor.
+   * El mensaje aparece al instante como "Sending…" y sigue así mientras el archivo se escanea: nadie ve un
+   * error por algo que solo está en proceso. Solo un fallo real (subida o rechazo del servidor) avisa.
+   */
   async sendChatAttachment(file: File): Promise<void> {
     const meetingId = this.meetingId();
     const conversationId = this.conversationId();
     if (!meetingId || !conversationId || this.chatUploading()) return;
     this.chatUploading.set(true);
+    const placeholderId = `local:${crypto.randomUUID()}`;
+    const now = new Date();
+    this.chatMessages.update(list => [
+      ...list,
+      {
+        id: placeholderId,
+        senderName: this.lastSelfDisplayName() ?? 'You',
+        text: '',
+        time: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+        isMine: true,
+        senderUserId: this.myUserId() ?? '',
+        createdAtUtc: now.toISOString(),
+        isEdited: false,
+        editCount: 0,
+        isDeleted: false,
+        sending: true,
+        attachment: { fileId: placeholderId, name: file.name, size: formatBytes(file.size), status: 'Pending', contentType: file.type || null },
+      },
+    ]);
     try {
       const initiated = await firstValueFrom(
-        this.cloudStorage.initiateUpload({
+        this.conversationAttachments.initiateUpload(conversationId, {
           originalName: file.name,
           contentType: file.type || 'application/octet-stream',
           sizeBytes: file.size,
-          ownerType: 'Communication',
-          ownerId: conversationId,
-          folderType: 'Other',
-          taxYear: null,
         }),
       );
       await firstValueFrom(this.cloudStorage.uploadToPresignedUrl(initiated.uploadUrl, initiated.formData, file));
-      await firstValueFrom(this.cloudStorage.completeUpload(initiated.fileId));
-      this.attachmentNames.set(initiated.fileId, { name: file.name, size: formatBytes(file.size) });
+      const completed = await firstValueFrom(this.conversationAttachments.completeUpload(conversationId, initiated.fileId));
+      const status = toAttachmentScanState(completed.status);
+      this.attachmentNames.set(initiated.fileId, {
+        name: file.name,
+        size: formatBytes(file.size),
+        contentType: file.type || null,
+        ...(status === 'Available' ? {} : { status }),
+      });
       await this.rtc.chatSend(meetingId, null, initiated.fileId);
+      if (status === 'Pending') this.scheduleAttachmentRecheck(initiated.fileId, 0);
     } catch (err) {
-      this.toast.error(meetingChatErrorMessage(socketErrorCode(err)) ?? "Couldn't send the file.");
+      this.toast.error(meetingChatErrorMessage(socketErrorCode(err)) ?? "Couldn't send the file. Try again.");
     } finally {
+      // El real ya llegó por el broadcast de la sala (o falló): el marcador se va.
+      this.chatMessages.update(list => list.filter(m => m.id !== placeholderId));
       this.chatUploading.set(false);
     }
   }
@@ -1702,6 +1771,23 @@ export class ActiveMeetingService {
   }
 
   /** Carga el historial previo del chat del meeting (el backend pagina DESC → se invierte a ASC). */
+  /** F11: el invitado recibe el historial por el socket (misma regla que la ficha del meeting, D-01). */
+  private loadGuestChatHistory(meetingId: string): void {
+    from(this.rtc.chatHistory(meetingId, 50)).subscribe({
+      next: page => this.mergeChatHistory(page.items),
+      error: () => undefined, // sin historial no es bloqueante
+    });
+  }
+
+  /** Historial (DESC) antes de lo que ya llegó en vivo, sin duplicar. */
+  private mergeChatHistory(itemsDesc: readonly MeetingChatMessageDto[]): void {
+    const history = [...itemsDesc].reverse().map(dto => this.toChatView(dto));
+    this.chatMessages.update(live => {
+      const liveIds = new Set(live.map(m => m.id));
+      return [...history.filter(m => !liveIds.has(m.id)), ...live];
+    });
+  }
+
   private loadChatHistory(conversationId: string): void {
     const url = this.api.tenantUrl(`/communication/conversations/${conversationId}/messages`);
     this.http
@@ -1709,12 +1795,7 @@ export class ActiveMeetingService {
       .subscribe({
         next: page => {
           this.chatEditPolicy.set(page.editPolicy ?? null);
-          const history = [...page.items].reverse().map(dto => this.toChatView(dto)); // DESC→ASC
-          this.chatMessages.update(live => {
-            const liveIds = new Set(live.map(m => m.id));
-            const olderNew = history.filter(m => !liveIds.has(m.id));
-            return [...olderNew, ...live]; // historial (más viejo) antes de lo que llegó en vivo
-          });
+          this.mergeChatHistory(page.items);
         },
         error: () => undefined, // sin historial no es bloqueante
       });
@@ -2045,7 +2126,10 @@ export class ActiveMeetingService {
   }
 }
 
-/** Solo los estados de moderación (T-20) cambian la tarjeta; escaneando sigue mostrándose como antes. */
+/** Respaldo del aviso en vivo de escaneo terminado: vuelve a preguntar a los 4, 10 y 25 s (después, al reabrir). */
+const ATTACHMENT_RECHECK_DELAYS_MS: readonly number[] = [4_000, 10_000, 25_000];
+
+/** Estados de moderación del aviso en vivo (T-20): en revisión, bloqueado o ya no disponible; el resto, disponible. */
 function moderationStateOf(status: string): AttachmentScanState | undefined {
   switch (status) {
     case 'PendingReview':

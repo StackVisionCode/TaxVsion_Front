@@ -24,15 +24,17 @@
 <ng-template #composer>
   <!-- items-end: con varias líneas los botones quedan abajo, alineados con la última línea. -->
   <form class="flex items-end gap-2" (ngSubmit)="submit()">
-    <label aria-label="Attach file" [class.opacity-50]="uploading" [class.pointer-events-none]="uploading"
-      class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors">
-      @if (uploading) {
-        <app-infinity-loader size="xs" />
-      } @else {
-        <ion-icon name="attach-outline" class="text-lg"></ion-icon>
-      }
-      <input type="file" class="hidden" (change)="onFileSelected($event)" [disabled]="uploading" />
-    </label>
+    @if (allowAttachments) {
+      <label aria-label="Attach file" [class.opacity-50]="uploading" [class.pointer-events-none]="uploading"
+        class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors">
+        @if (uploading) {
+          <app-infinity-loader size="xs" />
+        } @else {
+          <ion-icon name="attach-outline" class="text-lg"></ion-icon>
+        }
+        <input type="file" class="hidden" (change)="onFileSelected($event)" [disabled]="uploading" />
+      </label>
+    }
 
     <div class="min-h-11 flex-1 rounded-3xl border border-gray-200 bg-white flex items-center focus-within:border-gray-300 transition-colors">
       <!-- Crece con el texto hasta ~6 líneas y luego scrollea. Enter envía; Shift+Enter, salto de línea. -->

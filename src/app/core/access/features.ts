@@ -144,6 +144,36 @@ export const FEATURES: readonly FeatureDefinition[] = [
     module: 'signatures',
     anyOf: ['signature.preparer.manage'],
   },
+  // F9 (D-38): Settings → Communication. Gobernanza de la oficina (`communication.settings.manage`, que el
+  // backend gatea por `comms`); Meetings además pide su módulo para no mostrar una puerta pintada.
+  {
+    id: 'communication-settings-chat',
+    label: 'Chat settings',
+    route: 'settings/communication/chat',
+    module: 'comms',
+    anyOf: ['communication.settings.manage'],
+  },
+  {
+    id: 'communication-settings-meetings',
+    label: 'Meeting settings',
+    route: 'settings/communication/meetings',
+    module: 'meetings',
+    anyOf: ['communication.settings.manage'],
+  },
+  {
+    id: 'communication-settings-calls',
+    label: 'Call settings',
+    route: 'settings/communication/calls',
+    module: 'comms',
+    anyOf: ['communication.settings.manage'],
+  },
+  {
+    id: 'communication-settings-recording',
+    label: 'Recording and transcript settings',
+    route: 'settings/communication/recording',
+    module: 'comms',
+    anyOf: ['communication.settings.manage'],
+  },
   {
     // Settings → Email activity: qué pasó con cada correo de la oficina. Transversal: los correos
     // del sistema salen aunque el plan no tenga el módulo de email.

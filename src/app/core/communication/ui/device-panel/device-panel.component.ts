@@ -41,7 +41,12 @@ export class DevicePanelComponent {
   readonly autoPip = this.pip.autoPipEnabled;
 
   setAutoPip(enabled: boolean): void {
+    const previous = this.pip.autoPipEnabled();
     this.pip.setAutoPip(enabled);
+    this.mediaPolicy.updatePreferences({ autoPictureInPicture: enabled }).catch(() => {
+      this.pip.setAutoPip(previous);
+      this.toast.error("Couldn't save your preference. Try again.");
+    });
   }
 
   readonly isOpen = input(false);

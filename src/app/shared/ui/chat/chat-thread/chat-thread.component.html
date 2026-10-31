@@ -52,11 +52,15 @@
               (click)="attachmentClicked.emit(message.attachment.fileId)"
               class="flex items-center gap-3 rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3 text-left hover:bg-gray-50 transition-colors disabled:cursor-default disabled:hover:bg-white">
               <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-white">
-                <ion-icon name="document-text-outline" class="text-base"></ion-icon>
+                @if (message.attachment.status === 'Pending') {
+                  <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true" data-role="attachment-preparing"></span>
+                } @else {
+                  <ion-icon name="document-text-outline" class="text-base"></ion-icon>
+                }
               </span>
               <div class="min-w-0">
                 <p class="truncate text-sm font-medium text-gray-800">{{ message.attachment.name }}</p>
-                <p class="text-xs" [class.text-gray-400]="message.attachment.status !== 'Blocked' && message.attachment.status !== 'UnderReview'" [class.text-red-600]="message.attachment.status === 'Blocked'" [class.text-amber-600]="message.attachment.status === 'UnderReview'" data-role="attachment-state">{{ attachmentState(message) }}</p>
+                <p class="text-xs" [class.text-gray-400]="message.attachment.status !== 'Blocked' && message.attachment.status !== 'UnderReview'" [class.text-red-600]="message.attachment.status === 'Blocked'" [class.text-amber-600]="message.attachment.status === 'UnderReview'" data-role="attachment-state" aria-live="polite">{{ attachmentState(message) }}</p>
               </div>
             </button>
             <!-- Nota de voz -->
@@ -125,11 +129,15 @@
                 (click)="attachmentClicked.emit(message.attachment.fileId)"
                 class="inline-flex items-center gap-3 rounded-2xl rounded-br-md border border-gray-100 bg-white px-4 py-3 text-left hover:bg-gray-50 transition-colors disabled:cursor-default disabled:hover:bg-white">
                 <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-white">
+                  @if (message.attachment.status === 'Pending') {
+                  <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden="true" data-role="attachment-preparing"></span>
+                } @else {
                   <ion-icon name="document-text-outline" class="text-base"></ion-icon>
+                }
                 </span>
                 <div class="min-w-0">
                   <p class="truncate text-sm font-medium text-gray-800">{{ message.attachment.name }}</p>
-                  <p class="text-xs" [class.text-gray-400]="message.attachment.status !== 'Blocked' && message.attachment.status !== 'UnderReview'" [class.text-red-600]="message.attachment.status === 'Blocked'" [class.text-amber-600]="message.attachment.status === 'UnderReview'" data-role="attachment-state">{{ attachmentState(message) }}</p>
+                  <p class="text-xs" [class.text-gray-400]="message.attachment.status !== 'Blocked' && message.attachment.status !== 'UnderReview'" [class.text-red-600]="message.attachment.status === 'Blocked'" [class.text-amber-600]="message.attachment.status === 'UnderReview'" data-role="attachment-state" aria-live="polite">{{ attachmentState(message) }}</p>
                 </div>
               </button>
               <!-- Nota de voz (mía) -->

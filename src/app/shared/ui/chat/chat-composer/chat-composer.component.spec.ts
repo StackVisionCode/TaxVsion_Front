@@ -4,12 +4,13 @@ import { describe, expect, it } from 'vitest';
 import { VoiceNoteRecorderService } from '@core/communication/voice-note-recorder.service';
 import { ChatComposerComponent } from './chat-composer.component';
 
-function render(allowVoiceNotes: boolean) {
+function render(allowVoiceNotes: boolean, allowAttachments = true) {
   TestBed.configureTestingModule({
     providers: [{ provide: VoiceNoteRecorderService, useValue: { isRecording: signal(false), isSupported: true, level: signal(0), elapsedMs: signal(0) } }],
   });
   const fixture = TestBed.createComponent(ChatComposerComponent);
   fixture.componentRef.setInput('allowVoiceNotes', allowVoiceNotes);
+  fixture.componentRef.setInput('allowAttachments', allowAttachments);
   fixture.detectChanges();
   return fixture.nativeElement as HTMLElement;
 }
@@ -24,6 +25,18 @@ describe('ChatComposerComponent — notas de voz opcionales (F8a)', () => {
     const el = render(false);
     expect(el.querySelector('[aria-label="Record voice note"]')).toBeNull();
     expect((el.querySelector('[aria-label="Send message"]') as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe('ChatComposerComponent — adjuntos opcionales (D-14)', () => {
+  it('por defecto muestra el clip para adjuntar', () => {
+    expect(render(true).querySelector('[aria-label="Attach file"]')).not.toBeNull();
+  });
+
+  it('sin permiso de adjuntar (invitado de la sala) no hay clip ni selector de archivos', () => {
+    const el = render(false, false);
+    expect(el.querySelector('[aria-label="Attach file"]')).toBeNull();
+    expect(el.querySelector('input[type="file"]')).toBeNull();
   });
 });
 

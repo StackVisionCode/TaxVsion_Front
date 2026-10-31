@@ -99,9 +99,9 @@ export class MeetingSchedulePanelComponent implements OnChanges {
   readonly passcode = signal('');
   readonly recordingRequested = signal(false);
   /**
-   * F3 — "Duration (informational)": opciones y valor por defecto salen de los límites efectivos de la
-   * oficina (GET /meetings/limits); sin límites cargados no se manda el campo y el backend aplica el suyo.
-   * El corte real lo decide el servidor (D-35), no hay "Extend" (D-34).
+   * "Duration": opciones y valor por defecto salen de los límites efectivos de la oficina
+   * (GET /meetings/limits); sin límites cargados no se manda el campo y el backend aplica el suyo.
+   * La reunión corta a esta duración (D-35 revisada), dentro del máximo; no hay "Extend" (D-34).
    */
   readonly limits = signal<MeetingLimits | null>(null);
   readonly durationOptions = computed<number[]>(() => {

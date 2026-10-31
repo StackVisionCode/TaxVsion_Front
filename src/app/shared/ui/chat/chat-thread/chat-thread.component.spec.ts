@@ -302,7 +302,7 @@ describe('ChatThreadComponent — F8d: enlaces, estado del adjunto y reacciones'
   });
   afterEach(() => TestBed.resetTestingModule());
 
-  it('pinta enlaces seguros, "Scanning…"/"Unavailable" y emite la reacción elegida', () => {
+  it('pinta enlaces seguros, "Preparing file…"/"Unavailable" y emite la reacción elegida', () => {
     const fixture = TestBed.createComponent(ChatThreadComponent);
     fixture.componentRef.setInput('conversationId', 'c1');
     fixture.componentRef.setInput('canReact', true);
@@ -321,12 +321,31 @@ describe('ChatThreadComponent — F8d: enlaces, estado del adjunto y reacciones'
     expect(link?.getAttribute('rel')).toBe('noopener noreferrer');
 
     const states = Array.from(el.querySelectorAll('[data-role="attachment-state"]')).map(e => e.textContent?.trim());
-    expect(states).toEqual(['Scanning…', 'Unavailable']);
+    expect(states).toEqual(['Preparing file…', 'Unavailable']);
 
     const toggled: { messageId: string; emoji: string }[] = [];
     fixture.componentInstance.reactionToggled.subscribe(e => toggled.push(e));
     el.querySelector<HTMLButtonElement>('[data-role="reaction-chip"]')?.click();
     expect(toggled).toEqual([{ messageId: 't1', emoji: '👍' }]);
+  });
+
+  it('mientras se prepara: el mío dice "Sending…", lleva spinner y no se puede abrir (no hay error que mostrar)', () => {
+    const fixture = TestBed.createComponent(ChatThreadComponent);
+    fixture.componentRef.setInput('conversationId', 'c1');
+    fixture.componentRef.setInput('messages', [
+      msg('a1', 'me', { text: undefined, attachment: { name: 'logo.png', size: '12 KB', fileId: 'f1', status: 'Pending' } }),
+    ]);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const clicked: string[] = [];
+    fixture.componentInstance.attachmentClicked.subscribe(id => clicked.push(id));
+
+    expect(el.querySelector('[data-role="attachment-state"]')?.textContent?.trim()).toBe('Sending…');
+    expect(el.querySelector('[data-role="attachment-preparing"]')).not.toBeNull();
+    const card = el.querySelector('[data-role="attachment-state"]')?.closest('button') as HTMLButtonElement;
+    expect(card.disabled).toBe(true);
+    card.click();
+    expect(clicked).toEqual([]);
   });
 });
 

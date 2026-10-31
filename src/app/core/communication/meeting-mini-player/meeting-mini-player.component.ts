@@ -19,7 +19,7 @@ import { TooltipDirective } from '@shared/ui/tooltip/tooltip.directive';
 import { ActiveMeetingService, MeetingHostTileAction } from '../active-meeting.service';
 import { ActiveCallService } from '../active-call.service';
 import { MeetingActiveSpeakerService, SELF_LEVEL_KEY } from '../meeting-active-speaker.service';
-import { MeetingPipService } from '../meeting-pip.service';
+import { MeetingPipService, clearLegacyAutoPip, readLegacyAutoPip } from '../meeting-pip.service';
 import { SrcObjectDirective } from '../src-object.directive';
 import { MeetingParticipantDto } from '../meeting.model';
 import { pickMiniPlayerTiles } from '../active-speaker.util';
@@ -356,6 +356,22 @@ export class MeetingMiniPlayerComponent {
       if (this.visible()) {
         untracked(() => requestAnimationFrame(() => this.reclamp()));
       }
+    });
+
+    // F9 — "Pop out when I switch tabs" es de la cuenta: se toma de la política; la vieja del localStorage (F5)
+    // se sube una vez. Vive aquí porque el mini-player existe durante toda reunión y ya carga en diferido.
+    effect(() => {
+      const preferences = this.mediaPolicy.policy()?.preferences;
+      if (!preferences) return;
+      untracked(() => {
+        if (!preferences.autoPictureInPicture && readLegacyAutoPip()) {
+          clearLegacyAutoPip();
+          this.pip.setAutoPip(true);
+          void this.mediaPolicy.updatePreferences({ autoPictureInPicture: true }).catch(() => undefined);
+          return;
+        }
+        this.pip.setAutoPip(preferences.autoPictureInPicture ?? false);
+      });
     });
 
     // F5 — el panel se registra en el servicio de PiP (Document PiP lo mueve de ventana).

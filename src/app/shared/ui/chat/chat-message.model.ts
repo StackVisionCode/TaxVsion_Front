@@ -33,6 +33,12 @@ export const ATTACHMENT_STATE_LABELS: Record<Exclude<AttachmentScanState, 'Avail
   Unavailable: 'Unavailable',
 };
 
+/**
+ * Mientras se sube o se escanea, el hilo no habla de "escaneo": quien lo mandó ve que se está enviando y los
+ * demás que se está preparando; al quedar listo muestra el tamaño. Nadie lo confunde con un error.
+ */
+export const ATTACHMENT_PENDING_LABELS = { mine: 'Sending…', theirs: 'Preparing file…' } as const;
+
 /** Estado del backend (AttachmentTracking) → estado de la UI. */
 export function toAttachmentScanState(status: string | null | undefined): AttachmentScanState {
   switch (status) {

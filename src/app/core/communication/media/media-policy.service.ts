@@ -37,7 +37,7 @@ export class MediaPolicyService {
   }
 
   /**
-   * F6 (D-47) — fija la política que trae `GET /meetings/guest/:token/context` (el invitado no tiene JWT
+   * F6 (D-47) — fija la política que trae `POST /meetings/guest/context` (el invitado no tiene JWT
    * para `GET /communication/media-policy`). A partir de aquí `ensureLoaded` la devuelve sin red y
    * `settings.changed` no intenta refrescarla.
    */

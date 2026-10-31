@@ -7,7 +7,7 @@ import { ToastService } from '@shared/ui/toast/toast.service';
 import { ActiveMeetingService, MeetingChatMessage } from '../active-meeting.service';
 import { ActiveCallService } from '../active-call.service';
 import { MeetingActiveSpeakerService, RemoteAudioSource } from '../meeting-active-speaker.service';
-import { MeetingPipService } from '../meeting-pip.service';
+import { AUTO_PIP_KEY, MeetingPipService } from '../meeting-pip.service';
 import { MeetingSessionState } from '../meeting-session-state';
 import { MediaPolicyService } from '../media/media-policy.service';
 import { fakeMediaPolicyService, mediaPolicyFixture } from '../media/testing/media-policy.fixture';
@@ -119,6 +119,7 @@ function fakePip() {
     active: signal(false),
     requested: signal(false),
     autoPipEnabled: signal(false),
+    setAutoPip: vi.fn(),
     registerPanel: vi.fn(),
     registerMainVideo: vi.fn(),
     toggle: vi.fn(),
@@ -157,6 +158,15 @@ async function render(remotes: MeetingParticipantDto[], screenAudio: RemoteAudio
 
 describe('MeetingMiniPlayerComponent — F4', () => {
   afterEach(() => TestBed.resetTestingModule());
+
+  // F9: "Pop out when I switch tabs" se toma de la cuenta; la vieja del localStorage (F5) se sube una vez.
+  it('toma la preferencia de ventana flotante de la política y migra la vieja del localStorage', async () => {
+    localStorage.setItem(AUTO_PIP_KEY, '1');
+    const { pip } = await render([]);
+    TestBed.flushEffects();
+    expect(pip.setAutoPip).toHaveBeenCalledWith(true);
+    expect(localStorage.getItem(AUTO_PIP_KEY)).toBeNull();
+  });
 
   it('reproduce el audio de cada pantalla compartida en su propio <audio> con volumen propio', async () => {
     const stream = { addEventListener() {}, removeEventListener() {}, getTracks: () => [] } as unknown as MediaStream;

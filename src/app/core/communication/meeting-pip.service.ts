@@ -4,7 +4,7 @@ import { MeetingSessionState } from './meeting-session-state';
 /** Modo de PiP disponible en este navegador. */
 export type MeetingPipMode = 'document' | 'video' | 'none';
 
-/** Clave de la preferencia "pop out automático al ocultar la pestaña" (`localStorage`). */
+/** Clave vieja de la preferencia en `localStorage` (F5); solo se lee para migrarla a la cuenta (F9). */
 export const AUTO_PIP_KEY = 'tvf.meeting.autoPip';
 
 /** Tamaño de la ventana Document PiP (coincide con el panel del mini-player: 22rem de ancho). */
@@ -50,8 +50,8 @@ export function detectPipMode(win: Partial<Window> & { documentPictureInPicture?
  *   NO se mueven: el mini-player los renderiza fuera del panel, en la ventana principal.
  * - Fallback: `requestPictureInPicture()` del `<video>` principal (`registerMainVideo`) con
  *   `MediaSession.setActionHandler` para micrófono/cámara/colgar donde exista.
- * - Auto-PiP al ocultar la pestaña SOLO si el usuario lo pidió (`autoPipEnabled`, en `localStorage`:
- *   el backend no expone todavía el campo en `PUT /preferences`).
+ * - Auto-PiP al ocultar la pestaña SOLO si el usuario lo pidió (`autoPipEnabled`, preferencia de la cuenta en
+ *   `PUT /communication/preferences`; F9 la sacó del `localStorage`).
  */
 @Injectable({ providedIn: 'root' })
 export class MeetingPipService {
@@ -63,7 +63,7 @@ export class MeetingPipService {
   readonly requested = signal(false);
   /** Hay una ventana/overlay PiP abierto. */
   readonly active = signal(false);
-  readonly autoPipEnabled = signal(readAutoPip());
+  readonly autoPipEnabled = signal(false);
 
   private panel: HTMLElement | null = null;
   private placeholder: Comment | null = null;
@@ -83,13 +83,9 @@ export class MeetingPipService {
     }
   }
 
+  /** Estado local de la preferencia; la fuente es la cuenta (la sincroniza el mini-player desde la política). */
   setAutoPip(enabled: boolean): void {
     this.autoPipEnabled.set(enabled);
-    try {
-      localStorage.setItem(AUTO_PIP_KEY, enabled ? '1' : '0');
-    } catch {
-      /* sin storage */
-    }
   }
 
   /** El mini-player registra su panel (null al desmontarse). Si había un pop-out pendiente, se abre ya. */
@@ -293,7 +289,15 @@ function resumeVideos(root: HTMLElement): void {
   root.querySelectorAll('video').forEach(video => void video.play?.()?.catch?.(() => undefined));
 }
 
-function readAutoPip(): boolean {
+export function clearLegacyAutoPip(): void {
+  try {
+    localStorage.removeItem(AUTO_PIP_KEY);
+  } catch {
+    /* sin storage */
+  }
+}
+
+export function readLegacyAutoPip(): boolean {
   try {
     return localStorage.getItem(AUTO_PIP_KEY) === '1';
   } catch {

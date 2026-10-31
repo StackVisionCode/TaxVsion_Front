@@ -116,7 +116,7 @@ export interface MeetingLimits {
 const MEETING_DURATION_STEPS_MINUTES: readonly number[] = [15, 30, 45, 60, 90, 120, 180, 240];
 
 /**
- * Opciones del selector "Duration (informational)": los pasos que caben en el máximo de la
+ * Opciones del selector "Duration": los pasos que caben en el máximo de la
  * oficina más el propio máximo y el valor por defecto, sin repetidos y ordenadas.
  */
 export function buildDurationOptions(limits: MeetingLimits): number[] {

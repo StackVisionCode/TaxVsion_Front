@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import type { AttachmentMetaDto } from './conversation-attachments.service';
 import { Observable } from 'rxjs';
 import type { types as MsTypes } from 'mediasoup-client';
 import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
@@ -146,6 +147,23 @@ export class MeetingRtcService {
   /** F8a: editar un mensaje propio en la sala (misma ventana que el chat, política Meeting). */
   chatEdit(meetingId: string, messageId: string, body: string): Promise<unknown> {
     return this.emitOrThrow('meeting.chat.edit', { clientKey: this.realtime.newClientKey(), meetingId, messageId, body });
+  }
+
+  /**
+   * F11: metadata y URL de un adjunto del chat de la sala por el socket. El invitado no tiene JWT para el
+   * HTTP de adjuntos; el servidor aplica la misma regla (participante del chat).
+   */
+  chatAttachmentMeta(meetingId: string, fileId: string): Promise<AttachmentMetaDto> {
+    return this.emitOrThrow('meeting.chat.attachment.meta', { meetingId, fileId });
+  }
+
+  /** F11: historial del chat de la sala por el socket (lo usa el invitado, que no tiene JWT). */
+  chatHistory(meetingId: string, take = 50): Promise<{ items: MeetingChatMessageDto[] }> {
+    return this.emitOrThrow('meeting.chat.history', { meetingId, take });
+  }
+
+  chatAttachmentDownloadUrl(meetingId: string, fileId: string): Promise<{ downloadUrl: string }> {
+    return this.emitOrThrow('meeting.chat.attachment.download_url', { meetingId, fileId });
   }
 
   chatDelete(meetingId: string, messageId: string): Promise<unknown> {

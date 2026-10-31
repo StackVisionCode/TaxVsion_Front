@@ -1,4 +1,5 @@
-import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
+import type { FileViewerDownload, FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { ChatThreadComponent } from '@shared/ui/chat/chat-thread/chat-thread.component';
 import { ChatComposerComponent } from '@shared/ui/chat/chat-composer/chat-composer.component';
@@ -74,6 +75,7 @@ const GALLERY_GAP_PX = 12;
 @Component({
   selector: 'app-meeting-room',
   imports: [
+    FileViewerComponent,
     InfinityLoaderComponent,
     CommonModule,
     ChatThreadComponent,
@@ -99,7 +101,6 @@ export class MeetingRoomComponent {
   private readonly perms = inject(PermissionService);
   protected readonly meeting = inject(ActiveMeetingService);
   private readonly toast = inject(ToastService);
-  private readonly cloudStorage = inject(CloudStorageUploadService);
   private readonly speaker = inject(MeetingActiveSpeakerService);
   private readonly devices = inject(MediaDevicesService);
   private readonly mediaPolicy = inject(MediaPolicyService);
@@ -169,6 +170,7 @@ export class MeetingRoomComponent {
       isEdited: m.isEdited,
       editCount: m.editCount,
       isDeleted: m.isDeleted,
+      ...(m.sending ? { status: 'sending' as const } : {}),
       createdAtUtc: m.createdAtUtc,
       senderUserId: m.senderUserId,
       senderName: m.senderName,
@@ -466,11 +468,39 @@ export class MeetingRoomComponent {
   }
 
   /** Adjunto de la sala: se descarga (la sala no abre el visor encima del video). */
-  downloadChatAttachment(fileId: string): void {
-    this.cloudStorage.getDownloadUrl(fileId).subscribe({
-      next: res => window.open(res.downloadUrl, '_blank', 'noopener'),
-      error: () => this.toast.error("Couldn't open the file."),
-    });
+  /** Visor de los adjuntos de la sala (los listos), con navegación entre ellos. */
+  readonly viewerOpen = signal(false);
+  readonly viewerFiles = signal<FileViewerItem[]>([]);
+  readonly viewerIndex = signal(0);
+
+  /**
+   * Clic en un adjunto: se ve en el visor (imagen, PDF, texto…), con la URL que da Communication por
+   * membresía. Uno que aún se prepara no se puede tocar en el hilo, así que aquí solo llegan los listos.
+   */
+  openChatAttachment(fileId: string): void {
+    const conversationId = this.meetingConversationId();
+    const ready = this.chatMessages()
+      .filter(m => !m.isDeleted && !m.sending && m.attachment && !m.attachment.status)
+      .map(m => m.attachment as NonNullable<typeof m.attachment>);
+    const index = ready.findIndex(a => a.fileId === fileId);
+    if (!conversationId || index < 0) return;
+    this.viewerFiles.set(
+      ready.map(a => ({
+        name: a.name,
+        contentType: a.contentType ?? null,
+        resolveUrl: () => this.meeting.chatAttachmentUrl(a.fileId),
+        ref: a.fileId,
+      })),
+    );
+    this.viewerIndex.set(index);
+    this.viewerOpen.set(true);
+  }
+
+  onViewerDownload(event: FileViewerDownload): void {
+    this.meeting
+      .chatAttachmentUrl(event.item.ref as string)
+      .then(url => window.open(url, '_blank', 'noopener'))
+      .catch(() => this.toast.error("Couldn't download the file. Try again in a moment."));
   }
 
   /** Stream de CÁMARA de un participante (la mía para `self`). */

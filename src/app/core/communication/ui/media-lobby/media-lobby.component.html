@@ -36,7 +36,7 @@
   </div>
 
   <!-- Ajustes y botón de entrar -->
-  <div class="flex w-full flex-col gap-4 lg:w-80">
+  <div class="flex w-full flex-col gap-4 lg:w-80" [class]="clearShellNotch() ? 'lg:pt-[var(--shell-notch-height)]' : ''">
     <div>
       <p class="text-base font-bold text-gray-900">Ready to join?</p>
       <p class="mt-0.5 truncate text-sm text-gray-500">{{ meetingTitle() || 'Meeting' }}</p>

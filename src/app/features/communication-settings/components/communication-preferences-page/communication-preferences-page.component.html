@@ -1,0 +1,109 @@
+<div class="min-h-full pt-3 pb-6 flex flex-col gap-4">
+  <div class="lg:pr-[var(--shell-notch-width)]">
+    <a routerLink="/settings" class="inline-flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors">
+      <ion-icon name="arrow-back-outline" class="text-sm"></ion-icon>
+      Settings
+    </a>
+    <h1 class="mt-1 text-2xl font-bold text-gray-900">Communication preferences</h1>
+    <p class="mt-1 text-sm text-gray-500">Only for you. Changes are saved right away.</p>
+  </div>
+
+  @if (view(); as v) {
+    <app-comm-settings-section heading="Sounds">
+      <app-comm-setting-row label="Mute join and leave sounds" hint="You won't hear a sound when someone joins or leaves a meeting."
+        [locked]="soundsOff()" lockedReason="Your office has turned these sounds off.">
+        <app-switch [checked]="v.preferences.meetingSoundsMuted || soundsOff()" [disabled]="soundsOff()"
+          (checkedChange)="set('meetingSoundsMuted', $event)" ariaLabel="Mute join and leave sounds"></app-switch>
+      </app-comm-setting-row>
+    </app-comm-settings-section>
+
+    <app-comm-settings-section heading="Joining meetings" description="How you enter a meeting. You can still change it before joining.">
+      <app-comm-setting-row label="Microphone off when joining">
+        <app-switch [checked]="v.preferences.joinMuted" (checkedChange)="set('joinMuted', $event)" ariaLabel="Microphone off when joining"></app-switch>
+      </app-comm-setting-row>
+      <app-comm-setting-row label="Camera off when joining">
+        <app-switch [checked]="v.preferences.joinCameraOff" (checkedChange)="set('joinCameraOff', $event)" ariaLabel="Camera off when joining"></app-switch>
+      </app-comm-setting-row>
+      <app-comm-setting-row label="Audio only" hint="Don't receive video. Useful on a slow connection.">
+        <app-switch [checked]="v.preferences.preferAudioOnly" (checkedChange)="set('preferAudioOnly', $event)" ariaLabel="Audio only"></app-switch>
+      </app-comm-setting-row>
+      <app-comm-setting-row label="Pop out when I switch tabs" hint="The meeting moves to a small floating window when you leave its tab.">
+        <app-switch [checked]="v.preferences.autoPictureInPicture" [disabled]="!pip.supported()" (checkedChange)="setAutoPip($event)"
+          ariaLabel="Pop out when I switch tabs"></app-switch>
+      </app-comm-setting-row>
+    </app-comm-settings-section>
+
+    <app-comm-settings-section heading="Audio processing" description="By default you use your office's settings.">
+      <app-comm-setting-row label="Echo cancellation">
+        <app-comm-inherit-switch label="Echo cancellation" [value]="v.preferences.echoCancellation" [inherited]="processing()?.echoCancellation ?? true"
+          defaultLabel="Office default" resetLabel="Use office default" (valueChange)="setProcessing('echoCancellation', $event)"></app-comm-inherit-switch>
+      </app-comm-setting-row>
+      <app-comm-setting-row label="Noise suppression">
+        <app-comm-inherit-switch label="Noise suppression" [value]="v.preferences.noiseSuppression" [inherited]="processing()?.noiseSuppression ?? true"
+          defaultLabel="Office default" resetLabel="Use office default" (valueChange)="setProcessing('noiseSuppression', $event)"></app-comm-inherit-switch>
+      </app-comm-setting-row>
+      <app-comm-setting-row label="Automatic volume" hint="Keeps your voice at a steady level.">
+        <app-comm-inherit-switch label="Automatic volume" [value]="v.preferences.autoGainControl" [inherited]="processing()?.autoGainControl ?? true"
+          defaultLabel="Office default" resetLabel="Use office default" (valueChange)="setProcessing('autoGainControl', $event)"></app-comm-inherit-switch>
+      </app-comm-setting-row>
+    </app-comm-settings-section>
+
+    <app-comm-settings-section heading="Devices" description="Saved on this browser only. Other computers keep their own choice.">
+      @if (needsDeviceNames()) {
+        <div class="flex flex-wrap items-center justify-between gap-3 py-4">
+          <p class="text-sm text-gray-600">Your browser hides device names until you allow the camera and microphone.</p>
+          <button type="button" (click)="showDeviceNames()" [disabled]="askingDevices()" data-role="show-device-names"
+            class="rounded-full border border-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            {{ askingDevices() ? 'Waiting for permission…' : 'Show device names' }}
+          </button>
+        </div>
+      }
+      <app-comm-setting-row label="Microphone">
+        <select class="w-64 max-w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm" aria-label="Microphone" data-role="device-microphone"
+          (change)="setDevice('audioInputId', $any($event.target).value)">
+          <option value="" [selected]="!devices.preferred().audioInputId">System default</option>
+          @for (device of devices.microphones(); track device.deviceId; let i = $index) {
+            <option [value]="device.deviceId" [selected]="devices.preferred().audioInputId === device.deviceId">{{ deviceLabel(device, i, 'Microphone') }}</option>
+          }
+        </select>
+      </app-comm-setting-row>
+      <app-comm-setting-row label="Camera">
+        <select class="w-64 max-w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm" aria-label="Camera" data-role="device-camera"
+          (change)="setDevice('videoInputId', $any($event.target).value)">
+          <option value="" [selected]="!devices.preferred().videoInputId">System default</option>
+          @for (device of devices.cameras(); track device.deviceId; let i = $index) {
+            <option [value]="device.deviceId" [selected]="devices.preferred().videoInputId === device.deviceId">{{ deviceLabel(device, i, 'Camera') }}</option>
+          }
+        </select>
+      </app-comm-setting-row>
+      @if (devices.supportsSinkId) {
+        <app-comm-setting-row label="Speaker">
+          <div class="flex flex-wrap items-center gap-2">
+            <select class="w-64 max-w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm" aria-label="Speaker" data-role="device-speaker"
+              (change)="setDevice('audioOutputId', $any($event.target).value)">
+              <option value="" [selected]="!devices.preferred().audioOutputId">System default</option>
+              @for (device of devices.speakers(); track device.deviceId; let i = $index) {
+                <option [value]="device.deviceId" [selected]="devices.preferred().audioOutputId === device.deviceId">{{ deviceLabel(device, i, 'Speaker') }}</option>
+              }
+            </select>
+            <button type="button" (click)="testSpeaker()" class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">Test</button>
+          </div>
+        </app-comm-setting-row>
+      }
+    </app-comm-settings-section>
+
+    <app-comm-settings-section heading="Transcript">
+      <app-comm-setting-row label="Language of my voice notes" hint="Used when your voice notes are turned into text.">
+        <select class="rounded-lg border border-gray-200 px-2 py-1.5 text-sm" aria-label="Language of my voice notes" data-role="my-transcript-language"
+          (change)="setLanguage($any($event.target).value)">
+          <option value="" [selected]="v.preferences.transcriptLanguage === null">Office default</option>
+          @for (option of languageOptions; track option.value) {
+            <option [value]="option.value" [selected]="v.preferences.transcriptLanguage === option.value">{{ option.label }}</option>
+          }
+        </select>
+      </app-comm-setting-row>
+    </app-comm-settings-section>
+  } @else {
+    <app-state-block [loading]="loading()" [error]="error()" (retry)="load()"></app-state-block>
+  }
+</div>

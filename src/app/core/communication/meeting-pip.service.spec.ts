@@ -95,10 +95,9 @@ describe('MeetingPipService', () => {
     panel.remove();
   });
 
-  it('la preferencia de auto-PiP vive en localStorage y solo dispara si estoy dentro de la reunión', async () => {
+  it('con auto-PiP activo solo dispara si estoy dentro de la reunión', async () => {
     expect(service.autoPipEnabled()).toBe(false);
     service.setAutoPip(true);
-    expect(localStorage.getItem(AUTO_PIP_KEY)).toBe('1');
     const panel = document.createElement('section');
     document.body.append(panel);
     service.registerPanel(panel);
@@ -166,4 +165,5 @@ describe('MeetingPipService', () => {
     expect(to.head.querySelector('style')?.textContent).toBe('.a{color:red}');
     expect(to.head.querySelector('link[rel="stylesheet"]')?.getAttribute('href')).toBe('https://cdn.example/x.css');
   });
+
 });

@@ -42,6 +42,8 @@ export class MediaLobbyComponent implements OnInit {
   readonly meetingTitle = input('');
   /** F6 — false para el invitado externo: no tiene JWT para `PUT /communication/preferences`. */
   readonly savePreferences = input(true);
+  /** Dentro del shell del CRM: la columna de ajustes empieza debajo del hueco de la barra superior (lupa, avisos, perfil). */
+  readonly clearShellNotch = input(false);
   readonly join = output<LobbyJoinOptions>();
   readonly cancel = output<void>();
 

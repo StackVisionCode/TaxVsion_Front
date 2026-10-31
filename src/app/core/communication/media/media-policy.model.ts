@@ -83,11 +83,13 @@ export interface MediaPolicyDto {
     joinMuted: boolean;
     joinCameraOff: boolean;
     preferAudioOnly: boolean;
+    /** F9: ventana flotante al ocultar la pestaña (opcional hasta que el backend la mande). */
+    autoPictureInPicture?: boolean;
     audioProcessing: { echoCancellation: boolean | null; noiseSuppression: boolean | null; autoGainControl: boolean | null };
   };
 }
 
-/** Patch parcial de `PUT /communication/preferences` (solo lo de F4; el endpoint acepta más campos). */
+/** Patch parcial de `PUT /communication/preferences`. */
 export interface MediaPreferencesPatch {
   joinMuted?: boolean;
   joinCameraOff?: boolean;
@@ -96,6 +98,9 @@ export interface MediaPreferencesPatch {
   echoCancellation?: boolean | null;
   noiseSuppression?: boolean | null;
   autoGainControl?: boolean | null;
+  autoPictureInPicture?: boolean;
+  /** null = el idioma de la oficina. */
+  transcriptLanguage?: string | null;
 }
 
 /** Etiqueta de UI: el dominio dice `Fair`, el usuario ve "Unstable". */

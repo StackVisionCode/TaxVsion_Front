@@ -19,11 +19,12 @@ export class GuestMeetingService {
     return this.api.tenantUrl('/communication/meetings');
   }
 
-  /** GET /communication/meetings/guest/{token}/context — 404 uniforme si el token no vale. */
+  /**
+   * POST /communication/meetings/guest/context — 404 uniforme si el token no vale. El token va en el
+   * cuerpo, no en la URL: las URLs quedan en los logs del gateway y de Communication.
+   */
   context(token: string): Observable<GuestMeetingContext> {
-    return this.http.get<GuestMeetingContext>(`${this.base}/guest/${encodeURIComponent(token)}/context`, {
-      context: anonymousRequestContext(),
-    });
+    return this.http.post<GuestMeetingContext>(`${this.base}/guest/context`, { token }, { context: anonymousRequestContext() });
   }
 
   /** POST /communication/meetings/join-by-token — 404 uniforme; 403 `Meeting.GuestsNotAllowed`. */

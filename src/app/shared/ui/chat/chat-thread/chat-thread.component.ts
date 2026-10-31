@@ -22,7 +22,7 @@ import { LinkifiedTextComponent } from '../linkified-text/linkified-text.compone
 import { MessageReactionsComponent } from '../message-reactions/message-reactions.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
-import { ATTACHMENT_STATE_LABELS } from '../chat-message.model';
+import { ATTACHMENT_PENDING_LABELS, ATTACHMENT_STATE_LABELS } from '../chat-message.model';
 import type { ChatEditPolicy, ChatMessage, ChatParticipant, MessageEdit, VoiceNoteTranscriptState } from '../chat-message.model';
 
 export type { ChatMessage, MessageEdit } from '../chat-message.model';
@@ -116,6 +116,7 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
   attachmentState(message: ChatMessage): string {
     const attachment = message.attachment;
     if (!attachment) return '';
+    if (attachment.status === 'Pending') return message.senderId === 'me' ? ATTACHMENT_PENDING_LABELS.mine : ATTACHMENT_PENDING_LABELS.theirs;
     return attachment.status && attachment.status !== 'Available' ? ATTACHMENT_STATE_LABELS[attachment.status] : attachment.size;
   }
 

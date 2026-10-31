@@ -14,6 +14,7 @@ import { AuthService } from '@core/auth/auth.service';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { ConversationAttachmentsService } from './conversation-attachments.service';
 import { HttpClient } from '@angular/common/http';
 import { MeetingJoinAck, MeetingSnapshotDto } from './meeting.model';
 import { SessionTeardownRegistry } from '@core/auth/session-teardown';
@@ -92,10 +93,20 @@ function fakeRtc(joinAck: MeetingJoinAck) {
     raiseHand: vi.fn((_: string, raised: boolean) => Promise.resolve({ handRaised: raised, handRaisedAtUtc: raised ? '2026-10-30T12:00:00Z' : null })),
     react: vi.fn().mockResolvedValue(null),
     speaking: vi.fn(),
+    // F11: metadata de adjuntos por el socket (sin respuesta por defecto: el nombre queda 'Attachment').
+    chatAttachmentMeta: vi.fn(() => new Promise(() => undefined)),
+    chatHistory: vi.fn().mockResolvedValue({ items: [] }),
+    chatAttachmentDownloadUrl: vi.fn(),
   };
 }
 
-function configureWith(rtc: ReturnType<typeof fakeRtc>, http: unknown = { get: () => of({ items: [] }) }, callPhase = 'idle') {
+function configureWith(
+  rtc: ReturnType<typeof fakeRtc>,
+  http: unknown = { get: () => of({ items: [] }) },
+  callPhase = 'idle',
+  attachments: unknown = { getMeta: () => EMPTY },
+  cloudStorage: unknown = { getFile: () => EMPTY },
+) {
   const toast = { info: vi.fn(), error: vi.fn(), success: vi.fn() };
   // T-58: doble de la llamada 1:1 (idle por defecto; `endCall` la cuelga).
   const activeCall = { phase: signal(callPhase), endCall: vi.fn(async () => activeCall.phase.set('idle')) };
@@ -111,8 +122,9 @@ function configureWith(rtc: ReturnType<typeof fakeRtc>, http: unknown = { get: (
       { provide: AuthService, useValue: { currentUser: () => ({ id: 'me' }) } },
       { provide: ApiConfigService, useValue: { tenantUrl: (p: string) => `https://x${p}` } },
       { provide: ToastService, useValue: toast },
-      // Metadata de adjuntos de la sala: sin respuesta (el nombre queda 'Attachment').
-      { provide: CloudStorageUploadService, useValue: { getFile: () => EMPTY } },
+      // Metadata de adjuntos de la sala: sin respuesta por defecto (el nombre queda 'Attachment').
+      { provide: CloudStorageUploadService, useValue: cloudStorage },
+      { provide: ConversationAttachmentsService, useValue: attachments },
       { provide: HttpClient, useValue: http },
     ],
   });
@@ -692,8 +704,88 @@ describe('ActiveMeetingService (F5 — reacciones D-50 y hablante T-69)', () => 
   });
 });
 
+describe('ActiveMeetingService (adjuntos del chat de la sala)', () => {
+  afterEach(() => vi.useRealTimers());
+
+  const attachmentDto = { id: 'a1', conversationId: 'c1', senderId: 'me', senderDisplayName: 'Me', kind: 'Attachment', body: null, attachmentFileId: 'f1', createdAtUtc: '2026-10-31T20:41:00Z', isEdited: false, isDeleted: false };
+
+  function setup(attachments: Record<string, unknown>, rtcOverrides: Record<string, unknown> = {}) {
+    const chat = new Subject<unknown>();
+    const flagged = new Subject<unknown>();
+    const rtc = {
+      ...fakeRtc({ requiresAdmission: false, snapshot: soloSnapshot({ conversationId: 'c1' }) }),
+      onChatMessageNew: () => chat,
+      onChatAttachmentFlagged: () => flagged,
+      ...rtcOverrides,
+    };
+    const cloudStorage = { getFile: () => EMPTY, uploadToPresignedUrl: vi.fn(() => of(undefined)) };
+    const r = configureWith(rtc as ReturnType<typeof fakeRtc>, undefined, 'idle', attachments, cloudStorage);
+    return { ...r, chat, flagged, cloudStorage };
+  }
+
+  it('al enviar aparece al instante como "enviándose" y, ya enviado, sigue preparándose hasta que el escaneo termina', async () => {
+    const attachments = {
+      getMeta: () => EMPTY,
+      initiateUpload: vi.fn(() => of({ fileId: 'f1', uploadUrl: 'https://minio/u', formData: {}, expiresAtUtc: '' })),
+      completeUpload: vi.fn(() => of({ fileId: 'f1', status: 'Pending' })),
+    };
+    let release!: () => void;
+    const { service, chat, flagged } = setup(attachments, { chatSend: vi.fn(() => new Promise<void>(res => (release = res))) });
+    await service.join('m1', 'Consulta');
+
+    const sending = service.sendChatAttachment(new File(['x'], 'logo.png', { type: 'image/png' }));
+    expect(service.chatMessages()).toEqual([
+      expect.objectContaining({ isMine: true, sending: true, attachment: expect.objectContaining({ name: 'logo.png', status: 'Pending' }) }),
+    ]);
+    await vi.waitFor(() => expect(attachments.completeUpload).toHaveBeenCalledWith('c1', 'f1'));
+    expect(attachments.initiateUpload).toHaveBeenCalledWith('c1', { originalName: 'logo.png', contentType: 'image/png', sizeBytes: 1 });
+
+    chat.next(attachmentDto); // vuelve el real por el broadcast de la sala
+    release();
+    await sending;
+    expect(service.chatMessages().map(m => [m.id, m.sending ?? false, m.attachment?.status])).toEqual([['a1', false, 'Pending']]);
+
+    flagged.next({ conversationId: 'c1', fileId: 'f1', status: 'Available' });
+    expect(service.chatMessages()[0].attachment?.status).toBeUndefined();
+  });
+
+  it('un fallo real de la subida quita el marcador y avisa', async () => {
+    const attachments = { getMeta: () => EMPTY, initiateUpload: vi.fn(() => throwError(() => new Error('413'))), completeUpload: vi.fn() };
+    const { service, toast } = setup(attachments, { chatSend: vi.fn() });
+    await service.join('m1', 'Consulta');
+    await service.sendChatAttachment(new File(['x'], 'big.pdf'));
+    expect(service.chatMessages()).toEqual([]);
+    expect(toast.error).toHaveBeenCalledWith("Couldn't send the file. Try again.");
+  });
+
+  it('si el aviso de escaneo terminado no llega, vuelve a preguntar (por el socket) y lo marca listo', async () => {
+    vi.useFakeTimers();
+    const chatAttachmentMeta = vi
+      .fn()
+      .mockResolvedValueOnce({ fileId: 'f1', fileName: 'w2.pdf', sizeBytes: 2048, contentType: 'application/pdf', status: 'Pending' })
+      .mockResolvedValue({ fileId: 'f1', fileName: 'w2.pdf', sizeBytes: 2048, contentType: 'application/pdf', status: 'Available' });
+    const { service, chat } = setup({ getMeta: () => EMPTY }, { chatAttachmentMeta });
+    await service.join('m1', 'Consulta');
+    chat.next({ ...attachmentDto, senderId: 'u2', senderDisplayName: 'Bo' });
+    await vi.waitFor(() => expect(service.chatMessages()[0].attachment).toEqual(expect.objectContaining({ name: 'w2.pdf', status: 'Pending' })));
+
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(chatAttachmentMeta).toHaveBeenCalledTimes(2);
+    expect(chatAttachmentMeta).toHaveBeenLastCalledWith('m1', 'f1');
+    expect(service.chatMessages()[0].attachment).toEqual({ fileId: 'f1', name: 'w2.pdf', size: '2 KB', contentType: 'application/pdf' });
+  });
+
+  it('la URL del visor sale del socket de la sala (vale para invitados sin JWT)', async () => {
+    const chatAttachmentDownloadUrl = vi.fn().mockResolvedValue({ downloadUrl: 'https://minio/f1' });
+    const { service } = setup({ getMeta: () => EMPTY }, { chatAttachmentDownloadUrl });
+    await service.join('m1', 'Consulta');
+    await expect(service.chatAttachmentUrl('f1')).resolves.toBe('https://minio/f1');
+    expect(chatAttachmentDownloadUrl).toHaveBeenCalledWith('m1', 'f1');
+  });
+});
+
 describe('ActiveMeetingService.joinAsGuest (F6, D-47)', () => {
-  it('entra como guest (userId = invitationId) con el ICE del ack, sin pedir ICE por HTTP ni historial de chat', async () => {
+  it('entra como guest (userId = invitationId) con el ICE del ack, sin pedir ICE ni historial por HTTP', async () => {
     const youRemoved = new Subject<unknown>();
     const snapshot = soloSnapshot({ hostUserId: 'host', conversationId: 'c1' });
     snapshot.participants = [{ ...snapshot.participants[0], userId: 'inv-1', displayName: 'Externo Uno', role: 'Attendee', actorType: 'Guest' }];
@@ -716,7 +808,8 @@ describe('ActiveMeetingService.joinAsGuest (F6, D-47)', () => {
     expect(service.isHost()).toBe(false);
     expect(rtc.join).toHaveBeenCalledWith('m1', { guestInvitationId: 'inv-1' });
     expect(iceSpy).not.toHaveBeenCalled(); // sin JWT: el ICE viene en el ack
-    expect(httpGet).not.toHaveBeenCalled(); // sin historial de chat autenticado
+    expect(httpGet).not.toHaveBeenCalled(); // sin JWT: nada por HTTP
+    expect(rtc.chatHistory).toHaveBeenCalledWith('m1', 50); // F11: el historial llega por el socket
     expect(service.selfParticipant().displayName).toBe('Externo Uno');
 
     // El host revocó la invitación: salida local con el motivo disponible para la página pública.
@@ -727,6 +820,20 @@ describe('ActiveMeetingService.joinAsGuest (F6, D-47)', () => {
     expect(rtc.leave).not.toHaveBeenCalled();
     // Mi tile sigue con el nombre del guest, no con la sesión de staff que pueda haber en el navegador.
     expect(service.selfParticipant().displayName).toBe('Externo Uno');
+  });
+
+  it('F11: al volver a entrar, el invitado ve el historial del chat de la sala (antes empezaba vacío)', async () => {
+    const snapshot = soloSnapshot({ hostUserId: 'host', conversationId: 'c1' });
+    snapshot.participants = [{ ...snapshot.participants[0], userId: 'inv-1', displayName: 'Externo Uno', role: 'Attendee', actorType: 'Guest' }];
+    snapshot.yourRole = 'Attendee';
+    const dto = (id: string, body: string, at: string) => ({ id, conversationId: 'c1', senderId: 'host', senderDisplayName: 'Host', kind: 'Text', body, attachmentFileId: null, createdAtUtc: at, isEdited: false, isDeleted: false });
+    const rtc = {
+      ...fakeRtc({ requiresAdmission: false, snapshot }),
+      chatHistory: vi.fn().mockResolvedValue({ items: [dto('m2', 'second', '2026-10-31T21:01:00Z'), dto('m1', 'first', '2026-10-31T21:00:00Z')] }),
+    };
+    const { service } = configureWith(rtc);
+    await service.joinAsGuest('m1', 'Consulta', 'inv-1', { audio: true, video: false });
+    await vi.waitFor(() => expect(service.chatMessages().map(m => m.text)).toEqual(['first', 'second']));
   });
 
   it('el guest respeta la sala de espera forzada por la oficina', async () => {
