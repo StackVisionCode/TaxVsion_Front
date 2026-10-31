@@ -179,7 +179,7 @@
           <span class="shrink-0 text-gray-400">{{ sizeOf(attachment) }}</span>
           @if (attachment.status !== 'Available') {
             <app-status-pill [tone]="statusTone(attachment.status)" size="xs" [soft]="true"
-              [appTooltip]="attachment.status === 'Rejected' ? (attachment.rejectionReason || 'Blocked by the security scan') : 'Checking the file for threats'">
+              [appTooltip]="statusHint(attachment.status, attachment.rejectionReason)">
               {{ statusLabel(attachment.status) }}
             </app-status-pill>
           } @else {

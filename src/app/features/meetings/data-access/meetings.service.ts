@@ -12,6 +12,7 @@ import {
   ListMeetingInvitationsResponse,
   MeetingCustomerEntry,
   MeetingEmployeeEntry,
+  MeetingChatHistoryResponse,
   MeetingEventsPageResponse,
   MeetingInviteeInput,
   MeetingLimits,
@@ -119,6 +120,15 @@ export class MeetingsService {
       params = params.set('after', afterSeq);
     }
     return this.http.get<MeetingEventsPageResponse>(`${this.base}/meetings/${id}/events`, { params });
+  }
+
+  /** F8a (D-01) — chat de la sala (más nuevo primero), paginado con `before`. */
+  chatHistory(id: string, before: string | null, take = 50): Observable<MeetingChatHistoryResponse> {
+    let params = new HttpParams().set('take', take);
+    if (before) {
+      params = params.set('before', before);
+    }
+    return this.http.get<MeetingChatHistoryResponse>(`${this.base}/meetings/${id}/chat`, { params });
   }
 
   // ---------- Invitaciones (host/cohost) ----------

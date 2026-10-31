@@ -258,5 +258,9 @@ export interface MeetingChatMessageDto {
   attachmentFileId: string | null;
   createdAtUtc: string;
   isEdited: boolean;
+  /** F8: cuántas veces se editó. */
+  editCount?: number;
   isDeleted: boolean;
+  /** F8d (T-26): solo en el historial. */
+  reactions?: { emoji: string; count: number; userIds: string[] }[];
 }

@@ -62,7 +62,7 @@ function summary(overrides: Partial<MeetingSummaryResponse> = {}): MeetingSummar
   };
 }
 
-function render(store: { summary: ReturnType<typeof vi.fn>; events: ReturnType<typeof vi.fn> }) {
+function render(store: { summary: ReturnType<typeof vi.fn>; events: ReturnType<typeof vi.fn>; chatHistory?: ReturnType<typeof vi.fn> }) {
   TestBed.configureTestingModule({ providers: [{ provide: MeetingsStore, useValue: store }] });
   const fixture = TestBed.createComponent(MeetingDetailsPanelComponent);
   fixture.componentRef.setInput('meeting', MEETING);
@@ -141,5 +141,28 @@ describe('MeetingDetailsPanelComponent', () => {
     const forbidden = new HttpErrorResponse({ status: 403, error: { code: 'Meeting.NotParticipant', message: 'x' } });
     const { panel } = render({ summary: vi.fn().mockReturnValue(throwError(() => forbidden)), events: vi.fn() });
     expect(panel.textContent).toContain('Only people who were in this meeting can see its details.');
+  });
+
+  it('F8a (D-01): el chat de la sala se lee en la ficha, en orden cronológico', () => {
+    const chatHistory = vi.fn().mockReturnValue(
+      of({
+        conversationId: 'conv-1',
+        isArchived: true,
+        items: [
+          { id: 'b', senderId: 'client', senderDisplayName: 'Client Person', kind: 'Text', body: 'Thanks!', attachmentFileId: null, isDeleted: false, isEdited: false, createdAtUtc: '2026-10-30T15:05:00Z' },
+          { id: 'a', senderId: 'host', senderDisplayName: 'Hosting Person', kind: 'Text', body: 'Welcome', attachmentFileId: null, isDeleted: false, isEdited: false, createdAtUtc: '2026-10-30T15:01:00Z' },
+        ],
+        nextBeforeUtc: null,
+      }),
+    );
+    const { fixture, panel } = render({ summary: vi.fn().mockReturnValue(of(summary())), events: vi.fn(), chatHistory });
+
+    (panel.querySelector('[data-role="details-chat-toggle"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(chatHistory).toHaveBeenCalledWith('m1', null);
+    const lines = [...panel.querySelectorAll('[data-role="details-chat"] li')].map(li => li.textContent!.replace(/\s+/g, ' ').trim());
+    expect(lines[0]).toContain('Welcome');
+    expect(lines[1]).toContain('Thanks!');
   });
 });

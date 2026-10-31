@@ -165,8 +165,17 @@
                     <span class="font-semibold">Blocked — may be unsafe</span>
                   </span>
 
+                  <!-- T-20: en revisión de contenido; no se ofrece hasta que lo aprueben -->
+                  <span *ngIf="file.downloadStatus === 'UnderReview'"
+                    class="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 py-1.5 pl-3 pr-3 text-xs text-amber-700"
+                    title="This file is being reviewed against our content policy. It will be available once approved.">
+                    <ion-icon name="shield-outline" class="text-sm text-amber-500"></ion-icon>
+                    <span class="max-w-[12rem] truncate font-medium">{{ file.filename }}</span>
+                    <span class="font-semibold">Under review</span>
+                  </span>
+
                   <!-- Chip: clic en el nombre = vista previa (visor global); icono = descarga -->
-                  <span *ngIf="file.downloadStatus !== 'Blocked'"
+                  <span *ngIf="file.downloadStatus !== 'Blocked' && file.downloadStatus !== 'UnderReview'"
                     class="flex items-center rounded-full border border-gray-200 bg-white text-xs text-gray-700">
                     <button type="button" (click)="previewAttachment(message.messageId, file.attachmentId)"
                       class="flex items-center gap-2 rounded-l-full py-1.5 pl-3 pr-2 hover:bg-gray-50 transition-colors"

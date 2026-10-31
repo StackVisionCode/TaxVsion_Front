@@ -134,8 +134,31 @@ export class MeetingRtcService {
   }
 
   /** Chat del meeting — reusa el motor de chat (Conversation kind Meeting), autoriza por "estás Joined". */
-  chatSend(meetingId: string, body: string): Promise<unknown> {
-    return this.emitOrThrow('meeting.chat.send', { clientKey: this.realtime.newClientKey(), meetingId, body });
+  chatSend(meetingId: string, body: string | null, attachmentFileId?: string): Promise<unknown> {
+    return this.emitOrThrow('meeting.chat.send', {
+      clientKey: this.realtime.newClientKey(),
+      meetingId,
+      ...(body ? { body } : {}),
+      ...(attachmentFileId ? { attachmentFileId } : {}),
+    });
+  }
+
+  /** F8a: editar un mensaje propio en la sala (misma ventana que el chat, política Meeting). */
+  chatEdit(meetingId: string, messageId: string, body: string): Promise<unknown> {
+    return this.emitOrThrow('meeting.chat.edit', { clientKey: this.realtime.newClientKey(), meetingId, messageId, body });
+  }
+
+  chatDelete(meetingId: string, messageId: string): Promise<unknown> {
+    return this.emitOrThrow('meeting.chat.delete', { clientKey: this.realtime.newClientKey(), meetingId, messageId });
+  }
+
+  /** F8d: agrega o quita una reacción a un mensaje del chat de la sala. */
+  chatReact(messageId: string, emoji: string, add: boolean): Promise<unknown> {
+    return this.emitOrThrow(add ? 'chat.message.reaction.add' : 'chat.message.reaction.remove', {
+      clientKey: this.realtime.newClientKey(),
+      messageId,
+      emoji,
+    });
   }
 
   // ---------- Grabación (con consentimiento) ----------
@@ -240,6 +263,23 @@ export class MeetingRtcService {
   }
   onChatMessageNew(): Observable<MeetingChatMessageDto> {
     return this.realtime.on<MeetingChatMessageDto>('meeting.chat.message.new');
+  }
+  /** T-20: un adjunto del chat cambió de estado (en revisión, bloqueado o aprobado). */
+  onChatAttachmentFlagged(): Observable<{ conversationId: string; fileId: string; status: string }> {
+    return this.realtime.on('chat.message.attachment_flagged');
+  }
+  onChatMessageEdited(): Observable<{ messageId: string; conversationId: string; body: string; editCount?: number }> {
+    return this.realtime.on('meeting.chat.message.edited');
+  }
+  onChatMessageDeleted(): Observable<{ messageId: string; conversationId: string }> {
+    return this.realtime.on('meeting.chat.message.deleted');
+  }
+  /** F8d: reacciones del chat de la sala (mismo evento que el chat; la sala está en la room de la conversación). */
+  onChatReactionAdded(): Observable<{ messageId: string; conversationId: string; userId: string; emoji: string }> {
+    return this.realtime.on('chat.message.reaction.added');
+  }
+  onChatReactionRemoved(): Observable<{ messageId: string; conversationId: string; userId: string; emoji: string }> {
+    return this.realtime.on('chat.message.reaction.removed');
   }
   onRecordingConsentRequested(): Observable<MeetingRecordingConsentRequestedDto> {
     return this.realtime.on<MeetingRecordingConsentRequestedDto>('meeting.recording.consent_requested');

@@ -8,7 +8,7 @@ import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loa
 import { parseUtcDate } from '@shared/utils/utc-date.util';
 import { toApiError } from '@core/models/api-error.model';
 import { MeetingsStore } from '../../data-access/meetings.store';
-import { MeetingItem, MeetingSummaryParticipant, MeetingSummaryResponse } from '../../data-access/meeting.model';
+import { MeetingChatMessage, MeetingItem, MeetingSummaryParticipant, MeetingSummaryResponse } from '../../data-access/meeting.model';
 import { MeetingActivityLine, describeMeetingEvent, endReasonText, formatSeconds } from '../../utils/meeting-details';
 
 const STATUS_TONE: Record<string, StatusTone> = { Live: 'success', Scheduled: 'brand', Ended: 'muted', Cancelled: 'danger', Expired: 'muted' };
@@ -41,6 +41,14 @@ export class MeetingDetailsPanelComponent implements OnChanges {
   readonly activityLoading = signal(false);
   readonly activityError = signal<string | null>(null);
   private activityNextSeq: number | null = null;
+
+  /** F8a (D-01): chat de la sala en solo lectura, cargado al abrirlo (más viejo arriba). */
+  readonly chatOpen = signal(false);
+  readonly chatMessages = signal<MeetingChatMessage[]>([]);
+  readonly chatLoading = signal(false);
+  readonly chatError = signal<string | null>(null);
+  readonly chatHasMore = signal(false);
+  private chatBefore: string | null = null;
   /** Quién está dentro según lo ya leído del log (se arrastra entre páginas). */
   private activityPresent = new Set<string>();
   readonly activityHasMore = signal(false);
@@ -101,6 +109,39 @@ export class MeetingDetailsPanelComponent implements OnChanges {
         this.loading.set(false);
       },
     });
+  }
+
+  toggleChat(): void {
+    const open = !this.chatOpen();
+    this.chatOpen.set(open);
+    if (open && this.chatMessages().length === 0 && !this.chatLoading()) this.loadChat();
+  }
+
+  loadChat(): void {
+    const meeting = this.meeting;
+    if (!meeting) return;
+    this.chatLoading.set(true);
+    this.chatError.set(null);
+    this.store.chatHistory(meeting.id, this.chatBefore).subscribe({
+      next: page => {
+        // El backend pagina del más nuevo al más viejo; la lista se muestra cronológica.
+        this.chatMessages.update(current => [...[...page.items].reverse(), ...current]);
+        this.chatBefore = page.nextBeforeUtc;
+        this.chatHasMore.set(page.nextBeforeUtc !== null);
+        this.chatLoading.set(false);
+      },
+      error: err => {
+        const apiError = toApiError(err);
+        this.chatError.set(apiError.code === 'Meeting.NotParticipant' ? 'Only people who were in this meeting can read its chat.' : apiError.message);
+        this.chatLoading.set(false);
+      },
+    });
+  }
+
+  chatLine(message: MeetingChatMessage): string {
+    if (message.isDeleted) return 'This message was deleted';
+    if (message.kind === 'Attachment') return 'Shared a file';
+    return message.body ?? '';
   }
 
   toggleActivity(): void {
@@ -192,6 +233,11 @@ export class MeetingDetailsPanelComponent implements OnChanges {
   readonly formatTime = formatTime;
 
   private resetActivity(): void {
+    this.chatOpen.set(false);
+    this.chatMessages.set([]);
+    this.chatError.set(null);
+    this.chatHasMore.set(false);
+    this.chatBefore = null;
     this.activityOpen.set(false);
     this.activity.set([]);
     this.activityError.set(null);

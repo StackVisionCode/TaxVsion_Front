@@ -33,6 +33,14 @@ describe('classifyCustomerAvatarPoll', () => {
     expect(classifyCustomerAvatarPoll({ avatarFileId: 'old', pendingAvatarFileId: 'f2', avatarUploadStatus: 'processing' }, 'f1')).toBe('failed');
     expect(classifyCustomerAvatarPoll({ avatarFileId: null, pendingAvatarFileId: null, avatarUploadStatus: null }, 'f1')).toBe('failed');
   });
+
+  // T-20: la moderación de contenido decide antes que "pendiente" o "descartada".
+  it('under_review o blocked cuando la moderación retuvo esa foto (no otra)', () => {
+    const base = { avatarFileId: 'old', avatarUploadStatus: 'processing' as const };
+    expect(classifyCustomerAvatarPoll({ ...base, pendingAvatarFileId: 'f1', avatarModerationStatus: 'under_review', avatarModerationFileId: 'f1' }, 'f1')).toBe('under_review');
+    expect(classifyCustomerAvatarPoll({ ...base, pendingAvatarFileId: null, avatarUploadStatus: null, avatarModerationStatus: 'blocked', avatarModerationFileId: 'f1' }, 'f1')).toBe('blocked');
+    expect(classifyCustomerAvatarPoll({ ...base, pendingAvatarFileId: 'f1', avatarModerationStatus: 'blocked', avatarModerationFileId: 'f0' }, 'f1')).toBe('pending');
+  });
 });
 
 describe('clientPhotoErrorMessage', () => {

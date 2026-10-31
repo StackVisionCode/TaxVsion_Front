@@ -55,6 +55,7 @@ import type {
   StoredPublicFormSession,
 } from '../../data-access/public-forms.model';
 import { TurnstileWidgetComponent } from '../../ui/turnstile-widget/turnstile-widget.component';
+import { FILE_BLOCKED_BY_POLICY_TEXT, FILE_UNDER_REVIEW_HINT, isBlockedByPolicy } from '@shared/utils/file-moderation';
 
 interface ConflictRow {
   conflict: DraftConflict;
@@ -135,6 +136,10 @@ export class PublicFormPageComponent implements OnInit, OnDestroy {
   readonly reauthStage = signal<'start' | 'code'>('start');
   /** El sondeo del antivirus venció sin veredicto: se puede volver a consultar. */
   readonly scanStalled = signal(false);
+  /** T-20: un archivo en revisión de contenido; el servidor no acepta el envío hasta que se decida. */
+  readonly reviewPending = computed(() =>
+    (this.request()?.attachments ?? []).some((item) => item.status === 'UnderReview'),
+  );
   readonly scanPending = computed(() =>
     (this.request()?.attachments ?? []).some((item) => item.status === 'Pending'),
   );
@@ -164,7 +169,7 @@ export class PublicFormPageComponent implements OnInit, OnDestroy {
           componentId: item.componentId,
           rowId: item.rowId,
           displayName: item.displayName,
-          status: attachmentStatus(item.status),
+          status: attachmentStatus(item.status, item.rejectionCode),
           rejectionCode: item.rejectionCode,
         },
       ]),
@@ -1077,10 +1082,11 @@ function escapePointer(value: string): string {
   return value.replaceAll('~', '~0').replaceAll('/', '~1');
 }
 
-function attachmentStatus(status: string): string {
+function attachmentStatus(status: string, rejectionCode: string | null): string {
   if (status === 'Pending') return 'Security scan in progress';
   if (status === 'Available') return 'Ready';
-  if (status === 'Rejected') return 'Rejected by security scan';
+  if (status === 'UnderReview') return FILE_UNDER_REVIEW_HINT;
+  if (status === 'Rejected') return isBlockedByPolicy(rejectionCode) ? FILE_BLOCKED_BY_POLICY_TEXT : 'Rejected by security scan';
   return status;
 }
 

@@ -374,3 +374,24 @@ export interface MeetingEventsPageResponse {
   items: MeetingEventItem[];
   nextAfterSeq: number | null;
 }
+
+/** F8a (D-01) — GET /meetings/:id/chat: chat de la sala en solo lectura para quien participó. */
+export interface MeetingChatMessage {
+  id: string;
+  senderId: string;
+  senderDisplayName: string;
+  senderAvatarFileId?: string | null;
+  kind: 'Text' | 'Attachment' | 'System';
+  body: string | null;
+  attachmentFileId: string | null;
+  isDeleted: boolean;
+  isEdited: boolean;
+  createdAtUtc: string;
+}
+
+export interface MeetingChatHistoryResponse {
+  conversationId: string | null;
+  isArchived: boolean;
+  items: MeetingChatMessage[];
+  nextBeforeUtc: string | null;
+}

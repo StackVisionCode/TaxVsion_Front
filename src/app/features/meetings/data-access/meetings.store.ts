@@ -326,6 +326,10 @@ export class MeetingsStore {
     return this.service.events(meetingId, afterSeq);
   }
 
+  chatHistory(meetingId: string, before: string | null) {
+    return this.service.chatHistory(meetingId, before);
+  }
+
   // ---------- Invitaciones (panel de gestión) ----------
 
   listInvitations(meetingId: string) {

@@ -1,6 +1,8 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { formatBytes } from '@shared/utils/format.util';
 import {
+  FILE_UNDER_REVIEW_MESSAGE,
+  blockedFileMessage,
   FileResponse,
   ShareLinkResponse,
   ShareVisibility,
@@ -94,10 +96,18 @@ export class FileDetailsPanelComponent {
         return 'Ready';
       case 'blocked':
         return 'Blocked';
+      case 'review':
+        return 'Under review';
       default:
         return 'Processing';
     }
   }
+
+  get blockedMessage(): string {
+    return blockedFileMessage(this.file.status);
+  }
+
+  readonly underReviewMessage = FILE_UNDER_REVIEW_MESSAGE;
 
   get ready(): boolean {
     return isFileReady(this.file.status);

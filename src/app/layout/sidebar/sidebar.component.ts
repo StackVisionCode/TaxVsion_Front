@@ -85,6 +85,14 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
     );
   });
 
+  /** F8a: badge propio de Support (no leídos de sus tickets), separado del de Chat. */
+  private readonly supportBadgeEffect = effect(() => {
+    const unread = this.chatStore()?.supportUnread() ?? 0;
+    this.menuItems.update(items =>
+      items.map(item => (item.route === '/support' ? { ...item, badge: unread > 0 ? unread : undefined } : item)),
+    );
+  });
+
   /** Mismo badge en vivo para Notifications; el navbar ya mantiene el store suscrito. */
   private readonly notificationsBadgeEffect = effect(() => {
     const unread = this.notificationsStore()?.unreadCount() ?? 0;

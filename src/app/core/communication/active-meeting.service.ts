@@ -1,3 +1,5 @@
+import { applyReaction, hasMyReaction, reactionErrorText } from '@shared/ui/chat/message-reactions/reaction-summary';
+import { toAttachmentScanState, type AttachmentScanState, type MessageReactionSummary } from '@shared/ui/chat/chat-message.model';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
@@ -7,6 +9,10 @@ import { ToastService } from '@shared/ui/toast/toast.service';
 import { toApiError } from '@core/models/api-error.model';
 import { SOCKET_RATE_LIMITED_MESSAGE, isSocketRateLimited, socketErrorCode } from '@core/errors/throttling';
 import { MeetingChatMessageDto } from './meeting.model';
+import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { formatBytes } from '@core/cloud-storage/cloud-storage.model';
+import { editErrorMessage, type ChatEditPolicy } from '@shared/ui/chat/message-edit';
+import { meetingChatErrorMessage } from './meeting-chat-errors';
 import { MeetingRtcService } from './meeting-rtc.service';
 import { MeetingSfuService, SfuProducerKey } from './meeting-sfu.service';
 import { CallsService } from './calls.service';
@@ -94,6 +100,16 @@ export interface MeetingChatMessage {
   text: string;
   time: string;
   isMine: boolean;
+  /** F8a: lo que necesita el hilo compartido (T-11) de la sala. */
+  senderUserId: string;
+  createdAtUtc: string;
+  isEdited: boolean;
+  editCount: number;
+  isDeleted: boolean;
+  /** T-20: `status` solo cuando la moderación lo retuvo (en revisión o bloqueado). */
+  attachment?: { fileId: string; name: string; size: string; status?: AttachmentScanState };
+  /** F8d (T-26): reacciones del mensaje. */
+  reactions?: MessageReactionSummary[];
 }
 
 /**
@@ -141,6 +157,7 @@ export class ActiveMeetingService {
   private readonly sfu = inject(MeetingSfuService);
   private readonly sounds = inject(SoundsService);
   private readonly http = inject(HttpClient);
+  private readonly cloudStorage = inject(CloudStorageUploadService);
   private readonly api = inject(ApiConfigService);
   private readonly mediaPolicy = inject(MediaPolicyService);
   private readonly sessionFactory = inject(LocalMediaSessionFactory);
@@ -244,6 +261,10 @@ export class ActiveMeetingService {
   readonly chatMessages = signal<MeetingChatMessage[]>([]);
   /** Mensajes ajenos llegados con el chat cerrado (badge de la sala y del mini-player). `markChatRead()` lo limpia. */
   readonly chatUnread = signal(0);
+  /** F8 (D-64): ventana de edición del chat de la sala (llega con el historial). */
+  readonly chatEditPolicy = signal<ChatEditPolicy | null>(null);
+  /** F8a: subiendo un adjunto al chat de la sala. */
+  readonly chatUploading = signal(false);
 
   // ---------- F5: reacciones (D-50) ----------
   /** Burbujas vivas (se barren al vencer `reactions.durationSeconds`). Nunca van al historial del chat. */
@@ -469,6 +490,40 @@ export class ActiveMeetingService {
         }
         return [...list, this.toChatView(dto)];
       });
+    });
+
+    // F8: ediciones y borrados del chat de la sala.
+    this.rtc.onChatMessageEdited().subscribe(edit => {
+      if (edit.conversationId !== this.conversationId()) return;
+      this.chatMessages.update(list =>
+        list.map(m => (m.id === edit.messageId ? { ...m, text: edit.body, isEdited: true, editCount: edit.editCount ?? m.editCount + 1 } : m)),
+      );
+    });
+    // F8d: reacciones en vivo del chat de la sala.
+    const onReaction = (change: { messageId: string; conversationId: string; userId: string; emoji: string }, delta: 1 | -1): void => {
+      if (change.conversationId !== this.conversationId()) return;
+      this.chatMessages.update(list =>
+        list.map(m => (m.id === change.messageId ? { ...m, reactions: applyReaction(m.reactions ?? [], change, delta) } : m)),
+      );
+    };
+    this.rtc.onChatReactionAdded().subscribe(change => onReaction(change, 1));
+    this.rtc.onChatReactionRemoved().subscribe(change => onReaction(change, -1));
+
+    // T-20: en revisión / bloqueado / aprobado por el revisor, en vivo.
+    this.rtc.onChatAttachmentFlagged().subscribe(flag => {
+      if (flag.conversationId !== this.conversationId()) return;
+      const status = moderationStateOf(flag.status);
+      this.attachmentNames.set(flag.fileId, { ...(this.attachmentNames.get(flag.fileId) ?? { name: 'Attachment', size: '' }), status });
+      this.chatMessages.update(list =>
+        list.map(m => (m.attachment?.fileId === flag.fileId ? { ...m, attachment: { ...m.attachment, status } } : m)),
+      );
+    });
+
+    this.rtc.onChatMessageDeleted().subscribe(deleted => {
+      if (deleted.conversationId !== this.conversationId()) return;
+      this.chatMessages.update(list =>
+        list.map(m => (m.id === deleted.messageId ? { ...m, isDeleted: true, text: '(message deleted)', attachment: undefined } : m)),
+      );
     });
 
     this.rtc.onStateChanged().subscribe(dto => {
@@ -1561,22 +1616,99 @@ export class ActiveMeetingService {
 
   private toChatView(dto: MeetingChatMessageDto): MeetingChatMessage {
     const myId = this.myUserId();
+    const fileId = !dto.isDeleted && dto.kind === 'Attachment' ? dto.attachmentFileId : null;
+    if (fileId) this.resolveChatAttachment(fileId);
     return {
       id: dto.id,
       senderName: dto.senderDisplayName,
-      text: dto.isDeleted ? '(message deleted)' : (dto.body ?? ''),
+      text: dto.isDeleted ? '(message deleted)' : (dto.body ?? (fileId ? 'Shared a file' : '')),
       time: new Date(dto.createdAtUtc).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
       isMine: !!myId && dto.senderId === myId,
+      senderUserId: dto.senderId,
+      createdAtUtc: dto.createdAtUtc,
+      isEdited: dto.isEdited,
+      editCount: dto.editCount ?? 0,
+      isDeleted: dto.isDeleted,
+      ...(fileId ? { attachment: { fileId, name: 'Attachment', size: '', ...this.attachmentNames.get(fileId) } } : {}),
+      ...(dto.reactions?.length ? { reactions: dto.reactions } : {}),
     };
+  }
+
+  /** Nombre, tamaño y estado de moderación de un adjunto de la sala (CloudStorage), una vez por archivo. */
+  private readonly attachmentNames = new Map<string, { name: string; size: string; status?: AttachmentScanState }>();
+  private resolveChatAttachment(fileId: string): void {
+    if (this.attachmentNames.has(fileId)) return;
+    this.attachmentNames.set(fileId, { name: 'Attachment', size: '' });
+    this.cloudStorage.getFile(fileId).subscribe({
+      next: file => {
+        const meta = { name: file.originalName, size: formatBytes(file.sizeBytes), status: moderationStateOf(file.status) };
+        this.attachmentNames.set(fileId, meta);
+        this.chatMessages.update(list => list.map(m => (m.attachment?.fileId === fileId ? { ...m, attachment: { fileId, ...meta } } : m)));
+      },
+      error: () => undefined,
+    });
+  }
+
+  /** F8a (D-15): adjunto en el chat de la sala; los topes por minuto y por meeting los aplica el servidor. */
+  async sendChatAttachment(file: File): Promise<void> {
+    const meetingId = this.meetingId();
+    const conversationId = this.conversationId();
+    if (!meetingId || !conversationId || this.chatUploading()) return;
+    this.chatUploading.set(true);
+    try {
+      const initiated = await firstValueFrom(
+        this.cloudStorage.initiateUpload({
+          originalName: file.name,
+          contentType: file.type || 'application/octet-stream',
+          sizeBytes: file.size,
+          ownerType: 'Communication',
+          ownerId: conversationId,
+          folderType: 'Other',
+          taxYear: null,
+        }),
+      );
+      await firstValueFrom(this.cloudStorage.uploadToPresignedUrl(initiated.uploadUrl, initiated.formData, file));
+      await firstValueFrom(this.cloudStorage.completeUpload(initiated.fileId));
+      this.attachmentNames.set(initiated.fileId, { name: file.name, size: formatBytes(file.size) });
+      await this.rtc.chatSend(meetingId, null, initiated.fileId);
+    } catch (err) {
+      this.toast.error(meetingChatErrorMessage(socketErrorCode(err)) ?? "Couldn't send the file.");
+    } finally {
+      this.chatUploading.set(false);
+    }
+  }
+
+  /** F8 (D-64): editar un mensaje propio de la sala. */
+  editChatMessage(messageId: string, body: string): void {
+    const meetingId = this.meetingId();
+    const trimmed = body.trim();
+    if (!meetingId || !trimmed) return;
+    this.rtc
+      .chatEdit(meetingId, messageId, trimmed)
+      .catch(err => this.toast.error(editErrorMessage(socketErrorCode(err) ?? '') ?? "Couldn't edit the message."));
+  }
+
+  /** F8d: agrega o quita mi reacción; el estado llega con el evento (también el mío). */
+  toggleChatReaction(messageId: string, emoji: string): void {
+    const message = this.chatMessages().find(m => m.id === messageId);
+    const add = !hasMyReaction(message?.reactions, emoji, this.myUserId());
+    this.rtc.chatReact(messageId, emoji, add).catch((err: { code?: string }) => this.toast.error(reactionErrorText(err?.code)));
+  }
+
+  deleteChatMessage(messageId: string): void {
+    const meetingId = this.meetingId();
+    if (!meetingId) return;
+    this.rtc.chatDelete(meetingId, messageId).catch(() => this.toast.error("Couldn't delete the message."));
   }
 
   /** Carga el historial previo del chat del meeting (el backend pagina DESC → se invierte a ASC). */
   private loadChatHistory(conversationId: string): void {
     const url = this.api.tenantUrl(`/communication/conversations/${conversationId}/messages`);
     this.http
-      .get<{ items: MeetingChatMessageDto[] }>(url, { params: new HttpParams().set('take', 50) })
+      .get<{ items: MeetingChatMessageDto[]; editPolicy?: ChatEditPolicy }>(url, { params: new HttpParams().set('take', 50) })
       .subscribe({
         next: page => {
+          this.chatEditPolicy.set(page.editPolicy ?? null);
           const history = [...page.items].reverse().map(dto => this.toChatView(dto)); // DESC→ASC
           this.chatMessages.update(live => {
             const liveIds = new Set(live.map(m => m.id));
@@ -1599,7 +1731,9 @@ export class ActiveMeetingService {
       .chatSend(meetingId, trimmed)
       .catch(err =>
         this.toast.error(
-          isSocketRateLimited(socketErrorCode(err)) ? SOCKET_RATE_LIMITED_MESSAGE : 'Message could not be sent.',
+          isSocketRateLimited(socketErrorCode(err))
+            ? SOCKET_RATE_LIMITED_MESSAGE
+            : (meetingChatErrorMessage(socketErrorCode(err)) ?? 'Message could not be sent.'),
         ),
       );
   }
@@ -1864,6 +1998,7 @@ export class ActiveMeetingService {
     this.stopLocalMedia();
     this.policy = null;
     this.chatMessages.set([]);
+    this.chatEditPolicy.set(null);
     this.chatHistoryLoaded = false;
     this.iceServers = [];
     this.leftUserIds.clear();
@@ -1907,5 +2042,19 @@ export class ActiveMeetingService {
     this.myUserId.set(null);
     this.isGuest.set(false);
     this.guestInvitationId = null;
+  }
+}
+
+/** Solo los estados de moderación (T-20) cambian la tarjeta; escaneando sigue mostrándose como antes. */
+function moderationStateOf(status: string): AttachmentScanState | undefined {
+  switch (status) {
+    case 'PendingReview':
+    case 'BlockedByPolicy':
+      return toAttachmentScanState(status);
+    case 'Infected':
+    case 'Deleted':
+      return 'Unavailable';
+    default:
+      return undefined;
   }
 }

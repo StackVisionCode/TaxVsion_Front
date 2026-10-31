@@ -47,7 +47,7 @@
         <!-- Clients -->
         <ng-container *ngIf="railTab() === 'clients'">
           <ng-container *ngFor="let entry of customerResults()">
-            <button *ngIf="entry.portalUserId" type="button" (click)="onRailSelectCustomer(entry)" [disabled]="creatingConversation()"
+            <button *ngIf="entry.portalUserId && !entry.chatBlockedReason" type="button" (click)="onRailSelectCustomer(entry)" [disabled]="creatingConversation()"
               class="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-gray-50 transition-colors disabled:opacity-50">
               <app-avatar [name]="entry.displayName" [seed]="entry.customerId" [imageUrl]="entry.avatarFileId | avatarUrl" sizeClass="h-9 w-9 text-xs"></app-avatar>
               <span class="min-w-0 flex-1">
@@ -55,8 +55,8 @@
                 <span class="block truncate text-xs text-gray-400">{{ entry.email }}</span>
               </span>
             </button>
-            <div *ngIf="!entry.portalUserId" class="flex items-center gap-3 rounded-2xl px-3 py-2.5 opacity-60"
-              title="This client hasn't activated their portal yet, so they can't be messaged.">
+            <div *ngIf="!entry.portalUserId || entry.chatBlockedReason" class="flex items-center gap-3 rounded-2xl px-3 py-2.5 opacity-60"
+              [attr.title]="blockedLabel(entry.chatBlockedReason ?? 'NoPortalAccount')" data-role="rail-blocked">
               <app-avatar [name]="entry.displayName" [imageUrl]="entry.avatarFileId | avatarUrl" sizeClass="h-9 w-9 text-xs" colorClass="bg-gray-300"></app-avatar>
               <span class="min-w-0 flex-1">
                 <span class="block truncate text-sm font-medium text-gray-700">{{ entry.displayName }}</span>
@@ -66,26 +66,50 @@
             </div>
           </ng-container>
           <p *ngIf="!employeeSearchLoading() && customerResults().length === 0" class="px-3 py-8 text-center text-sm text-gray-400">
-            {{ railSearch().trim() ? 'No clients found' : 'Type a name to find a client' }}
+            {{ railSearch().trim() ? 'No clients found' : 'No clients yet' }}
           </p>
         </ng-container>
 
         <!-- Team -->
         <ng-container *ngIf="railTab() === 'team'">
-          <button *ngFor="let entry of employeeResults()" type="button" (click)="onRailSelectEmployee(entry)" [disabled]="creatingConversation()"
-            class="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-gray-50 transition-colors disabled:opacity-50">
-            <app-avatar [name]="entry.displayName" [seed]="entry.userId" [imageUrl]="entry.avatarFileId | avatarUrl" sizeClass="h-9 w-9 text-xs"></app-avatar>
-            <span class="min-w-0 flex-1">
-              <span class="block truncate text-sm font-medium text-gray-900">{{ entry.displayName }}</span>
-              <span class="block truncate text-xs text-gray-400">{{ entry.email }}</span>
-            </span>
-          </button>
+          <ng-container *ngFor="let entry of employeeResults()">
+            <button *ngIf="!entry.chatBlockedReason" type="button" (click)="onRailSelectEmployee(entry)" [disabled]="creatingConversation()"
+              class="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-gray-50 transition-colors disabled:opacity-50">
+              <app-avatar [name]="entry.displayName" [seed]="entry.userId" [imageUrl]="entry.avatarFileId | avatarUrl" sizeClass="h-9 w-9 text-xs"></app-avatar>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm font-medium text-gray-900">{{ entry.displayName }}</span>
+                <span class="block truncate text-xs text-gray-400">{{ entry.email }}</span>
+              </span>
+            </button>
+            <!-- F8c (ADD-04 H-3): con el chat entre empleados apagado se ve, pero no se puede abrir -->
+            <div *ngIf="entry.chatBlockedReason" class="flex items-center gap-3 rounded-2xl px-3 py-2.5 opacity-60"
+              [attr.title]="blockedLabel(entry.chatBlockedReason)" data-role="rail-blocked">
+              <app-avatar [name]="entry.displayName" [imageUrl]="entry.avatarFileId | avatarUrl" sizeClass="h-9 w-9 text-xs" colorClass="bg-gray-300"></app-avatar>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm font-medium text-gray-700">{{ entry.displayName }}</span>
+                <span class="block truncate text-xs text-gray-400">{{ entry.email }}</span>
+              </span>
+              <span class="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-[0.6875rem] font-medium text-gray-500">Turned off</span>
+            </div>
+          </ng-container>
           <p *ngIf="!employeeSearchLoading() && employeeResults().length === 0" class="px-3 py-8 text-center text-sm text-gray-400">
-            {{ railSearch().trim() ? 'No teammates found' : 'Type a name to find a teammate' }}
+            {{ railSearch().trim() ? 'No teammates found' : 'No teammates yet' }}
           </p>
         </ng-container>
 
-        <p *ngIf="employeeSearchLoading()" class="px-3 py-3 text-center text-sm text-gray-400">Searching…</p>
+        <!-- F8c: esqueleto mientras llega la primera página; "Load more" para las siguientes -->
+        <ng-container *ngIf="employeeSearchLoading() && customerResults().length === 0 && employeeResults().length === 0">
+          <div *ngFor="let row of skeletonRows" class="flex items-center gap-3 px-3 py-2.5" data-role="rail-skeleton">
+            <span class="h-9 w-9 shrink-0 animate-pulse rounded-full bg-gray-100"></span>
+            <span class="flex-1">
+              <span class="block h-3 w-2/3 animate-pulse rounded bg-gray-100"></span>
+              <span class="mt-2 block h-2.5 w-1/2 animate-pulse rounded bg-gray-100"></span>
+            </span>
+          </div>
+        </ng-container>
+        <p *ngIf="employeeSearchLoading() && (customerResults().length > 0 || employeeResults().length > 0)" class="px-3 py-3 text-center text-sm text-gray-400">Loading…</p>
+        <button *ngIf="hasMoreDirectory() && !employeeSearchLoading()" type="button" (click)="loadMoreDirectory()" data-role="rail-load-more"
+          class="mx-auto my-2 rounded-full border border-gray-200 px-4 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">Load more</button>
       </div>
     </ng-container>
   </div>
@@ -132,7 +156,7 @@
       </button>
       <div class="relative shrink-0">
         <app-avatar [name]="activeConversation.name" size="md" [colorClass]="activeConversation.avatarColor"
-          [imageUrl]="activeConversation.avatarFileId | avatarUrl"></app-avatar>
+          [imageUrl]="(isActiveGroup ? activeConversation.groupAvatarFileId : activeConversation.avatarFileId) | avatarUrl"></app-avatar>
         <span *ngIf="showPresenceDot" class="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-white"
           [ngClass]="presenceDotClass" [attr.aria-label]="presenceLabel" [attr.title]="presenceLabel"></span>
       </div>
@@ -142,7 +166,8 @@
           <span *ngIf="isActiveSupport"
             class="rounded-full bg-indigo-50 px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-indigo-600">Support</span>
         </div>
-        <span class="flex items-center gap-1.5 text-xs" [ngClass]="presenceTextClass">
+        <span *ngIf="isActiveGroup" class="text-xs text-gray-400" data-role="group-subtitle">{{ groupSubtitle }}</span>
+        <span *ngIf="!isActiveGroup" class="flex items-center gap-1.5 text-xs" [ngClass]="presenceTextClass">
           <span class="h-1.5 w-1.5 rounded-full" [ngClass]="presenceDotClass"></span>
           {{ presenceLabel }}
         </span>
@@ -169,6 +194,12 @@
         <ion-icon name="videocam-outline" class="text-base"></ion-icon>
       </button>
 
+      <!-- F8c: cerrar el hilo (vuelve al estado sin conversación) -->
+      <button type="button" (click)="closeConversation()" aria-label="Close conversation" title="Close conversation" data-role="close-conversation"
+        class="hidden lg:flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
+        <ion-icon name="close-outline" class="text-base"></ion-icon>
+      </button>
+
       <button type="button" (click)="openInfo()"
         aria-label="Conversation info"
         class="flex shrink-0 items-center gap-2 rounded-full border border-gray-200 px-3 sm:px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors">
@@ -182,32 +213,19 @@
       [loading]="searchLoading()" [error]="searchError()" [truncated]="searchTruncated()" [highlightedId]="searchHighlightId()"
       (queryChange)="onSearch($event)" (resultSelected)="onSearchResult($event)" (closed)="closeSearch()"></app-chat-message-search>
 
-    <!-- Thread (el propio thread es el contenedor scrollable) -->
-    <div class="flex-1 min-h-0">
-      <app-chat-thread [messages]="activeConversation.messages" [otherName]="activeConversation.name"
-        [otherAvatarColor]="activeConversation.avatarColor" [participants]="activeConversation.participants ?? []"
-        [conversationId]="activeConversation.id"
-        [typingName]="activeConversation.typingName" [recordingName]="activeConversation.recordingName"
-        [hasMoreHistory]="activeConversation.hasMoreHistory" [loadingOlder]="loadingOlder()"
-        (attachmentClicked)="onAttachmentClicked($event)" (loadOlder)="onLoadOlder()"
-        (editSubmitted)="onEditSubmitted($event)" (deleteRequested)="onDeleteRequested($event)"
-        (retryRequested)="onRetryMessage($event)" (transcriptRequested)="onTranscriptRequested($event)"
-        (voiceTranscriptRequested)="onVoiceTranscriptRequested($event)"></app-chat-thread>
-    </div>
-
-    <!-- Composer -->
-    <div class="pt-3 sm:pt-4 border-t border-gray-100">
-      <app-chat-composer [uploading]="uploadingAttachment()" (send)="sendMessage($event)"
-        (attach)="onAttach($event)" (typing)="onTyping($event)"
-        (sendVoiceNote)="onSendVoiceNote($event)" (recording)="onRecording($event)"></app-chat-composer>
-    </div>
+    <!-- T-11: hilo + composer (y sus diálogos) de la conversación activa, compartido con Support -->
+    <app-chat-conversation-panel [conversation]="activeConversation"></app-chat-conversation-panel>
     </ng-container>
   </div>
 </div>
 
+
 <!-- Conversation info -->
-<app-modal [isOpen]="isInfoOpen()" heading="Conversation info" size="sm" (closed)="closeInfo()">
-  <div class="mt-4 flex flex-col items-center text-center">
+<app-modal [isOpen]="isInfoOpen()" [heading]="isActiveGroup ? 'Group info' : 'Conversation info'" size="sm" (closed)="closeInfo()">
+  <!-- F8b: Info de grupo (miembros, roles, ajustes) -->
+  <app-group-info-panel *ngIf="isActiveGroup" [conversation]="activeConversation"></app-group-info-panel>
+
+  <div *ngIf="!isActiveGroup" class="mt-4 flex flex-col items-center text-center">
     <app-avatar [name]="activeConversation.name" sizeClass="h-16 w-16 text-xl" [colorClass]="activeConversation.avatarColor"
       [imageUrl]="activeConversation.avatarFileId | avatarUrl"></app-avatar>
     <p class="mt-3 text-base font-bold text-gray-900">{{ activeConversation.name }}</p>
@@ -217,30 +235,11 @@
     </span>
   </div>
 
-  <div class="mt-5">
-    <span class="text-xs font-semibold uppercase tracking-wide text-gray-400">Shared files</span>
-    <div class="mt-2 flex flex-col gap-2">
-      <button *ngFor="let file of sharedAttachments" type="button" (click)="onAttachmentClicked(file.fileId)"
-        class="flex items-center gap-3 rounded-2xl border border-gray-100 p-3 text-left hover:bg-gray-50 transition-colors">
-        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100">
-          <ion-icon name="document-outline" class="text-base text-gray-700"></ion-icon>
-        </span>
-        <span class="min-w-0">
-          <span class="block truncate text-sm font-medium text-gray-900">{{ file.name }}</span>
-          <span class="block text-xs text-gray-400">{{ file.size }}</span>
-        </span>
-      </button>
-
-      <p *ngIf="sharedAttachments.length === 0" class="px-2 py-4 text-center text-sm text-gray-400">
-        No files shared in this conversation
-      </p>
-    </div>
-  </div>
+  <!-- F8d: contenido compartido por tipo real (Media, Files, Audio, Links), paginado desde el servidor -->
+  <app-conversation-content-tabs *ngIf="activeConversation.id" [conversationId]="activeConversation.id"
+    (attachmentOpened)="openContentFile($event)"></app-conversation-content-tabs>
 </app-modal>
 
-<app-confirm-dialog [isOpen]="isDeleteConfirmOpen()" heading="Delete message"
-  message="This message will be removed for everyone in the conversation. This can't be undone." confirmLabel="Delete"
-  (confirmed)="confirmDelete()" (cancelled)="cancelDelete()"></app-confirm-dialog>
 
 <app-new-conversation-modal [isOpen]="isNewConversationOpen()" [employees]="employeeResults()"
   [customers]="customerResults()" [searching]="employeeSearchLoading()" [error]="employeeSearchError()"
@@ -249,7 +248,3 @@
   (customerSelected)="onCustomerSelected($event)" (directSelected)="onDirectSelected($event)"
   (groupCreateRequested)="onGroupCreateRequested($event)"></app-new-conversation-modal>
 
-<!-- Visor global de adjuntos -->
-<app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"
-  (indexChange)="viewerIndex.set($event)" (download)="onViewerDownload($event)"
-  (closed)="viewerOpen.set(false)"></app-file-viewer>

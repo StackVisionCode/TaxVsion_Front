@@ -1260,8 +1260,8 @@ export class MailStore {
       },
       error: err => {
         const apiError = toApiError(err);
-        // El escaneo lo bloqueó: `attachmentUrl` ya reflejó el estado; sin mensaje de error genérico.
-        if (apiError.code === 'IncomingEmailAttachment.Blocked') {
+        // Bloqueado o en revisión de contenido: `attachmentUrl` ya reflejó el estado; sin error genérico.
+        if (apiError.code === 'IncomingEmailAttachment.Blocked' || apiError.code === 'IncomingEmailAttachment.UnderReview') {
           this.patchAttachment(messageId, attachmentId, { busy: false, error: null });
           return;
         }
@@ -1307,8 +1307,11 @@ export class MailStore {
         return result.downloadUrl;
       }),
       catchError(err => {
-        if (toApiError(err).code === 'IncomingEmailAttachment.Blocked') {
+        const code = toApiError(err).code;
+        if (code === 'IncomingEmailAttachment.Blocked') {
           this.patchAttachment(messageId, attachmentId, { downloadStatus: 'Blocked' });
+        } else if (code === 'IncomingEmailAttachment.UnderReview') {
+          this.patchAttachment(messageId, attachmentId, { downloadStatus: 'UnderReview' });
         }
         return throwError(() => err);
       }),

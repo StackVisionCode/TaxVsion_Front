@@ -31,6 +31,7 @@ import {
 import {
   attachmentIcon,
   attachmentStatusLabel,
+  attachmentStatusHint,
   attachmentStatusTone,
   autosizeTextarea,
   htmlToPlainText,
@@ -231,4 +232,5 @@ export class ClientNoteCardComponent {
   readonly sizeOf = (a: NoteAttachmentResponse): string => formatBytes(a.sizeBytes);
   readonly statusLabel = attachmentStatusLabel;
   readonly statusTone = attachmentStatusTone;
+  readonly statusHint = attachmentStatusHint;
 }

@@ -108,7 +108,7 @@
                 <p class="px-2 pb-1 pt-2 text-[0.6562rem] font-bold uppercase tracking-wider text-gray-400">Status</p>
                 @for (s of filterStatuses; track s) {
                   <button type="button" (click)="toggleFilter('statuses', s)" class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm capitalize hover:bg-gray-50">
-                    <span class="cb" [class.cb-on]="filters().statuses.includes(s)">@if (filters().statuses.includes(s)) { <ion-icon name="checkmark" class="text-[0.6875rem]"></ion-icon> }</span> {{ s }}
+                    <span class="cb" [class.cb-on]="filters().statuses.includes(s)">@if (filters().statuses.includes(s)) { <ion-icon name="checkmark" class="text-[0.6875rem]"></ion-icon> }</span> {{ filterStatusLabels[s] }}
                   </button>
                 }
               </div>

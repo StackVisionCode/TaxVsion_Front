@@ -36,6 +36,7 @@ import { StaffDirectoryStore } from '@core/staff/staff-directory.store';
 import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
 import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
+import { FILE_BLOCKED_BY_POLICY_TEXT, FILE_UNDER_REVIEW_LABEL, isBlockedByPolicy } from '@shared/utils/file-moderation';
 
 interface SubtaskRow {
   id: string;
@@ -296,14 +297,16 @@ export class TaskDetailDrawerComponent implements OnChanges {
     return formatBytes(bytes);
   }
 
-  attachmentStatusLabel(status: string): string {
+  attachmentStatusLabel(status: string, rejectionReason: string | null = null): string {
     switch (status) {
       case 'Pending':
         return 'Processing…';
       case 'Available':
         return 'Ready';
+      case 'UnderReview':
+        return FILE_UNDER_REVIEW_LABEL;
       case 'Rejected':
-        return 'Rejected';
+        return isBlockedByPolicy(rejectionReason) ? FILE_BLOCKED_BY_POLICY_TEXT : 'Rejected';
       default:
         return status;
     }
@@ -316,6 +319,7 @@ export class TaskDetailDrawerComponent implements OnChanges {
       case 'Rejected':
         return 'text-red-600';
       case 'Pending':
+      case 'UnderReview':
         return 'text-amber-600';
       default:
         return 'text-gray-400';

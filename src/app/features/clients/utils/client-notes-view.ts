@@ -1,6 +1,7 @@
 import { parseUtcDate } from '@shared/utils/utc-date.util';
 import type { StatusTone } from '@shared/ui/status-pill/status-pill.component';
 import type { ClientNoteCard, NoteAttachmentStatus } from '../data-access/client-notes.model';
+import { FILE_UNDER_REVIEW_HINT, FILE_UNDER_REVIEW_LABEL, rejectedFileText } from '@shared/utils/file-moderation';
 
 /** Una nota es "larga" (se recorta con "Show more") por caracteres o por líneas. */
 const LONG_NOTE_CHARS = 420;
@@ -89,6 +90,8 @@ export function attachmentStatusLabel(status: NoteAttachmentStatus): string {
       return 'Ready';
     case 'Pending':
       return 'Scanning…';
+    case 'UnderReview':
+      return FILE_UNDER_REVIEW_LABEL;
     case 'Rejected':
       return 'Blocked';
     case 'Detached':
@@ -101,6 +104,7 @@ export function attachmentStatusTone(status: NoteAttachmentStatus): StatusTone {
     case 'Available':
       return 'success';
     case 'Pending':
+    case 'UnderReview':
       return 'warning';
     case 'Rejected':
       return 'danger';
@@ -131,4 +135,11 @@ export function isSubmitShortcut(event: KeyboardEvent): boolean {
 export function submitShortcutLabel(): string {
   const platform = typeof navigator === 'undefined' ? '' : navigator.platform || navigator.userAgent;
   return /Mac|iPhone|iPad/i.test(platform) ? '⌘ Enter' : 'Ctrl Enter';
+}
+
+/** Tooltip del adjunto que todavía no se puede abrir (escaneo, revisión de contenido o bloqueo). */
+export function attachmentStatusHint(status: NoteAttachmentStatus, rejectionReason: string | null): string {
+  if (status === 'Rejected') return rejectedFileText(rejectionReason);
+  if (status === 'UnderReview') return FILE_UNDER_REVIEW_HINT;
+  return 'Checking the file for threats';
 }

@@ -1,3 +1,4 @@
+import { MESSAGE_LENGTH_WARNING, MESSAGE_MAX_LENGTH } from '../message-text';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -33,6 +34,8 @@ import { RecordedVoiceNote, VoiceNoteRecorderService } from '@core/communication
 })
 export class ChatComposerComponent implements OnDestroy {
   @Input() uploading = false;
+  /** F8a: la sala de un meeting no graba notas de voz (sin texto, el botón queda en "enviar" deshabilitado). */
+  @Input() allowVoiceNotes = true;
   @Output() send = new EventEmitter<string>();
   @Output() attach = new EventEmitter<File>();
   /** true en cada pulsación con texto, false al enviar o vaciar/blur. El padre lo throttlea al socket. */
@@ -48,6 +51,11 @@ export class ChatComposerComponent implements OnDestroy {
   readonly draft = signal('');
   /** Con texto se muestra enviar; sin texto, micrófono (patrón WhatsApp). */
   readonly hasText = computed(() => this.draft().trim().length > 0);
+  /** F8d (ADD-07 H-1/H-8): contador cerca del tope (UTF-16, igual que el servidor) y bloqueo al pasarlo. */
+  readonly maxLength = MESSAGE_MAX_LENGTH;
+  readonly length = computed(() => this.draft().trim().length);
+  readonly showCounter = computed(() => this.length() >= MESSAGE_LENGTH_WARNING);
+  readonly tooLong = computed(() => this.length() > MESSAGE_MAX_LENGTH);
 
   onDraftChange(value: string): void {
     this.draft.set(value);
@@ -74,7 +82,7 @@ export class ChatComposerComponent implements OnDestroy {
 
   submit(): void {
     const text = this.draft().trim();
-    if (!text) {
+    if (!text || this.tooLong()) {
       return;
     }
     this.send.emit(text);

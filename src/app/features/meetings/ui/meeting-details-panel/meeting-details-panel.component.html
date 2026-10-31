@@ -96,6 +96,43 @@
           </section>
         }
 
+        <!-- F8a (D-01): chat de la sala, solo lectura -->
+        <section>
+          <button type="button" (click)="toggleChat()" data-role="details-chat-toggle"
+            class="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-gray-500 transition-colors hover:text-gray-900">
+            Chat
+            <ion-icon [name]="chatOpen() ? 'chevron-up-outline' : 'chevron-down-outline'" class="text-sm"></ion-icon>
+          </button>
+          @if (chatOpen()) {
+            <div class="mt-2" data-role="details-chat">
+              @if (chatHasMore() && !chatLoading()) {
+                <button type="button" (click)="loadChat()" class="mb-2 text-xs font-semibold text-brand-bold hover:underline">Show earlier</button>
+              }
+              @if (chatError(); as err) {
+                <p class="text-xs text-red-600">{{ err }}</p>
+              }
+              @if (!chatLoading() && !chatError() && chatMessages().length === 0) {
+                <p class="text-sm text-gray-400">No messages in this meeting.</p>
+              }
+              <ol class="flex flex-col gap-2.5">
+                @for (m of chatMessages(); track m.id) {
+                  <li class="flex items-start gap-2.5">
+                    <app-avatar [name]="m.senderDisplayName" [seed]="m.senderId" [imageUrl]="m.senderAvatarFileId ?? null | avatarUrl" size="xs" />
+                    <div class="min-w-0">
+                      <p class="text-xs text-gray-500"><span class="font-semibold text-gray-900">{{ m.senderDisplayName }}</span> · {{ formatTime(m.createdAtUtc) }}</p>
+                      <p class="whitespace-pre-wrap break-words text-sm" [class.text-gray-400]="m.isDeleted || m.kind !== 'Text'"
+                        [class.text-gray-700]="!m.isDeleted && m.kind === 'Text'">{{ chatLine(m) }}</p>
+                    </div>
+                  </li>
+                }
+              </ol>
+              @if (chatLoading()) {
+                <div class="mt-2 flex items-center gap-2 text-sm text-gray-400"><app-infinity-loader size="xs" /> Loading chat…</div>
+              }
+            </div>
+          }
+        </section>
+
         <!-- Actividad (log) bajo demanda -->
         <section>
           <button type="button" (click)="toggleActivity()" data-role="details-activity-toggle"

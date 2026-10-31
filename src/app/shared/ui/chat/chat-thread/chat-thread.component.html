@@ -35,6 +35,7 @@
 
       <!-- Mensajes seguidos del mismo autor se agrupan: menos aire entre ellos y el avatar no se repite. -->
       <div *ngIf="!message.isSystem" class="group flex rounded-2xl transition-colors" [class.justify-end]="message.senderId === 'me'"
+        (pointerdown)="onPressStart(message, $event)" (pointerup)="onPressEnd()" (pointerleave)="onPressEnd()" (pointercancel)="onPressEnd()"
         [attr.data-message-id]="message.id" [class.bg-amber-50]="highlightedId() === message.id"
         [ngClass]="{ '-mt-1.5': isContinuation(i) }">
         <!-- Their message -->
@@ -45,29 +46,40 @@
           <div>
             <div *ngIf="message.text" class="rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3"
               [class.italic]="message.isDeleted" [class.text-gray-400]="message.isDeleted">
-              <p class="text-sm leading-relaxed text-gray-700 whitespace-pre-line" [class.text-gray-400]="message.isDeleted">{{ message.text }}</p>
+              <p class="text-sm leading-relaxed text-gray-700 whitespace-pre-line" [class.text-gray-400]="message.isDeleted"><ng-container *ngIf="!message.isDeleted; else plainTheirs"><app-linkified-text [text]="message.text" linkClass="text-brand-bold"></app-linkified-text></ng-container><ng-template #plainTheirs>{{ message.text }}</ng-template></p>
             </div>
-            <button *ngIf="message.attachment" type="button"
+            <button *ngIf="message.attachment" type="button" [disabled]="attachmentBlocked(message)"
               (click)="attachmentClicked.emit(message.attachment.fileId)"
-              class="flex items-center gap-3 rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+              class="flex items-center gap-3 rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3 text-left hover:bg-gray-50 transition-colors disabled:cursor-default disabled:hover:bg-white">
               <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-white">
                 <ion-icon name="document-text-outline" class="text-base"></ion-icon>
               </span>
               <div class="min-w-0">
                 <p class="truncate text-sm font-medium text-gray-800">{{ message.attachment.name }}</p>
-                <p class="text-xs text-gray-400">{{ message.attachment.size }}</p>
+                <p class="text-xs" [class.text-gray-400]="message.attachment.status !== 'Blocked' && message.attachment.status !== 'UnderReview'" [class.text-red-600]="message.attachment.status === 'Blocked'" [class.text-amber-600]="message.attachment.status === 'UnderReview'" data-role="attachment-state">{{ attachmentState(message) }}</p>
               </div>
             </button>
             <!-- Nota de voz -->
             <div *ngIf="message.voiceNote" class="rounded-2xl rounded-bl-md border border-gray-100 bg-white px-3 py-2.5">
               <app-voice-note-player [fileId]="message.voiceNote.fileId" [durationMs]="message.voiceNote.durationMs"
-                [waveform]="message.voiceNote.waveform" [mine]="false"></app-voice-note-player>
+                [waveform]="message.voiceNote.waveform" [mine]="false" [resolveUrl]="attachmentUrlResolver"></app-voice-note-player>
               <ng-container *ngTemplateOutlet="voiceTranscript; context: { $implicit: message, mine: false }"></ng-container>
             </div>
             <p class="mt-1 text-xs text-gray-400">
-              {{ message.time }}<span *ngIf="message.isEdited && !message.isDeleted"> · edited</span>
+              {{ message.time }}<ng-container *ngIf="message.isEdited && !message.isDeleted"> · <button type="button"
+                (click)="editsRequested.emit(message.id)" data-role="message-edited" class="hover:underline" title="See earlier versions">edited</button></ng-container>
             </p>
+            <app-message-reactions *ngIf="!message.isDeleted && (canReact || message.reactions?.length)" [reactions]="message.reactions ?? []"
+              [catalog]="reactionCatalog" [participants]="participants" [currentUserId]="currentUserId" [canReact]="canReact"
+              [maxPerUser]="maxReactionsPerUser" [open]="longPressId() === message.id" [hoverReveal]="true"
+              (toggled)="onReactionToggled(message.id, $event)"></app-message-reactions>
           </div>
+          <!-- F8b: el Owner/Admin del grupo borra mensajes ajenos -->
+          <button *ngIf="canModerateMessage(message)" type="button" (click)="deleteRequested.emit(message.id)" data-role="moderate-delete"
+            aria-label="Delete message" title="Delete for everyone"
+            class="mb-6 hidden h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-red-500 group-hover:flex">
+            <ion-icon name="trash-outline" class="text-sm"></ion-icon>
+          </button>
         </div>
 
         <!-- My message -->
@@ -107,27 +119,28 @@
                 [ngClass]="message.isDeleted ? 'bg-gray-100' : 'bg-brand-bold'"
                 [class.opacity-70]="message.status === 'sending' || message.status === 'failed'">
                 <p class="text-sm leading-relaxed whitespace-pre-line"
-                  [ngClass]="message.isDeleted ? 'italic text-gray-400' : 'text-white'">{{ message.text }}</p>
+                  [ngClass]="message.isDeleted ? 'italic text-gray-400' : 'text-white'"><ng-container *ngIf="!message.isDeleted; else plainMine"><app-linkified-text [text]="message.text" linkClass="text-white"></app-linkified-text></ng-container><ng-template #plainMine>{{ message.text }}</ng-template></p>
               </div>
-              <button *ngIf="message.attachment" type="button"
+              <button *ngIf="message.attachment" type="button" [disabled]="attachmentBlocked(message)"
                 (click)="attachmentClicked.emit(message.attachment.fileId)"
-                class="inline-flex items-center gap-3 rounded-2xl rounded-br-md border border-gray-100 bg-white px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+                class="inline-flex items-center gap-3 rounded-2xl rounded-br-md border border-gray-100 bg-white px-4 py-3 text-left hover:bg-gray-50 transition-colors disabled:cursor-default disabled:hover:bg-white">
                 <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-white">
                   <ion-icon name="document-text-outline" class="text-base"></ion-icon>
                 </span>
                 <div class="min-w-0">
                   <p class="truncate text-sm font-medium text-gray-800">{{ message.attachment.name }}</p>
-                  <p class="text-xs text-gray-400">{{ message.attachment.size }}</p>
+                  <p class="text-xs" [class.text-gray-400]="message.attachment.status !== 'Blocked' && message.attachment.status !== 'UnderReview'" [class.text-red-600]="message.attachment.status === 'Blocked'" [class.text-amber-600]="message.attachment.status === 'UnderReview'" data-role="attachment-state">{{ attachmentState(message) }}</p>
                 </div>
               </button>
               <!-- Nota de voz (mía) -->
               <div *ngIf="message.voiceNote" class="inline-block rounded-2xl rounded-br-md bg-brand-bold px-3 py-2.5 text-left">
                 <app-voice-note-player [fileId]="message.voiceNote.fileId" [durationMs]="message.voiceNote.durationMs"
-                  [waveform]="message.voiceNote.waveform" [mine]="true"></app-voice-note-player>
+                  [waveform]="message.voiceNote.waveform" [mine]="true" [resolveUrl]="attachmentUrlResolver"></app-voice-note-player>
                 <ng-container *ngTemplateOutlet="voiceTranscript; context: { $implicit: message, mine: true }"></ng-container>
               </div>
               <p class="mt-1 flex items-center justify-end gap-1 text-xs text-gray-400">
-                <span>{{ message.time }}<span *ngIf="message.isEdited && !message.isDeleted"> · edited</span></span>
+                <span>{{ message.time }}<ng-container *ngIf="message.isEdited && !message.isDeleted"> · <button type="button"
+                  (click)="editsRequested.emit(message.id)" data-role="message-edited" class="hover:underline" title="See earlier versions">edited</button></ng-container></span>
                 <!-- No se pudo enviar: aviso + reintentar (el mensaje sigue en su lugar). -->
                 <button *ngIf="message.status === 'failed'" type="button" (click)="retryRequested.emit(message.id)"
                   class="inline-flex items-center gap-1 font-medium text-red-600 hover:underline">
@@ -145,6 +158,10 @@
                   <ion-icon [name]="message.status === 'read' || message.status === 'delivered' ? 'checkmark-done-outline' : 'checkmark-outline'" class="text-sm"></ion-icon>
                 </span>
               </p>
+              <app-message-reactions *ngIf="!message.isDeleted && message.status !== 'sending' && message.status !== 'failed' && (canReact || message.reactions?.length)" [reactions]="message.reactions ?? []"
+                [catalog]="reactionCatalog" [participants]="participants" [currentUserId]="currentUserId" [canReact]="canReact"
+                [maxPerUser]="maxReactionsPerUser" [alignEnd]="true" [open]="longPressId() === message.id" [hoverReveal]="true"
+                (toggled)="onReactionToggled(message.id, $event)"></app-message-reactions>
             </ng-container>
           </div>
         </div>

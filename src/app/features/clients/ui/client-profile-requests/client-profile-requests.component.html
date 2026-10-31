@@ -87,6 +87,9 @@
                 <ion-icon name="document-text-outline" class="text-sm text-gray-400"></ion-icon>
                 <span class="min-w-0 flex-1 truncate">{{ doc.displayName }}</span>
                 <span class="shrink-0 text-gray-400">{{ documentSize(doc.sizeBytes) }}</span>
+                <span *ngIf="documentStatus(doc.status) as label" class="shrink-0 font-semibold"
+                  [class.text-amber-600]="doc.status !== 'Rejected'" [class.text-red-600]="doc.status === 'Rejected'"
+                  [attr.title]="doc.status === 'UnderReview' ? underReviewHint : null">{{ label }}</span>
               </div>
             </div>
 

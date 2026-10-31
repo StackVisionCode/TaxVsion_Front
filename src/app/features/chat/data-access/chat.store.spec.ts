@@ -10,7 +10,7 @@ import { ChatAttachmentsService } from './chat-attachments.service';
 import { ChatDirectoryService } from './chat-directory.service';
 import { ChatService } from './chat.service';
 import { ChatSocketService } from './chat-socket.service';
-import { CustomerDirectoryEntry } from './chat.model';
+import { CustomerDirectoryEntry, DirectoryPage } from './chat.model';
 import { ChatStore } from './chat.store';
 import { avatarColorFor } from '@shared/utils/avatar.util';
 
@@ -24,14 +24,17 @@ const customer = (displayName: string): CustomerDirectoryEntry => ({
 
 describe('ChatStore — búsqueda de directorio', () => {
   let store: ChatStore;
-  let responses: Record<string, Subject<CustomerDirectoryEntry[]>>;
+  let responses: Record<string, Subject<DirectoryPage<CustomerDirectoryEntry>>>;
+  let pageCustomers: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     responses = {};
-    const directory = {
-      searchCustomers: vi.fn((term: string) => (responses[term] = new Subject<CustomerDirectoryEntry[]>())),
-      searchEmployees: vi.fn(),
-    };
+    // F8c (T-14): rail paginado; la clave es `término|cursor` ('' = sin término).
+    pageCustomers = vi.fn(
+      (term: string | null, cursor: string | null = null) =>
+        (responses[`${term ?? ''}|${cursor ?? ''}`] = new Subject<DirectoryPage<CustomerDirectoryEntry>>()),
+    );
+    const directory = { pageCustomers, pageEmployees: vi.fn() };
     TestBed.configureTestingModule({
       providers: [
         { provide: ChatDirectoryService, useValue: directory },
@@ -53,21 +56,35 @@ describe('ChatStore — búsqueda de directorio', () => {
     store.searchCustomers('mina');
     store.searchCustomers('minat');
 
-    responses['minat'].next([customer('Minato')]);
-    responses['mina'].next([customer('Minaya'), customer('Minato')]);
+    responses['minat|'].next({ items: [customer('Minato')], nextCursor: null });
+    responses['mina|'].next({ items: [customer('Minaya'), customer('Minato')], nextCursor: null });
 
     expect(store.customerResults().map(c => c.displayName)).toEqual(['Minato']);
     expect(store.employeeSearchLoading()).toBe(false);
   });
 
-  it('borrar el texto cancela la búsqueda en vuelo', () => {
+  it('borrar el texto cancela la búsqueda en vuelo y vuelve a la primera página', () => {
     store.searchCustomers('mina');
     store.searchCustomers('');
 
-    responses['mina'].next([customer('Minato')]);
-
+    responses['mina|'].next({ items: [customer('Minato')], nextCursor: null });
     expect(store.customerResults()).toEqual([]);
+
+    responses['|'].next({ items: [customer('Ana'), customer('Beto')], nextCursor: null });
+    expect(store.customerResults().map(c => c.displayName)).toEqual(['Ana', 'Beto']);
     expect(store.employeeSearchLoading()).toBe(false);
+  });
+
+  it('F8c: "Load more" pide la siguiente página con el mismo término y la suma', () => {
+    store.searchCustomers('a');
+    responses['a|'].next({ items: [customer('Ana')], nextCursor: 'c1' });
+    expect(store.hasMoreDirectory()).toBe(true);
+
+    store.loadMoreDirectory();
+    expect(pageCustomers).toHaveBeenLastCalledWith('a', 'c1');
+    responses['a|c1'].next({ items: [customer('Alba')], nextCursor: null });
+    expect(store.customerResults().map(c => c.displayName)).toEqual(['Ana', 'Alba']);
+    expect(store.hasMoreDirectory()).toBe(false);
   });
 });
 
@@ -245,6 +262,7 @@ describe('ChatStore — F7: transcripts de notas de voz y búsqueda', () => {
     ],
     nextBeforeUtc: null,
     nextAfterUtc: null,
+    editPolicy: { windowMinutes: 5, maxEdits: 3 },
   };
 
   beforeEach(() => {
@@ -261,6 +279,7 @@ describe('ChatStore — F7: transcripts de notas de voz y búsqueda', () => {
         queryPresence: vi.fn(),
         markRead: vi.fn(() => Promise.resolve()),
         markDelivered: vi.fn(() => Promise.resolve()),
+        editMessage: vi.fn(() => Promise.resolve({ ok: false, code: 'Chat.Message.EditWindowExpired', message: 'x' })),
       } as Record<string, unknown>,
       { get: (target, key: string) => (key in target ? target[key] : key.endsWith('$') ? stream(key) : undefined) },
     );
@@ -318,6 +337,15 @@ describe('ChatStore — F7: transcripts de notas de voz y búsqueda', () => {
 
     stream('messageTranscriptUpdated$').next({ conversationId: 'otra', messageId: 'v1', transcriptState: 'Failed', transcriptText: null });
     expect(messages().find(m => m.id === 'v1')!.voiceNote?.transcriptState).toBe('Ready');
+  });
+
+  it('F8: la ventana de edición del historial queda en la conversación (la usa el hilo)', () => {
+    expect(store.conversations().find(c => c.id === 'c1')?.editPolicy).toEqual({ windowMinutes: 5, maxEdits: 3 });
+  });
+
+  it('F8: una edición fuera de la ventana avisa "This message can no longer be edited."', async () => {
+    await store.editMessage('v1', 'new text');
+    expect(toastError).toHaveBeenCalledWith('This message can no longer be edited.');
   });
 
   it('"Transcribe": marca Transcribing… al instante, pide al servidor y aplica la respuesta', () => {

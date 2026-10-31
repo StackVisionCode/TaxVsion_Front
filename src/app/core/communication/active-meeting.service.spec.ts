@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { Subject, of, throwError } from 'rxjs';
+import { EMPTY, Subject, of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ActiveMeetingService } from './active-meeting.service';
 import { MeetingRtcService } from './meeting-rtc.service';
@@ -70,6 +70,11 @@ function fakeRtc(joinAck: MeetingJoinAck) {
     onSignalFrom: noop,
     onMutedByHost: noop,
     onChatMessageNew: noop,
+    onChatAttachmentFlagged: noop,
+    onChatMessageEdited: noop,
+    onChatMessageDeleted: noop,
+    onChatReactionAdded: noop,
+    onChatReactionRemoved: noop,
     onStateChanged: noop,
     onRecordingConsentRequested: noop,
     onRecordingConsentRecorded: noop,
@@ -106,7 +111,8 @@ function configureWith(rtc: ReturnType<typeof fakeRtc>, http: unknown = { get: (
       { provide: AuthService, useValue: { currentUser: () => ({ id: 'me' }) } },
       { provide: ApiConfigService, useValue: { tenantUrl: (p: string) => `https://x${p}` } },
       { provide: ToastService, useValue: toast },
-      { provide: CloudStorageUploadService, useValue: {} },
+      // Metadata de adjuntos de la sala: sin respuesta (el nombre queda 'Attachment').
+      { provide: CloudStorageUploadService, useValue: { getFile: () => EMPTY } },
       { provide: HttpClient, useValue: http },
     ],
   });
@@ -662,6 +668,27 @@ describe('ActiveMeetingService (F5 — reacciones D-50 y hablante T-69)', () => 
     expect(service.chatUnread()).toBe(1);
     service.markChatRead();
     expect(service.chatUnread()).toBe(0);
+  });
+
+  // T-20: la moderación retiene un adjunto de la sala y el revisor puede aprobarlo después.
+  it('marca un adjunto en revisión o bloqueado en vivo y lo libera al aprobarse', async () => {
+    const chat = new Subject<unknown>();
+    const flagged = new Subject<unknown>();
+    const rtc = {
+      ...fakeRtc({ requiresAdmission: false, snapshot: soloSnapshot({ conversationId: 'c1' }) }),
+      onChatMessageNew: () => chat,
+      onChatAttachmentFlagged: () => flagged,
+    };
+    const { service } = configureWith(rtc);
+    await service.join('m1', 'Consulta');
+    chat.next({ id: 'a1', conversationId: 'c1', senderId: 'u2', senderDisplayName: 'Bo', kind: 'Attachment', body: null, attachmentFileId: 'f1', createdAtUtc: '2026-10-30T12:00:00Z', isEdited: false, isDeleted: false });
+
+    flagged.next({ conversationId: 'c1', fileId: 'f1', status: 'PendingReview' });
+    expect(service.chatMessages().find(m => m.id === 'a1')?.attachment?.status).toBe('UnderReview');
+    flagged.next({ conversationId: 'c1', fileId: 'f1', status: 'BlockedByPolicy' });
+    expect(service.chatMessages().find(m => m.id === 'a1')?.attachment?.status).toBe('Blocked');
+    flagged.next({ conversationId: 'c1', fileId: 'f1', status: 'Available' });
+    expect(service.chatMessages().find(m => m.id === 'a1')?.attachment?.status).toBeUndefined();
   });
 });
 

@@ -435,31 +435,19 @@
         </button>
       </div>
 
-      <div class="flex-1 overflow-y-auto px-4 py-3">
-        <div class="flex flex-col gap-3">
-          <div *ngFor="let m of chatMessages()" class="flex flex-col" [class.items-end]="m.isMine">
-            <span *ngIf="!m.isMine" class="mb-0.5 text-[0.6875rem] font-medium text-gray-400">{{ m.senderName }}</span>
-            <div class="max-w-[85%] rounded-2xl px-3 py-2 text-sm"
-              [ngClass]="m.isMine ? 'rounded-br-md bg-brand-bold text-white' : 'rounded-bl-md border border-gray-100 bg-gray-50 text-gray-700'">
-              <span class="whitespace-pre-line break-words">{{ m.text }}</span>
-            </div>
-            <span class="mt-0.5 text-[0.625rem] text-gray-400">{{ m.time }}</span>
-          </div>
-        </div>
-        <p *ngIf="chatMessages().length === 0" class="py-10 text-center text-xs text-gray-400">
-          No messages yet. Say hi 👋
-        </p>
+      <!-- T-11: hilo y composer compartidos con el chat (adjuntos con topes D-15, edición D-64, sin notas de voz). -->
+      <div class="min-h-0 flex-1 px-3 pt-2">
+        <app-chat-thread [messages]="roomThreadMessages()" otherName="Meeting" [participants]="roomThreadParticipants()"
+          [conversationId]="meetingConversationId()" [editPolicy]="chatEditPolicy()"
+          [reactionCatalog]="chatReactionCatalog()" [canReact]="!isGuest() && chatReactionCatalog().length > 0" [currentUserId]="myUserId()"
+          (reactionToggled)="meeting.toggleChatReaction($event.messageId, $event.emoji)"
+          (editSubmitted)="meeting.editChatMessage($event.id, $event.text)" (deleteRequested)="meeting.deleteChatMessage($event)"
+          (editExpired)="onChatEditExpired()" (attachmentClicked)="downloadChatAttachment($event)"></app-chat-thread>
       </div>
-
-      <form class="flex items-center gap-2 border-t border-gray-100 p-3" (ngSubmit)="sendChat()">
-        <input type="text" name="chatDraft" placeholder="Message everyone…" [ngModel]="chatDraft()"
-          (ngModelChange)="chatDraft.set($event)" autocomplete="off"
-          class="h-10 flex-1 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-gray-300" />
-        <button type="submit" [disabled]="!chatDraft().trim()" aria-label="Send message"
-          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white hover:bg-brand-ink disabled:opacity-40 transition-colors">
-          <ion-icon name="send-outline" class="text-base"></ion-icon>
-        </button>
-      </form>
+      <div class="border-t border-gray-100 p-3">
+        <app-chat-composer [uploading]="chatUploading()" [allowVoiceNotes]="false" (send)="meeting.sendChatMessage($event)"
+          (attach)="meeting.sendChatAttachment($event)"></app-chat-composer>
+      </div>
     </aside>
     </div>
 

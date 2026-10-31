@@ -234,7 +234,9 @@ describe('MeetingMiniPlayerComponent — F5 (T-54)', () => {
   it('chat compacto: badge de no leídos, abrirlo marca leído y envía', async () => {
     const { el, fixture, meeting } = await render([participant('u1')]);
     meeting.chatUnread.set(3);
-    meeting.chatMessages.set([{ id: 'm1', senderName: 'Bo', text: 'hola', time: '12:00', isMine: false }]);
+    meeting.chatMessages.set([
+      { id: 'm1', senderName: 'Bo', text: 'hola', time: '12:00', isMine: false, senderUserId: 'bo', createdAtUtc: '2026-10-31T12:00:00Z', isEdited: false, editCount: 0, isDeleted: false },
+    ]);
     fixture.detectChanges();
     const chatButton = el.querySelector('[data-control="chat"]') as HTMLButtonElement;
     expect(chatButton.textContent).toContain('3');

@@ -1,3 +1,4 @@
+import { isWithinEditWindow } from '../message-edit';
 import {
   AfterViewChecked,
   AfterViewInit,
@@ -17,54 +18,16 @@ import { CommonModule } from '@angular/common';
 import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import { VoiceNotePlayerComponent } from '../voice-note-player/voice-note-player.component';
+import { LinkifiedTextComponent } from '../linkified-text/linkified-text.component';
+import { MessageReactionsComponent } from '../message-reactions/message-reactions.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
-import { ChatParticipant, VoiceNoteTranscriptState } from '../../data-access/chat.model';
+import { ATTACHMENT_STATE_LABELS } from '../chat-message.model';
+import type { ChatEditPolicy, ChatMessage, ChatParticipant, MessageEdit, VoiceNoteTranscriptState } from '../chat-message.model';
 
-export interface ChatMessage {
-  id: string;
-  senderId: 'me' | 'them';
-  /** Evento del sistema (p.ej. "Missed call", "Call ended 2:34") — se pinta centrado, no como burbuja. */
-  isSystem?: boolean;
-  text?: string;
-  attachment?: { name: string; size: string; fileId: string };
-  /** Nota de voz: player en vez de tarjeta de archivo. F7: + transcript (estado y texto). */
-  voiceNote?: {
-    fileId: string;
-    durationMs: number;
-    waveform: number[];
-    transcriptState?: VoiceNoteTranscriptState | null;
-    transcriptText?: string | null;
-  };
-  /** F7 — mensaje System con archivo (transcript de una llamada): enlace "View transcript". */
-  systemAttachmentFileId?: string;
-  time: string;
-  dateGroup: string;
-  isEdited: boolean;
-  isDeleted: boolean;
-  /** createdAtUtc crudo (ISO) — cursor para avanzar cotejos por fecha. */
-  createdAtUtc: string;
-  /** userId real del remitente (los ajenos): semilla del color y llave de su foto entre los participantes. */
-  senderUserId?: string;
-  senderName?: string;
-  /** Foto que trajo el historial; respaldo si el remitente ya no está entre los participantes. */
-  senderAvatarFileId?: string | null;
-  /**
-   * Cotejo de MI mensaje: 'sending' (reloj, aún sin ack) / 'failed' (no se envió, se puede reintentar) /
-   * 'sent' (1 gris) / 'delivered' (2 grises) / 'read' (2 azules). undefined si es del otro.
-   */
-  status?: 'sending' | 'failed' | 'sent' | 'delivered' | 'read';
-  /**
-   * Clave estable del nodo en el DOM. Un mensaje optimista nace con un id temporal y al llegar el ack
-   * pasa a tener el id real: `renderKey` no cambia, así la burbuja no se destruye y recrea (parpadeo).
-   */
-  renderKey?: string;
-}
+export type { ChatMessage, MessageEdit } from '../chat-message.model';
 
-export interface MessageEdit {
-  id: string;
-  text: string;
-}
+
 
 /** A qué distancia del borde consideramos "pegado" arriba/abajo (px). */
 const TOP_LOAD_THRESHOLD = 60;
@@ -83,7 +46,9 @@ const HIGHLIGHT_MS = 2500;
  */
 @Component({
   selector: 'app-chat-thread',
-  imports: [CommonModule, FormsModule, VoiceNotePlayerComponent, AvatarComponent, AvatarUrlPipe, InfinityLoaderComponent],
+  imports: [CommonModule, FormsModule, VoiceNotePlayerComponent,
+    LinkifiedTextComponent,
+    MessageReactionsComponent, AvatarComponent, AvatarUrlPipe, InfinityLoaderComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './chat-thread.component.html',
   // El host debe llenar su contenedor acotado (`flex-1 min-h-0`); por defecto un
@@ -107,10 +72,60 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
   @Input() hasMoreHistory = false;
   /** Se está cargando una página más vieja. */
   @Input() loadingOlder = false;
+  /** F8: ventana de edición del chat; null/undefined = sin dato (el servidor decide). */
+  @Input() editPolicy: ChatEditPolicy | null | undefined = null;
+  /** F8b (D-22): quien administra el grupo puede borrar mensajes ajenos. */
+  @Input() canModerate = false;
+  /** F8d: reacciones (catálogo curado, tope por persona, mi userId real para marcar las mías). */
+  @Input() reactionCatalog: readonly string[] = [];
+  @Input() maxReactionsPerUser = 3;
+  @Input() canReact = false;
+  @Input() currentUserId: string | null = null;
+  /** F8d: URL de adjuntos/notas de voz mediada por Communication; null = CloudStorage directo. */
+  @Input() attachmentUrlResolver: ((fileId: string) => Promise<string>) | null = null;
+  @Output() reactionToggled = new EventEmitter<{ messageId: string; emoji: string }>();
+
+  /** Pulsación larga en táctil abre la barra rápida de reacciones de ese mensaje. */
+  readonly longPressId = signal<string | null>(null);
+  private pressTimer: ReturnType<typeof setTimeout> | undefined;
+
+  onPressStart(message: ChatMessage, event: PointerEvent): void {
+    if (event.pointerType !== 'touch' || !this.canReact || message.isSystem || message.isDeleted) {
+      return;
+    }
+    clearTimeout(this.pressTimer);
+    this.pressTimer = setTimeout(() => this.longPressId.set(message.id), 500);
+  }
+
+  onPressEnd(): void {
+    clearTimeout(this.pressTimer);
+  }
+
+  onReactionToggled(messageId: string, emoji: string): void {
+    this.longPressId.set(null);
+    this.reactionToggled.emit({ messageId, emoji });
+  }
+
+  /** Un adjunto que no se puede abrir (escaneando, en revisión o rechazado). */
+  attachmentBlocked(message: ChatMessage): boolean {
+    const status = message.attachment?.status;
+    return status !== undefined && status !== 'Available';
+  }
+
+  /** Texto bajo el nombre: tamaño si está disponible, si no el estado (T-20: revisión/bloqueo). */
+  attachmentState(message: ChatMessage): string {
+    const attachment = message.attachment;
+    if (!attachment) return '';
+    return attachment.status && attachment.status !== 'Available' ? ATTACHMENT_STATE_LABELS[attachment.status] : attachment.size;
+  }
 
   @Output() attachmentClicked = new EventEmitter<string>();
   @Output() loadOlder = new EventEmitter<void>();
   @Output() editSubmitted = new EventEmitter<MessageEdit>();
+  /** F8 — tocar "edited": ver las versiones anteriores (id del mensaje). */
+  @Output() editsRequested = new EventEmitter<string>();
+  /** F8 — se tocó "Edit" justo cuando la ventana venció. */
+  @Output() editExpired = new EventEmitter<void>();
   @Output() deleteRequested = new EventEmitter<string>();
   /** Reintentar un mensaje propio que quedó "failed" (id temporal). */
   @Output() retryRequested = new EventEmitter<string>();
@@ -350,14 +365,31 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
   }
 
   canEdit(message: ChatMessage): boolean {
-    return message.senderId === 'me' && !message.isDeleted && !!message.text && !message.attachment && !this.isPending(message);
+    return (
+      message.senderId === 'me' &&
+      !message.isDeleted &&
+      !!message.text &&
+      !message.attachment &&
+      !this.isPending(message) &&
+      isWithinEditWindow(message.createdAtUtc, message.editCount ?? 0, this.editPolicy, Date.now())
+    );
   }
 
   canDelete(message: ChatMessage): boolean {
     return message.senderId === 'me' && !message.isDeleted && !this.isPending(message);
   }
 
+  /** Borrar un mensaje ajeno (moderación del Owner/Admin del grupo). */
+  canModerateMessage(message: ChatMessage): boolean {
+    return this.canModerate && message.senderId === 'them' && !message.isDeleted && !message.isSystem;
+  }
+
   startEdit(message: ChatMessage): void {
+    // Sin reloj (un intervalo deja la zona siempre ocupada): si venció con el botón a la vista, se avisa.
+    if (!this.canEdit(message)) {
+      this.editExpired.emit();
+      return;
+    }
     this.editingId.set(message.id);
     this.editDraft.set(message.text ?? '');
     setTimeout(() => this.editInput?.nativeElement.focus());

@@ -1,3 +1,4 @@
+import type { PhotoModerationStatus } from '@core/profile-photo/profile-photo-upload';
 import { ClientItem } from '../ui/client-table/client-table.component';
 import type { ClientProfile } from '../models/client-profile.model';
 
@@ -228,6 +229,9 @@ export interface CustomerDetailResponse extends Customer {
   pendingAvatarFileId?: string | null;
   /** Estado de la última subida: "processing" mientras se revisa, "failed" si se descartó. */
   avatarUploadStatus?: CustomerAvatarUploadStatus | null;
+  /** T-20: moderación de la última foto subida (`avatarModerationFileId`). */
+  avatarModerationStatus?: PhotoModerationStatus | null;
+  avatarModerationFileId?: string | null;
 }
 
 /** `avatarUploadStatus` del detalle del cliente. */
@@ -490,6 +494,8 @@ export function customerToClientProfile(customer: CustomerDetailResponse): Clien
     avatarFileId: customer.avatarFileId ?? null,
     pendingAvatarFileId: customer.pendingAvatarFileId ?? null,
     avatarUploadStatus: customer.avatarUploadStatus ?? null,
+    avatarModerationStatus: customer.avatarModerationStatus ?? null,
+    avatarModerationFileId: customer.avatarModerationFileId ?? null,
     addresses: customer.addresses ?? [],
     contactPoints: customer.contactPoints ?? [],
     relations,

@@ -187,7 +187,13 @@ export class DocumentsPageComponent implements OnInit {
 
   readonly filterYears = [2025, 2024, 2023];
   readonly filterTypes = ['PDF', 'XLSX', 'DOCX', 'JPG', 'ZIP'];
-  readonly filterStatuses = ['ready', 'processing', 'blocked'] as const;
+  readonly filterStatuses = ['ready', 'processing', 'review', 'blocked'] as const;
+  readonly filterStatusLabels: Record<(typeof this.filterStatuses)[number], string> = {
+    ready: 'ready',
+    processing: 'processing',
+    review: 'in review',
+    blocked: 'blocked',
+  };
 
   /** Cliente fijo cuando la página va embebida en el perfil; `null` en /documents. */
   private readonly embeddedCustomer = injectEmbeddedCustomer();

@@ -781,7 +781,7 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   /** Abre el visor con los adjuntos (no bloqueados) del mensaje; la URL se resuelve al mostrar cada uno. */
   previewAttachment(event: { messageId: string; attachmentId: string }): void {
-    const items = (this.store.attachments().get(event.messageId)?.items ?? []).filter(a => a.downloadStatus !== 'Blocked');
+    const items = (this.store.attachments().get(event.messageId)?.items ?? []).filter(a => a.downloadStatus !== 'Blocked' && a.downloadStatus !== 'UnderReview');
     const start = items.findIndex(a => a.attachmentId === event.attachmentId);
     if (start < 0) {
       return;

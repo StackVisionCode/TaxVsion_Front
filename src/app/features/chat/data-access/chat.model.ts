@@ -1,3 +1,5 @@
+import type { ChatEditPolicy, ChatParticipant, ChatReactionPolicy, GroupRole, MessageEditsDto, MessageReactionSummary, VoiceNoteTranscriptState } from '@shared/ui/chat/chat-message.model';
+export type { ChatParticipant, GroupRole, MessageEditsDto, VoiceNoteTranscriptState } from '@shared/ui/chat/chat-message.model';
 export type ConversationKind = 'Direct' | 'Group' | 'Support' | 'Meeting';
 
 export interface ConversationParticipant {
@@ -6,15 +8,12 @@ export interface ConversationParticipant {
   isPrimaryPreparer: boolean;
   /** Foto (`/storage/avatars/{id}`). Ausente = no se resolvió (conservar la conocida); null = sin foto. */
   avatarFileId?: string | null;
+  /** F8b (D-22). */
+  role?: GroupRole;
+  actorType?: string;
 }
 
 /** Participante tal como lo guarda la vista (nombre + foto, actualizable en vivo). */
-export interface ChatParticipant {
-  userId: string;
-  displayName: string;
-  /** undefined = desconocida todavía; null = sin foto. */
-  avatarFileId?: string | null;
-}
 
 /** Payload de `chat.conversation.participant_added` (alguien sumó un miembro a un grupo). */
 export interface ConversationParticipantAddedDto {
@@ -24,7 +23,27 @@ export interface ConversationParticipantAddedDto {
   newParticipantDisplayName: string;
   /** Ausente si no se pudo resolver; null = sin foto. */
   newParticipantAvatarFileId?: string | null;
+  /** F8b: cliente vs staff. */
+  newParticipantActorType?: string;
   addedAtUtc: string;
+}
+
+/** F8b: `chat.conversation.participant_removed` (salió, lo sacaron o se dio de baja). */
+export interface ConversationParticipantRemovedDto {
+  conversationId: string;
+  removedByUserId: string;
+  removedParticipantUserId: string;
+  reason: 'Left' | 'Kicked';
+  removedAtUtc: string;
+}
+
+/** F8b (D-22): `chat.conversation.participant_role_changed`; `changedByUserId` null = sucesión automática. */
+export interface ConversationParticipantRoleChangedDto {
+  conversationId: string;
+  userId: string;
+  role: GroupRole;
+  changedByUserId: string | null;
+  changedAtUtc: string;
 }
 
 /** Fila de GET /communication/conversations. Sin preview de último mensaje — el backend no lo incluye. */
@@ -36,6 +55,13 @@ export interface ConversationSummary {
   updatedAtUtc: string;
   participants: ConversationParticipant[];
   unreadCount: number;
+  /** F8b: datos del grupo (T-21), modo anuncio (D-23), archivado y estado propio. Ausentes en backends viejos. */
+  description?: string | null;
+  avatarFileId?: string | null;
+  adminsOnlyWrite?: boolean;
+  isArchived?: boolean;
+  isMuted?: boolean;
+  myRole?: GroupRole | null;
 }
 
 export interface PagedConversations {
@@ -43,6 +69,8 @@ export interface PagedConversations {
   page: number;
   size: number;
   totalCount: number;
+  /** F8a: no leídos por tipo en todas las conversaciones activas (badges de Chat y Support). */
+  unreadByKind?: UnreadByKind;
 }
 
 export type MessageKind = 'Text' | 'Attachment' | 'System';
@@ -55,12 +83,18 @@ export interface MessageDto {
   senderDisplayName: string;
   /** Foto del remitente: solo en el historial (en `chat.message.new` no viene → se toma de los participantes). */
   senderAvatarFileId?: string | null;
+  /** F8a (T-10): tipo del chat en `chat.message.new`; el módulo Chat solo toma Direct/Group. */
+  conversationKind?: ConversationKind;
+  /** F8a: meeting dueño cuando el chat es de una sala. */
+  meetingId?: string | null;
   kind: MessageKind;
   body: string | null;
   attachmentFileId: string | null;
   replyToMessageId: string | null;
   forwardedFromMessageId: string | null;
   isEdited: boolean;
+  /** F8: cuántas veces se editó (backends viejos no lo mandan). */
+  editCount?: number;
   isDeleted: boolean;
   isPinned: boolean;
   pinnedAtUtc: string | null;
@@ -76,11 +110,12 @@ export interface MessageDto {
   /** F7 (D-27) — transcript de la nota de voz (≤ 4000) y su estado; null en otros mensajes. */
   transcriptText?: string | null;
   transcriptState?: string | null;
+  /** F8d (T-26): solo en el historial; en vivo llegan `chat.message.reaction.*`. */
+  reactions?: MessageReactionSummary[];
 }
 
 /** F7 — estado del transcript de una nota de voz (`Skipped` = no se transcribe: apagado o muy larga). */
 /** NotRequested = se puede transcribir con el botón "Transcribe" (no se transcribe al enviar). */
-export type VoiceNoteTranscriptState = 'NotRequested' | 'Processing' | 'Ready' | 'Failed' | 'Skipped';
 
 /** F7 — `chat.message.transcript_updated` (a la sala de la conversación). */
 export interface MessageTranscriptUpdatedDto {
@@ -119,7 +154,39 @@ export interface MessagesPage {
   items: MessageDto[];
   nextBeforeUtc: string | null;
   nextAfterUtc: string | null;
+  /** F8: ventana de edición de este chat (por tipo); el servidor manda. */
+  editPolicy?: ChatEditPolicy;
+  /** F8a: de qué es el chat (el deep link lleva Support/Meeting a su módulo) y si está archivado (solo lectura). */
+  conversation?: ConversationMeta;
+  /** F8d (D-24, T-24): tope de emojis por persona y catálogo curado. */
+  reactionPolicy?: ChatReactionPolicy;
 }
+
+/** F8a — tipo, estado y dueño de una conversación (llega con su historial). */
+export interface ConversationMeta {
+  id: string;
+  kind: ConversationKind;
+  isArchived: boolean;
+  meetingId: string | null;
+  supportTicketId: string | null;
+}
+
+/** F8a — `chat.conversation.updated` (campos ausentes = sin cambio). */
+export interface ConversationUpdatedDto {
+  conversationId: string;
+  kind: ConversationKind;
+  isArchived?: boolean;
+  title?: string | null;
+  description?: string | null;
+  avatarFileId?: string | null;
+  adminsOnlyWrite?: boolean;
+  /** Solo a mis pestañas: silencio propio. */
+  isMuted?: boolean;
+}
+
+/** F8a — no leídos por tipo de chat (badges de Chat y de Support). */
+export type UnreadByKind = Record<ConversationKind, number>;
+
 
 export interface ReadReceiptDto {
   conversationId: string;
@@ -168,6 +235,8 @@ export interface MessageEditedDto {
   conversationId: string;
   body: string;
   editedAtUtc: string;
+  /** F8: total de ediciones tras esta. */
+  editCount?: number;
 }
 
 export interface MessageDeletedDto {
@@ -185,6 +254,17 @@ export interface EmployeeDirectoryEntry {
   actorType: string;
   /** Foto del empleado; null = sin foto. */
   avatarFileId?: string | null;
+  /** F8c: por qué no se puede abrir un chat (mismas reglas que start_direct); null/ausente = se puede. */
+  chatBlockedReason?: ChatBlockedReason | null;
+}
+
+/** F8c: motivo por el que una fila del directorio no es chateable. */
+export type ChatBlockedReason = 'EmployeeToEmployeeDisabled' | 'NoPortalAccount';
+
+/** F8c (T-14): página del directorio del rail (cursor opaco; null = no hay más). */
+export interface DirectoryPage<T> {
+  items: T[];
+  nextCursor: string | null;
 }
 
 /**
@@ -201,17 +281,105 @@ export interface CustomerDirectoryEntry {
   portalUserId: string | null;
   /** Foto de la ficha del cliente; null = sin foto. */
   avatarFileId?: string | null;
+  /** F8c: `NoPortalAccount` si no activó su portal. */
+  chatBlockedReason?: ChatBlockedReason | null;
 }
 
-/** Payload de chat.message.attachment_flagged — CloudStorage marcó el adjunto como no disponible. */
+/**
+ * Payload de chat.message.attachment_flagged — CloudStorage cambió el estado del adjunto.
+ * T-20: PendingReview = en revisión de contenido; Available = el revisor lo aprobó.
+ */
 export interface AttachmentFlaggedDto {
   messageId: string;
   conversationId: string;
   fileId: string;
-  status: 'Infected' | 'Deleted' | 'BlockedByPolicy';
+  status: 'Infected' | 'Deleted' | 'BlockedByPolicy' | 'PendingReview' | 'Available';
   flaggedAtUtc: string;
 }
 
 // SocketEnvelope<T> y SocketAck<T> son transversales: viven en core/realtime y se
 // re-exportan acá para no romper los imports existentes del feature de chat.
 export type { SocketAck, SocketEnvelope } from '@core/realtime/realtime.model';
+
+/** F8b (T-21) — URL presignada para subir la foto del grupo directo a MinIO. */
+export interface GroupAvatarUpload {
+  fileId: string;
+  uploadUrl: string;
+  formData: Record<string, string>;
+  expiresAtUtc: string;
+}
+
+/** F8b (T-22) — una fila de la bitácora del grupo. */
+export interface GroupActivityItem {
+  id: string;
+  action:
+    | 'GroupCreated'
+    | 'MemberAdded'
+    | 'MemberRemoved'
+    | 'MemberLeft'
+    | 'RoleChanged'
+    | 'OwnershipTransferred'
+    | 'InfoUpdated'
+    | 'AdminsOnlyChanged'
+    | 'Archived';
+  actorUserId: string | null;
+  targetUserId: string | null;
+  /** Nombres resueltos por el servidor (también de quien ya salió del grupo). */
+  actorDisplayName?: string | null;
+  targetDisplayName?: string | null;
+  metadata: Record<string, unknown> | null;
+  occurredAtUtc: string;
+}
+
+export interface GroupActivityPage {
+  items: GroupActivityItem[];
+  nextBeforeUtc: string | null;
+}
+
+/** F8d: `chat.message.reaction.added` / `.removed`. */
+export interface MessageReactionChangedDto {
+  messageId: string;
+  conversationId: string;
+  userId: string;
+  emoji: string;
+}
+
+/** F8d: metadata y estado del escaneo de un adjunto (mediado por Communication). */
+export interface AttachmentMetaDto {
+  fileId: string;
+  fileName: string | null;
+  sizeBytes: number | null;
+  contentType: string | null;
+  status: 'Pending' | 'Available' | 'Infected' | 'Deleted' | 'BlockedByPolicy' | 'PendingReview';
+}
+
+/** F8d: subida mediada de un adjunto (URL presignada de MinIO). */
+export interface InitiatedAttachmentUpload {
+  fileId: string;
+  uploadUrl: string;
+  formData: Record<string, string>;
+  expiresAtUtc: string;
+}
+
+/** F8d (ADD-01 §13): pestañas de Info. */
+export type ConversationContentTab = 'Media' | 'Documents' | 'Audio' | 'Links';
+
+export type ConversationContentItem =
+  | {
+      kind: 'Attachment';
+      fileId: string;
+      messageId: string;
+      senderId: string;
+      category: string;
+      contentType: string | null;
+      fileName: string | null;
+      sizeBytes: number | null;
+      status: string;
+      createdAtUtc: string;
+    }
+  | { kind: 'Link'; id: string; messageId: string; senderId: string; url: string; domain: string; createdAtUtc: string };
+
+export interface ConversationContentPage {
+  items: ConversationContentItem[];
+  nextBefore: string | null;
+}

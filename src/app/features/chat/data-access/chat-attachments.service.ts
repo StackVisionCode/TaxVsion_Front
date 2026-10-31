@@ -1,57 +1,34 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, map, switchMap } from 'rxjs';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
-import { InitiateUploadRequest } from '@core/cloud-storage/cloud-storage.model';
+import { ChatService } from './chat.service';
 
 /**
- * Adjuntos de chat sobre CloudStorage.Api (`/storage`) — Communication nunca valida el
- * archivo, solo guarda el `fileId` que se le manda en `chat.message.send`. No hay un
- * `FolderType` de chat en CloudStorage: se usa `Other` (no exige `taxYear`, whitelist
- * genérica 25MB). `ownerType: 'Communication'` es válido sin restricción de `ownerId`
- * para actores staff (TenantEmployee/TenantAdmin) — se usa el `conversationId`.
+ * Adjuntos de chat. F8d (ADD-01 §13.5): la subida va MEDIADA por Communication (como el portal): pide la URL
+ * presignada (Communication verifica membresía y decide carpeta: adjunto → la conversación; audio → "Voice
+ * Notes" del tenant), el navegador sube el binario directo a MinIO y Communication confirma (dispara el escaneo).
  */
 @Injectable({ providedIn: 'root' })
 export class ChatAttachmentsService {
+  private readonly chat = inject(ChatService);
   private readonly cloudStorage = inject(CloudStorageUploadService);
 
-  /** Sube el archivo y devuelve el `fileId` ya confirmado (initiate → MinIO → complete). */
+  /** Sube el archivo y devuelve el `fileId` ya confirmado. */
   uploadAttachment(conversationId: string, file: File): Observable<string> {
-    const request: InitiateUploadRequest = {
-      originalName: file.name,
-      contentType: file.type || 'application/octet-stream',
-      sizeBytes: file.size,
-      ownerType: 'Communication',
-      ownerId: conversationId,
-      folderType: 'Other',
-      taxYear: null,
-    };
-    return this.upload(request, file);
+    return this.upload(conversationId, file, file.type || 'application/octet-stream');
   }
 
-  /**
-   * Sube una nota de voz a la carpeta navegable "Voice Notes" del TENANT (owner Tenant/ownerId=null),
-   * no a la conversación — así el staff la ve como una sola carpeta en el gestor (decisión A). El CRM
-   * sube directo a CloudStorage (el staff puede crear files Tenant-owned); el Portal va mediado por
-   * Communication, que hace el mismo ruteo por content-type. `file.type` debe ser audio/webm|audio/mp4.
-   */
-  uploadVoiceNote(file: File): Observable<string> {
-    const request: InitiateUploadRequest = {
-      originalName: file.name,
-      contentType: file.type || 'audio/webm',
-      sizeBytes: file.size,
-      ownerType: 'Tenant',
-      ownerId: null,
-      folderType: 'VoiceNotes',
-      taxYear: null,
-    };
-    return this.upload(request, file);
+  /** Nota de voz: `file.type` debe ser audio/webm|audio/mp4 (Communication la lleva a "Voice Notes"). */
+  uploadVoiceNote(conversationId: string, file: File): Observable<string> {
+    return this.upload(conversationId, file, file.type || 'audio/webm');
   }
 
-  private upload(request: InitiateUploadRequest, file: File): Observable<string> {
-    return this.cloudStorage.initiateUpload(request).pipe(
+  private upload(conversationId: string, file: File, contentType: string): Observable<string> {
+    return this.chat.initiateAttachmentUpload(conversationId, { originalName: file.name, contentType, sizeBytes: file.size }).pipe(
       switchMap(initiated =>
+        // El binario va directo a MinIO con la URL presignada (no es la API de CloudStorage).
         this.cloudStorage.uploadToPresignedUrl(initiated.uploadUrl, initiated.formData, file).pipe(
-          switchMap(() => this.cloudStorage.completeUpload(initiated.fileId)),
+          switchMap(() => this.chat.completeAttachmentUpload(conversationId, initiated.fileId)),
           map(() => initiated.fileId),
         ),
       ),

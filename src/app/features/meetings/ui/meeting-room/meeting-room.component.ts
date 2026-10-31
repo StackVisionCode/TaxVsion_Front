@@ -1,3 +1,8 @@
+import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { ToastService } from '@shared/ui/toast/toast.service';
+import { ChatThreadComponent } from '@shared/ui/chat/chat-thread/chat-thread.component';
+import { ChatComposerComponent } from '@shared/ui/chat/chat-composer/chat-composer.component';
+import type { ChatMessage, ChatParticipant } from '@shared/ui/chat/chat-message.model';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -71,6 +76,8 @@ const GALLERY_GAP_PX = 12;
   imports: [
     InfinityLoaderComponent,
     CommonModule,
+    ChatThreadComponent,
+    ChatComposerComponent,
     FormsModule,
     SrcObjectDirective,
     ConfirmDialogComponent,
@@ -90,7 +97,9 @@ const GALLERY_GAP_PX = 12;
 })
 export class MeetingRoomComponent {
   private readonly perms = inject(PermissionService);
-  private readonly meeting = inject(ActiveMeetingService);
+  protected readonly meeting = inject(ActiveMeetingService);
+  private readonly toast = inject(ToastService);
+  private readonly cloudStorage = inject(CloudStorageUploadService);
   private readonly speaker = inject(MeetingActiveSpeakerService);
   private readonly devices = inject(MediaDevicesService);
   private readonly mediaPolicy = inject(MediaPolicyService);
@@ -145,6 +154,33 @@ export class MeetingRoomComponent {
   readonly screenSharing = this.meeting.screenSharing;
   readonly strategy = this.meeting.strategy;
   readonly chatMessages = this.meeting.chatMessages;
+  readonly chatEditPolicy = this.meeting.chatEditPolicy;
+  readonly chatUploading = this.meeting.chatUploading;
+  readonly meetingConversationId = computed(() => this.meeting.conversationId() ?? '');
+  /** F8a (T-11): mensajes de la sala en la forma del hilo compartido. */
+  readonly roomThreadMessages = computed<ChatMessage[]>(() =>
+    this.chatMessages().map(m => ({
+      id: m.id,
+      senderId: m.isMine ? 'me' : 'them',
+      text: m.attachment || m.isDeleted ? undefined : m.text,
+      ...(m.attachment ? { attachment: m.attachment } : {}),
+      time: m.time,
+      dateGroup: 'Today',
+      isEdited: m.isEdited,
+      editCount: m.editCount,
+      isDeleted: m.isDeleted,
+      createdAtUtc: m.createdAtUtc,
+      senderUserId: m.senderUserId,
+      senderName: m.senderName,
+      ...(m.reactions?.length ? { reactions: m.reactions } : {}),
+    })),
+  );
+  /** F8d: catálogo curado de la sala (T-24) y mi userId para marcar mis reacciones. */
+  readonly chatReactionCatalog = computed(() => this.meeting.reactionsPolicy()?.catalog ?? []);
+  readonly isGuest = this.meeting.isGuest;
+  readonly roomThreadParticipants = computed<ChatParticipant[]>(() =>
+    this.participants().map(p => ({ userId: p.userId, displayName: p.displayName, avatarFileId: p.avatarFileId ?? null })),
+  );
   readonly recordingState = this.meeting.recordingState;
   readonly recordingElapsedLabel = this.meeting.recordingElapsedLabel;
   /** F7 — restante hasta el tope de la grabación; null sin tope. */
@@ -334,7 +370,6 @@ export class MeetingRoomComponent {
   readonly chatOpen = signal(false);
   /** No leídos: los cuenta el service (también los ve el mini-player). */
   readonly chatUnread = this.meeting.chatUnread;
-  readonly chatDraft = signal('');
 
   // ---------- Galería por espacio (T-57) ----------
   private readonly stageSize = signal({ width: 0, height: 0 });
@@ -426,13 +461,16 @@ export class MeetingRoomComponent {
     }
   }
 
-  sendChat(): void {
-    const text = this.chatDraft().trim();
-    if (!text) {
-      return;
-    }
-    this.meeting.sendChatMessage(text);
-    this.chatDraft.set('');
+  onChatEditExpired(): void {
+    this.toast.error('This message can no longer be edited.');
+  }
+
+  /** Adjunto de la sala: se descarga (la sala no abre el visor encima del video). */
+  downloadChatAttachment(fileId: string): void {
+    this.cloudStorage.getDownloadUrl(fileId).subscribe({
+      next: res => window.open(res.downloadUrl, '_blank', 'noopener'),
+      error: () => this.toast.error("Couldn't open the file."),
+    });
   }
 
   /** Stream de CÁMARA de un participante (la mía para `self`). */

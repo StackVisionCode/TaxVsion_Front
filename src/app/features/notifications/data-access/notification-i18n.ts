@@ -113,7 +113,8 @@ export interface NotificationTextPayload {
 type LocalizedCopy = readonly [englishTitle: string, englishBody: string, spanishTitle: string, spanishBody: string];
 
 const COPY_BY_KIND: Readonly<Record<string, LocalizedCopy>> = {
-  'cloudstorage.file.blocked_by_policy': ['File blocked', 'A file was blocked by storage policy.', 'Archivo bloqueado', 'Un archivo fue bloqueado por la politica de almacenamiento.'],
+  'cloudstorage.file.blocked_by_policy': ['File blocked', 'A file was blocked because it goes against our content policy.', 'Archivo bloqueado', 'Un archivo fue bloqueado porque va contra nuestra politica de contenido.'],
+  'cloudstorage.file.pending_review': ['File under review', 'A file is being reviewed against our content policy. It will be available once approved.', 'Archivo en revision', 'Un archivo esta en revision segun nuestra politica de contenido. Estara disponible cuando se apruebe.'],
   'cloudstorage.file.infected': ['Threat detected in a file', 'Review the affected file and take action.', 'Amenaza detectada en un archivo', 'Revisa el archivo afectado y toma una accion.'],
   'cloudstorage.storage_limit_exceeded': ['Storage limit reached', 'Free space or update the storage settings.', 'Limite de almacenamiento alcanzado', 'Libera espacio o actualiza la configuracion de almacenamiento.'],
   'cloudstorage.sharelink.folder_item_added': ['New item in a shared folder', 'A new item was added to a folder you shared.', 'Nuevo elemento en una carpeta compartida', 'Se agrego un elemento a una carpeta que compartiste.'],

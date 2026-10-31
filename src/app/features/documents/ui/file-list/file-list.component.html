@@ -139,6 +139,7 @@
               @switch (status(file)) {
                 @case ('ready') { <span class="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700"><ion-icon name="checkmark-circle" class="text-xs"></ion-icon> Ready</span> }
                 @case ('blocked') { <span class="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600"><ion-icon name="alert-circle" class="text-xs"></ion-icon> Blocked</span> }
+                @case ('review') { <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700"><ion-icon name="shield-outline" class="text-xs"></ion-icon> Under review</span> }
                 @case ('uploading') { <span class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700"><span class="status-pulse"></span> Uploading</span> }
                 @default { <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700"><span class="status-pulse"></span> Processing</span> }
               }

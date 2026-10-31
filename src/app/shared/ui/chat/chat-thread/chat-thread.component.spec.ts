@@ -224,3 +224,109 @@ describe('ChatThreadComponent — F7: transcript de notas de voz, enlace al tran
     }
   });
 });
+
+describe('ChatThreadComponent — ventana de edición (F8)', () => {
+  function setup(messages: ChatMessage[], editPolicy: { windowMinutes: number; maxEdits: number } | null) {
+    TestBed.configureTestingModule({
+      providers: [{ provide: CloudStorageUploadService, useValue: { getFile: vi.fn() } }],
+    });
+    const fixture = TestBed.createComponent(ChatThreadComponent);
+    fixture.componentRef.setInput('conversationId', 'c1');
+    fixture.componentRef.setInput('messages', messages);
+    fixture.componentRef.setInput('editPolicy', editPolicy);
+    fixture.detectChanges();
+    return { fixture, component: fixture.componentInstance, el: fixture.nativeElement as HTMLElement };
+  }
+
+  it('"Edit" solo para mis mensajes dentro de la ventana y bajo el tope', () => {
+    const recent = new Date(Date.now() - 2 * 60_000).toISOString();
+    const old = new Date(Date.now() - 20 * 60_000).toISOString();
+    const { component } = setup(
+      [
+        msg('fresh', 'me', { createdAtUtc: recent }),
+        msg('stale', 'me', { createdAtUtc: old }),
+        msg('capped', 'me', { createdAtUtc: recent, editCount: 5 }),
+        msg('theirs', 'them', { createdAtUtc: recent }),
+      ],
+      { windowMinutes: 15, maxEdits: 5 },
+    );
+    const editable = ['fresh', 'stale', 'capped', 'theirs'].filter(id => component.canEdit(component.messages.find(m => m.id === id)!));
+    expect(editable).toEqual(['fresh']);
+  });
+
+  it('tocar "edited" pide las versiones de ese mensaje', () => {
+    const { fixture, component, el } = setup([msg('e1', 'them', { isEdited: true })], null);
+    const asked: string[] = [];
+    component.editsRequested.subscribe(id => asked.push(id));
+
+    (el.querySelector('[data-role="message-edited"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(asked).toEqual(['e1']);
+  });
+});
+
+describe('ChatThreadComponent — F8b: moderación del Owner/Admin del grupo', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({ providers: [{ provide: CloudStorageUploadService, useValue: {} }] });
+  });
+  afterEach(() => TestBed.resetTestingModule());
+
+  function render(canModerate: boolean) {
+    const fixture = TestBed.createComponent(ChatThreadComponent);
+    fixture.componentRef.setInput('conversationId', 'g1');
+    fixture.componentRef.setInput('canModerate', canModerate);
+    fixture.componentRef.setInput('messages', [msg('t1', 'them'), msg('t2', 'them', { isDeleted: true }), msg('s1', 'them', { isSystem: true })]);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('con permiso de moderar ofrece borrar mensajes ajenos vivos (no borrados ni de sistema)', () => {
+    const fixture = render(true);
+    const asked: string[] = [];
+    fixture.componentInstance.deleteRequested.subscribe(id => asked.push(id));
+    const buttons = (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('[data-role="moderate-delete"]');
+    expect(buttons).toHaveLength(1);
+    buttons[0].click();
+    expect(asked).toEqual(['t1']);
+  });
+
+  it('sin permiso no aparece', () => {
+    expect((render(false).nativeElement as HTMLElement).querySelector('[data-role="moderate-delete"]')).toBeNull();
+  });
+});
+
+describe('ChatThreadComponent — F8d: enlaces, estado del adjunto y reacciones', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({ providers: [{ provide: CloudStorageUploadService, useValue: {} }] });
+  });
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('pinta enlaces seguros, "Scanning…"/"Unavailable" y emite la reacción elegida', () => {
+    const fixture = TestBed.createComponent(ChatThreadComponent);
+    fixture.componentRef.setInput('conversationId', 'c1');
+    fixture.componentRef.setInput('canReact', true);
+    fixture.componentRef.setInput('currentUserId', 'me-id');
+    fixture.componentRef.setInput('reactionCatalog', ['👍', '❤️']);
+    fixture.componentRef.setInput('messages', [
+      msg('t1', 'them', { text: 'Form: https://irs.gov/w9', reactions: [{ emoji: '👍', count: 1, userIds: ['ana'] }] }),
+      msg('a1', 'them', { text: undefined, attachment: { name: 'w2.pdf', size: '2 KB', fileId: 'f1', status: 'Pending' } }),
+      msg('a2', 'me', { text: undefined, attachment: { name: 'bad.exe', size: '1 KB', fileId: 'f2', status: 'Unavailable' } }),
+    ]);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    const link = el.querySelector<HTMLAnchorElement>('[data-role="message-link"]');
+    expect(link?.getAttribute('href')).toBe('https://irs.gov/w9');
+    expect(link?.getAttribute('rel')).toBe('noopener noreferrer');
+
+    const states = Array.from(el.querySelectorAll('[data-role="attachment-state"]')).map(e => e.textContent?.trim());
+    expect(states).toEqual(['Scanning…', 'Unavailable']);
+
+    const toggled: { messageId: string; emoji: string }[] = [];
+    fixture.componentInstance.reactionToggled.subscribe(e => toggled.push(e));
+    el.querySelector<HTMLButtonElement>('[data-role="reaction-chip"]')?.click();
+    expect(toggled).toEqual([{ messageId: 't1', emoji: '👍' }]);
+  });
+});
+

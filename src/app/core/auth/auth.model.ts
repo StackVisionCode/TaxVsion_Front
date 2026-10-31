@@ -163,4 +163,7 @@ export interface MeResponse {
   avatarFileId?: string | null;
   /** Hay una foto nueva esperando el antivirus. */
   avatarPending?: boolean;
+  /** T-20: moderación de la última foto subida (`avatarModerationFileId`). */
+  avatarModerationStatus?: 'under_review' | 'blocked' | null;
+  avatarModerationFileId?: string | null;
 }

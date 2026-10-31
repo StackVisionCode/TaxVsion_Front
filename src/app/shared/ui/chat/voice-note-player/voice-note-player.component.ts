@@ -37,6 +37,8 @@ export class VoiceNotePlayerComponent implements OnDestroy {
     this.bars = src.map((p) => 15 + Math.round((Math.max(0, Math.min(100, p)) / 100) * 85));
   }
   @Input() mine = false;
+  /** F8d: URL de descarga mediada (chat → Communication). Sin resolver, CloudStorage directo (la sala). */
+  @Input() resolveUrl: ((fileId: string) => Promise<string>) | null = null;
 
   private readonly cloudStorage = inject(CloudStorageUploadService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -71,8 +73,10 @@ export class VoiceNotePlayerComponent implements OnDestroy {
     if (!this.playback) {
       this.loading = true;
       try {
-        const res = await firstValueFrom(this.cloudStorage.getDownloadUrl(this.fileId));
-        this.playback = new VoiceNotePlayback(res.downloadUrl, '', this.durationMs, () =>
+        const url = this.resolveUrl
+          ? await this.resolveUrl(this.fileId)
+          : (await firstValueFrom(this.cloudStorage.getDownloadUrl(this.fileId))).downloadUrl;
+        this.playback = new VoiceNotePlayback(url, '', this.durationMs, () =>
           this.cdr.markForCheck(),
         );
       } catch {

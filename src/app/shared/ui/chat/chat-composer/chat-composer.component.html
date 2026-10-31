@@ -44,12 +44,15 @@
 
     <!-- Con texto: enviar. Sin texto: micrófono para grabar una nota de voz. -->
     <!-- pointerdown.preventDefault: tocar enviar no le quita el foco al textarea (en el móvil el teclado no se cierra). -->
-    <button *ngIf="hasText()" type="submit" (pointerdown)="$event.preventDefault()"
-      class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white hover:bg-brand-ink transition-colors"
+    <!-- F8d: contador cerca del tope; pasado el tope no se envía -->
+    <span *ngIf="showCounter()" class="shrink-0 self-center text-xs tabular-nums" [class]="tooLong() ? 'text-red-600' : 'text-gray-400'"
+      data-role="length-counter" [attr.title]="tooLong() ? 'Messages can be up to 4,000 characters.' : null">{{ length() }}/{{ maxLength }}</span>
+    <button *ngIf="hasText() || !allowVoiceNotes" type="submit" (pointerdown)="$event.preventDefault()" [disabled]="!hasText() || tooLong()"
+      class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white hover:bg-brand-ink disabled:opacity-40 transition-colors"
       aria-label="Send message">
       <ion-icon name="send-outline" class="text-base"></ion-icon>
     </button>
-    <button *ngIf="!hasText()" type="button" (click)="startRecording()" [disabled]="uploading || !recorder.isSupported"
+    <button *ngIf="!hasText() && allowVoiceNotes" type="button" (click)="startRecording()" [disabled]="uploading || !recorder.isSupported"
       class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-bold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors"
       aria-label="Record voice note">
       <ion-icon name="mic-outline" class="text-lg"></ion-icon>
