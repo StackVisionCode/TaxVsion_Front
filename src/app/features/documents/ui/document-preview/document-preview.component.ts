@@ -1,7 +1,7 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { formatBytes } from '@shared/utils/format.util';
-import { FileResponse, displayStatus, isFileReady } from '../../data-access/documents.model';
+import { FILE_UNDER_REVIEW_MESSAGE, FileResponse, blockedFileMessage, displayStatus, isFileReady } from '../../data-access/documents.model';
 
 /**
  * Vista rápida de un archivo. La URL de descarga se presigna como "attachment"
@@ -23,7 +23,15 @@ import { FileResponse, displayStatus, isFileReady } from '../../data-access/docu
                 <ion-icon name="shield-outline" class="text-2xl"></ion-icon>
               </span>
               <p class="text-sm font-semibold text-gray-800">This file was blocked</p>
-              <p class="max-w-sm text-xs">It may be unsafe, so it can't be opened or downloaded.</p>
+              <p class="max-w-sm text-xs">{{ blockedMessage() }}</p>
+            </div>
+          } @else if (status() === 'review') {
+            <div class="flex flex-col items-center gap-2 text-gray-500">
+              <span class="grid h-12 w-12 place-items-center rounded-2xl bg-amber-50 text-amber-600">
+                <ion-icon name="shield-outline" class="text-2xl"></ion-icon>
+              </span>
+              <p class="text-sm font-semibold text-gray-800">Under review</p>
+              <p class="max-w-sm text-xs">{{ underReviewMessage }}</p>
             </div>
           } @else if (status() === 'ready') {
             <div class="flex flex-col items-center gap-2 text-gray-500">
@@ -72,6 +80,12 @@ export class DocumentPreviewComponent {
 
   ready(): boolean {
     return !!this.file && isFileReady(this.file.status);
+  }
+
+  readonly underReviewMessage = FILE_UNDER_REVIEW_MESSAGE;
+
+  blockedMessage(): string {
+    return this.file ? blockedFileMessage(this.file.status) : '';
   }
 
   subheading(): string {

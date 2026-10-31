@@ -7,6 +7,7 @@ import {
   OpenSupportTicketResult,
   PagedSupportTickets,
   ReopenSupportTicketResult,
+  SupportTicket,
 } from './support.model';
 
 /**
@@ -48,6 +49,11 @@ export class SupportService {
       query = query.set('includeClosed', params.includeClosed);
     }
     return this.http.get<PagedSupportTickets>(`${this.base}/support`, { params: query });
+  }
+
+  /** GET /support/:id — un ticket (deep link `?ticket=` que no vino en la página cargada). */
+  getTicket(ticketId: string): Observable<SupportTicket> {
+    return this.http.get<SupportTicket>(`${this.base}/support/${ticketId}`);
   }
 
   /**

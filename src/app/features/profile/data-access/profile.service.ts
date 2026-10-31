@@ -100,6 +100,13 @@ export class ProfileService {
   getMyAvatarState(): Observable<AvatarState> {
     return this.http
       .get<AvatarState>(`${this.base}/me`)
-      .pipe(map(me => ({ avatarFileId: me.avatarFileId ?? null, avatarPending: !!me.avatarPending })));
+      .pipe(
+        map(me => ({
+          avatarFileId: me.avatarFileId ?? null,
+          avatarPending: !!me.avatarPending,
+          avatarModerationStatus: me.avatarModerationStatus ?? null,
+          avatarModerationFileId: me.avatarModerationFileId ?? null,
+        })),
+      );
   }
 }

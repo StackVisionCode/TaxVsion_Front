@@ -1,0 +1,113 @@
+<div class="flex flex-1 flex-col gap-6 lg:flex-row" aria-label="Meeting lobby">
+  <!-- Vista previa (espejo) + medidor -->
+  <div class="flex flex-1 flex-col gap-3">
+    <div class="relative aspect-video w-full overflow-hidden rounded-2xl bg-gray-900">
+      <video [srcObject]="previewStream()" autoplay playsinline muted class="h-full w-full -scale-x-100 object-cover" [class.hidden]="!hasCamera()"></video>
+      @if (!hasCamera()) {
+        <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/70">
+          <ion-icon name="videocam-off-outline" class="text-4xl"></ion-icon>
+          <span class="text-xs font-medium">{{ cameraOff() ? 'Camera off' : (capturing() ? 'Starting camera…' : 'Camera unavailable') }}</span>
+        </div>
+      }
+      @if (capturing()) {
+        <span class="absolute right-3 top-3"><app-infinity-loader size="xs" tone="light" /></span>
+      }
+      <!-- Medidor de nivel del micrófono -->
+      <div class="absolute inset-x-3 bottom-3 flex items-center gap-2 rounded-full bg-black/50 px-3 py-1.5 backdrop-blur-sm">
+        <ion-icon [name]="hasMicrophone() ? 'mic-outline' : 'mic-off-outline'" class="shrink-0 text-sm text-white" aria-hidden="true"></ion-icon>
+        <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-white/20" role="meter" aria-label="Microphone level" aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="meterPct()">
+          <div class="h-full rounded-full bg-emerald-400 transition-[width] duration-100 motion-reduce:transition-none" [style.width.%]="meterPct()"></div>
+        </div>
+        <span class="shrink-0 text-[0.625rem] font-medium text-white/80">{{ waitingForPermission() ? 'Waiting for permission…' : (hasMicrophone() ? 'Say something to test' : 'No microphone') }}</span>
+      </div>
+    </div>
+    <div class="flex flex-col gap-1 text-xs">
+      <p [class.text-red-600]="!!audioError()" [class.text-gray-500]="!audioError()">{{ audioError()?.message ?? microphoneStatus() }}</p>
+      @if (microphoneGuidance(); as guidance) {
+        <p class="text-gray-400">{{ guidance }}</p>
+      }
+      @if (!cameraOff()) {
+        <p [class.text-red-600]="!!videoError()" [class.text-gray-500]="!videoError()">{{ videoError()?.message ?? cameraStatus() }}</p>
+        @if (cameraGuidance(); as guidance) {
+          <p class="text-gray-400">{{ guidance }}</p>
+        }
+      }
+    </div>
+  </div>
+
+  <!-- Ajustes y botón de entrar -->
+  <div class="flex w-full flex-col gap-4 lg:w-80" [class]="clearShellNotch() ? 'lg:pt-[var(--shell-notch-height)]' : ''">
+    <div>
+      <p class="text-base font-bold text-gray-900">Ready to join?</p>
+      <p class="mt-0.5 truncate text-sm text-gray-500">{{ meetingTitle() || 'Meeting' }}</p>
+    </div>
+
+    @if (policyError()) {
+      <p role="alert" class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">Could not load the meeting settings. Please try again.</p>
+    }
+
+    <label class="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 px-4 py-3">
+      <span class="text-sm text-gray-800">Join muted</span>
+      <app-switch size="sm" [checked]="joinMuted()" ariaLabel="Join muted" (checkedChange)="setJoinMuted($event)" />
+    </label>
+    <label class="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 px-4 py-3">
+      <span class="text-sm text-gray-800">Join with camera off</span>
+      <app-switch size="sm" [checked]="cameraOff()" ariaLabel="Join with camera off" (checkedChange)="setCameraOff($event)" />
+    </label>
+
+    <div class="flex flex-col gap-2">
+      <label for="lobby-mic" class="text-xs font-semibold text-gray-700">Microphone</label>
+      <select id="lobby-mic" (change)="onMicrophoneChange($any($event.target).value)" [disabled]="microphones().length === 0"
+        class="h-10 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none disabled:opacity-50">
+        @for (device of microphones(); track device.deviceId; let i = $index) {
+          <option [value]="device.deviceId" [selected]="device.deviceId === selectedMicrophoneId()">{{ labelFor(device, i) }}</option>
+        }
+        @if (microphones().length === 0) {
+          <option value="">No microphone found</option>
+        }
+      </select>
+    </div>
+    <div class="flex flex-col gap-2">
+      <label for="lobby-camera" class="text-xs font-semibold text-gray-700">Camera</label>
+      <select id="lobby-camera" (change)="onCameraChange($any($event.target).value)" [disabled]="cameras().length === 0 || cameraOff()"
+        class="h-10 w-full rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none disabled:opacity-50">
+        @for (device of cameras(); track device.deviceId; let i = $index) {
+          <option [value]="device.deviceId" [selected]="device.deviceId === selectedCameraId()">{{ labelFor(device, i) }}</option>
+        }
+        @if (cameras().length === 0) {
+          <option value="">No camera found</option>
+        }
+      </select>
+    </div>
+    <div class="flex flex-col gap-2">
+      <label for="lobby-speaker" class="text-xs font-semibold text-gray-700">Speaker</label>
+      <div class="flex items-center gap-2">
+        <select id="lobby-speaker" (change)="onSpeakerChange($any($event.target).value)" [disabled]="!supportsSinkId || speakers().length === 0"
+          class="h-10 min-w-0 flex-1 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 focus:border-gray-300 focus:outline-none disabled:opacity-50">
+          @for (device of speakers(); track device.deviceId; let i = $index) {
+            <option [value]="device.deviceId" [selected]="device.deviceId === selectedSpeakerId()">{{ labelFor(device, i) }}</option>
+          }
+          @if (speakers().length === 0) {
+            <option value="">System default</option>
+          }
+        </select>
+        <button type="button" (click)="testSpeaker()" [disabled]="testingSpeaker()"
+          class="shrink-0 rounded-full border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50">
+          {{ testingSpeaker() ? 'Playing…' : 'Test speaker' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-auto flex items-center justify-end gap-2 pt-2">
+      <button type="button" data-action="cancel" (click)="cancelJoin()"
+        class="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50">
+        Cancel
+      </button>
+      <button type="button" data-action="join" (click)="confirmJoin()" [disabled]="!canJoin()"
+        class="flex items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
+        <ion-icon name="videocam-outline" class="text-sm"></ion-icon>
+        Join
+      </button>
+    </div>
+  </div>
+</div>

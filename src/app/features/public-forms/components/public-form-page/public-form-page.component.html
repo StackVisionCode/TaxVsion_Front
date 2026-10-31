@@ -451,6 +451,10 @@
             <span>Scanning your files… You can send the form when the scan finishes.</span>
           }
         </div>
+      } @else if (reviewPending()) {
+        <div class="save-strip" role="status" aria-live="polite">
+          <span>A file is under review against our content policy. You can send the form once it's approved, or remove it and upload a different file.</span>
+        </div>
       }
 
       <div (focusout)="saveOnBlur()">
@@ -465,7 +469,7 @@
           [controlsDocumentTitle]="true"
           submitLabel="Send information"
           [submitting]="busy() || uploading()"
-          [submitDisabled]="scanPending()"
+          [submitDisabled]="scanPending() || reviewPending()"
           (answersChange)="updateAnswers($event)"
           (pageIndexChange)="onPageIndexChange()"
           (fileSelected)="uploadFiles($event)"

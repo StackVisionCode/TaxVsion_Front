@@ -155,8 +155,8 @@ export interface StorageUsageResponse {
   allowPublicShareLinks: boolean;
 }
 
-/** Estado "amable" que ve el preparador — nunca el FileStatus técnico del backend. */
-export type FileDisplayStatus = 'uploading' | 'processing' | 'ready' | 'blocked';
+/** Estado "amable" que ve el preparador — nunca el FileStatus técnico del backend. T-20: review = moderación. */
+export type FileDisplayStatus = 'uploading' | 'processing' | 'review' | 'ready' | 'blocked';
 
 /** Traduce el FileStatus del backend al estado visible (sin jerga técnica). */
 export function displayStatus(status: FileStatus): FileDisplayStatus {
@@ -169,7 +169,21 @@ export function displayStatus(status: FileStatus): FileDisplayStatus {
   if (status === 'PendingUpload') {
     return 'uploading';
   }
+  if (status === 'PendingReview') {
+    return 'review';
+  }
   return 'processing';
+}
+
+/** T-20: texto de revisión de contenido. */
+export const FILE_UNDER_REVIEW_MESSAGE =
+  'This file is being reviewed against our content policy. It will be available once approved.';
+
+/** Motivo de un bloqueo: la política de contenido o el antivirus (sin detalles internos del escaneo). */
+export function blockedFileMessage(status: FileStatus): string {
+  return status === 'BlockedByPolicy'
+    ? "Blocked: this file goes against our content policy. It can't be opened or downloaded."
+    : "Blocked — this file may be unsafe. It can't be opened or downloaded.";
 }
 
 /** Un archivo solo se puede descargar/previsualizar cuando ya está listo. */
@@ -230,8 +244,10 @@ export function displayStatusToFileStatuses(status: FileDisplayStatus): FileStat
       return ['Infected', 'BlockedByPolicy'];
     case 'uploading':
       return ['PendingUpload'];
+    case 'review':
+      return ['PendingReview'];
     default:
-      return ['PendingScan', 'Scanning', 'ScanFailed', 'PendingReview'];
+      return ['PendingScan', 'Scanning', 'ScanFailed'];
   }
 }
 

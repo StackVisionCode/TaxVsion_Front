@@ -1,12 +1,15 @@
+import type { ChatEditPolicy } from '@shared/ui/chat/message-edit';
+import type { ChatReactionPolicy } from '@shared/ui/chat/chat-message.model';
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
-import { ChatMessage } from '../chat-thread/chat-thread.component';
+import { ChatMessage } from '@shared/ui/chat/chat-thread/chat-thread.component';
 import {
   ChatParticipant,
   ConversationKind,
+  GroupRole,
   PresenceBusyReason,
   PresenceStatus,
   presenceDotClass,
@@ -33,6 +36,20 @@ export interface ChatConversation {
   recordingName: string | null;
   /** Hay más historial más viejo por cargar (scrollback). */
   hasMoreHistory: boolean;
+  /** F8: ventana de edición de este chat (llega con el historial); undefined = aún no se sabe. */
+  editPolicy?: ChatEditPolicy | null;
+  /** F8a: solo lectura (meeting terminado, ticket cerrado). */
+  isArchived?: boolean;
+  /** F8a (D-12): abierta desde otro módulo (Support); usa el motor del chat pero no va en la lista de Chat. */
+  embedded?: boolean;
+  /** F8d (D-24, T-24): reacciones de este chat (llega con el historial). */
+  reactionPolicy?: ChatReactionPolicy | null;
+  /** F8b: datos del grupo (T-21), modo anuncio (D-23), silencio propio y mi rol. */
+  description?: string | null;
+  groupAvatarFileId?: string | null;
+  adminsOnlyWrite?: boolean;
+  isMuted?: boolean;
+  myRole?: GroupRole | null;
   unread: number;
   messages: ChatMessage[];
 }
@@ -86,6 +103,11 @@ export class ChatConversationListComponent {
       return `📎 ${last.attachment.name}`;
     }
     return last.text ?? '';
+  }
+
+  /** Un grupo muestra su propia foto, no la de un miembro (E2E F8: la fila quedaba con iniciales). */
+  avatarFileId(conv: ChatConversation): string | null | undefined {
+    return conv.kind === 'Group' ? conv.groupAvatarFileId : conv.avatarFileId;
   }
 
   /** El punto de estado solo se muestra si el otro está Online o Busy (Offline no pinta punto). */

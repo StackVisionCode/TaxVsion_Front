@@ -1,84 +1,39 @@
-import {
-  Component,
-  CUSTOM_ELEMENTS_SCHEMA,
-  EventEmitter,
-  Input,
-  OnChanges,
-  Output,
-  SimpleChanges,
-  computed,
-  signal,
-} from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ClickOutsideDirective } from '@shared/directives/click-outside.directive';
-import {
-  SUPPORT_CATEGORY_OPTIONS,
-  SupportCategory,
-  SupportTicketFormValue,
-} from '../../data-access/support.model';
+import { SUPPORT_CATEGORY_OPTIONS, SupportCategory, SupportTicketFormValue } from '../../data-access/support.model';
 
 /**
- * Mini-formulario de tickets del módulo Support (estilo "Aether"): input
- * píldora, dropdown de categoría (cierra con `appClickOutside`)
- * y textarea. Componente dumb: emite `SupportTicketFormValue` y el contenedor
- * (support-page) lo manda al backend vía SupportStore; el chip de confirmación
- * muestra el `ticketId` real que llega por input. Cuando ese input pasa a un
- * valor nuevo (ticket creado), el formulario se resetea solo (ngOnChanges).
+ * Formulario de "New ticket" (va dentro del diálogo de la bandeja). Componente dumb: emite el valor y el store
+ * lo manda al backend; al crear, el diálogo se cierra y el ticket se abre al lado.
  */
 @Component({
   selector: 'app-support-ticket-form',
-  imports: [CommonModule, FormsModule, ClickOutsideDirective],
+  imports: [CommonModule, FormsModule],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './support-ticket-form.component.html',
 })
-export class SupportTicketFormComponent implements OnChanges {
-  /** POST en vuelo: deshabilita el botón y muestra "Sending...". */
+export class SupportTicketFormComponent {
+  /** POST en vuelo: deshabilita el envío y muestra "Sending…". */
   @Input() submitting = false;
-  /** Id real devuelto por el backend; non-null = mostrar chip de confirmación. */
-  @Input() submittedTicketId: string | null = null;
-  /** Mensaje de error del POST (ya normalizado por toApiError en el store). */
+  /** Error del POST (ya normalizado por toApiError en el store). */
   @Input() errorMessage: string | null = null;
 
   @Output() submitTicket = new EventEmitter<SupportTicketFormValue>();
-  @Output() dismissConfirmation = new EventEmitter<void>();
+  @Output() cancel = new EventEmitter<void>();
 
   readonly categories = SUPPORT_CATEGORY_OPTIONS;
+  readonly subjectMax = 200;
+  readonly messageMax = 4000;
 
   readonly subject = signal('');
   readonly category = signal<SupportCategory>('Technical');
   readonly message = signal('');
-  readonly isCategoryOpen = signal(false);
-
-  readonly categoryLabel = computed(
-    () => this.categories.find(option => option.value === this.category())?.label ?? this.category(),
-  );
 
   readonly canSubmit = computed(() => this.subject().trim().length > 0 && this.message().trim().length > 0);
 
-  ngOnChanges(changes: SimpleChanges): void {
-    // Ticket creado con éxito -> limpiar los campos (el chip lo muestra el input).
-    const change = changes['submittedTicketId'];
-    if (change && !change.firstChange && change.currentValue) {
-      this.subject.set('');
-      this.category.set('Technical');
-      this.message.set('');
-    }
-  }
-
-  toggleCategoryDropdown(): void {
-    this.isCategoryOpen.update(open => !open);
-  }
-
-  selectCategory(category: SupportCategory): void {
-    this.category.set(category);
-    this.isCategoryOpen.set(false);
-  }
-
   submit(): void {
-    if (!this.canSubmit() || this.submitting) {
-      return;
-    }
+    if (!this.canSubmit() || this.submitting) return;
     this.submitTicket.emit({
       subject: this.subject().trim(),
       category: this.category(),

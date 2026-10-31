@@ -5,10 +5,17 @@ import { USER_PROFILE_CHANGED_EVENT, UserProfileChangedEvent } from '@core/realt
 import {
   AttachmentFlaggedDto,
   ConversationParticipantAddedDto,
+  ConversationParticipantRemovedDto,
+  ConversationParticipantRoleChangedDto,
+  ConversationSummary,
+  ConversationUpdatedDto,
+  GroupRole,
   DeliveryReceiptDto,
   MessageDeletedDto,
   MessageDto,
   MessageEditedDto,
+  MessageReactionChangedDto,
+  MessageTranscriptUpdatedDto,
   PresenceChangedDto,
   ReadReceiptDto,
   SocketAck,
@@ -29,6 +36,16 @@ const EVENTS = {
   presenceQuery: 'chat.presence.query',
   startDirect: 'chat.conversation.start_direct',
   startGroup: 'chat.conversation.start_group',
+  addReaction: 'chat.message.reaction.add',
+  removeReaction: 'chat.message.reaction.remove',
+  // F8b: administración de grupos y silencio propio.
+  addParticipant: 'chat.conversation.add_participant',
+  removeParticipant: 'chat.conversation.remove_participant',
+  setRole: 'chat.conversation.set_role',
+  transferOwnership: 'chat.conversation.transfer_ownership',
+  updateInfo: 'chat.conversation.update_info',
+  setAdminsOnly: 'chat.conversation.set_admins_only',
+  mute: 'chat.conversation.mute',
 } as const;
 
 /**
@@ -58,6 +75,12 @@ export class ChatSocketService {
   readonly conversationCreated$ = this.realtime.on<{ id: string }>('chat.conversation.created');
   /** Alguien sumó un miembro a una conversación (trae su foto, F5). */
   readonly participantAdded$ = this.realtime.on<ConversationParticipantAddedDto>('chat.conversation.participant_added');
+  /** F8a: archivado (meeting terminado / ticket cerrado) y, desde 8b, datos del grupo. */
+  readonly conversationUpdated$ = this.realtime.on<ConversationUpdatedDto>('chat.conversation.updated');
+  /** F8b: alguien salió o lo sacaron (si soy yo, el grupo deja de estar en mi lista). */
+  readonly participantRemoved$ = this.realtime.on<ConversationParticipantRemovedDto>('chat.conversation.participant_removed');
+  /** F8b (D-22): cambió un rol (promoción, revocación, transferencia o sucesión). */
+  readonly roleChanged$ = this.realtime.on<ConversationParticipantRoleChangedDto>('chat.conversation.participant_role_changed');
   /** Un miembro del staff cambió su nombre o su foto (`user.profile.changed`). */
   readonly userProfileChanged$ = this.realtime.on<UserProfileChangedEvent>(USER_PROFILE_CHANGED_EVENT);
   readonly typingStarted$ = this.realtime.on<TypingDto>('chat.typing.started');
@@ -66,6 +89,11 @@ export class ChatSocketService {
   readonly recordingStopped$ = this.realtime.on<TypingDto>('chat.recording.stopped');
   readonly presenceChanged$ = this.realtime.on<PresenceChangedDto>('chat.presence.changed');
   readonly attachmentFlagged$ = this.realtime.on<AttachmentFlaggedDto>('chat.message.attachment_flagged');
+  /** F8d: reacciones en vivo (también las mías: el servidor las emite a toda la sala). */
+  readonly reactionAdded$ = this.realtime.on<MessageReactionChangedDto>('chat.message.reaction.added');
+  readonly reactionRemoved$ = this.realtime.on<MessageReactionChangedDto>('chat.message.reaction.removed');
+  /** F7 — cambió el transcript de una nota de voz (Processing → Ready/Failed/Skipped). */
+  readonly messageTranscriptUpdated$ = this.realtime.on<MessageTranscriptUpdatedDto>('chat.message.transcript_updated');
   /**
    * Emite el sessionId (sid) de la sesión revocada; el consumidor lo compara con el suyo.
    * El evento va a la sala del usuario (todos sus sockets), así que el consumidor debe
@@ -146,16 +174,68 @@ export class ChatSocketService {
     return this.realtime.emitAck(EVENTS.startDirect, { clientKey: this.realtime.newClientKey(), recipientUserId });
   }
 
-  /** Crea un grupo nuevo (nunca dedupe). Requiere permiso communication.group.create + tenant con internalGroupsEnabled. */
+  /**
+   * Crea un grupo nuevo (nunca dedupe). Requiere communication.group.create + grupos encendidos en la plataforma.
+   * T-12: el ack trae la fila del listado (`conversation`) para pintarla sin releer la lista.
+   */
   async startGroupConversation(
     title: string,
     memberUserIds: string[],
-  ): Promise<SocketAck<{ conversationId: string }>> {
+    description?: string,
+  ): Promise<SocketAck<{ conversationId: string; conversation: ConversationSummary | null }>> {
     return this.realtime.emitAck(EVENTS.startGroup, {
       clientKey: this.realtime.newClientKey(),
       title,
       memberUserIds,
+      ...(description ? { description } : {}),
     });
+  }
+
+  /** F8b: alta directa (Owner/Admin o superpoder). */
+  async addGroupMember(conversationId: string, newMemberUserId: string): Promise<SocketAck<unknown>> {
+    return this.realtime.emitAck(EVENTS.addParticipant, { clientKey: this.realtime.newClientKey(), conversationId, newMemberUserId });
+  }
+
+  /** F8b: sin `targetUserId` = salir del grupo. */
+  async removeGroupMember(conversationId: string, targetUserId?: string): Promise<SocketAck<unknown>> {
+    return this.realtime.emitAck(EVENTS.removeParticipant, {
+      clientKey: this.realtime.newClientKey(),
+      conversationId,
+      ...(targetUserId ? { targetUserId } : {}),
+    });
+  }
+
+  async setGroupMemberRole(conversationId: string, targetUserId: string, role: Exclude<GroupRole, 'Owner'>): Promise<SocketAck<unknown>> {
+    return this.realtime.emitAck(EVENTS.setRole, { conversationId, targetUserId, role });
+  }
+
+  async transferGroupOwnership(conversationId: string, targetUserId: string): Promise<SocketAck<unknown>> {
+    return this.realtime.emitAck(EVENTS.transferOwnership, { conversationId, targetUserId });
+  }
+
+  /** Campos ausentes no cambian; `null` borra (descripción/imagen). */
+  async updateGroupInfo(
+    conversationId: string,
+    info: { title?: string; description?: string | null; avatarFileId?: string | null },
+  ): Promise<SocketAck<unknown>> {
+    return this.realtime.emitAck(EVENTS.updateInfo, { conversationId, ...info });
+  }
+
+  async setGroupAdminsOnly(conversationId: string, enabled: boolean): Promise<SocketAck<unknown>> {
+    return this.realtime.emitAck(EVENTS.setAdminsOnly, { conversationId, enabled });
+  }
+
+  async setConversationMuted(conversationId: string, muted: boolean): Promise<SocketAck<unknown>> {
+    return this.realtime.emitAck(EVENTS.mute, { conversationId, muted });
+  }
+
+  /** F8d: agrega/quita una reacción (un emoji del catálogo; el servidor valida y aplica el tope D-24). */
+  async addReaction(messageId: string, emoji: string): Promise<SocketAck<{ wasNew: boolean }>> {
+    return this.realtime.emitAck(EVENTS.addReaction, { clientKey: this.realtime.newClientKey(), messageId, emoji });
+  }
+
+  async removeReaction(messageId: string, emoji: string): Promise<SocketAck<unknown>> {
+    return this.realtime.emitAck(EVENTS.removeReaction, { clientKey: this.realtime.newClientKey(), messageId, emoji });
   }
 
   typingStart(conversationId: string): void {

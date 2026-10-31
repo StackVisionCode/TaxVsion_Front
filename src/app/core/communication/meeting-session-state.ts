@@ -13,4 +13,9 @@ export type ActiveMeetingPhase = 'idle' | 'joining' | 'waiting' | 'passcode' | '
 @Injectable({ providedIn: 'root' })
 export class MeetingSessionState {
   readonly phase = signal<ActiveMeetingPhase>('idle');
+  /**
+   * F6 — el mini-player pidió "Invite": vuelve a /meetings y la sala abre el panel de invitaciones
+   * (la página lo consume y lo vuelve a false). El mini-player vive en core y no puede abrir el panel.
+   */
+  readonly invitePanelRequested = signal(false);
 }

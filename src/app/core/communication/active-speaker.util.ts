@@ -10,6 +10,13 @@
  * - `isSpeakingNow`: "hablando" para el indicador visual, con cola de `holdMs` para que no parpadee.
  * - `pickMiniPlayerTiles`: arma el layout del mini-player: tile principal (hablante → fijado →
  *   primer remoto), miniaturas ordenadas (los que hablaron primero) y desborde "+N".
+ * - `rmsLevel`: nivel RMS (0–1) de un buffer de `AnalyserNode.getByteTimeDomainData` (detector,
+ *   medidor del lobby).
+ * - `levelBars`: cuantiza un nivel RMS a las 3 barras del medidor del tile (0–3), para que el signal
+ *   solo cambie cuando cambia lo que se ve.
+ * - `SpeakingThrottle` (T-69): emite `meeting.speaking` como máximo `maxPerSecond` veces por segundo
+ *   y, si se pasa, guarda el ÚLTIMO estado para mandarlo cuando la ventana se libere (nunca se pierde
+ *   el estado final).
  *
  * Ejemplo:
  *   let state = INITIAL_SPEAKER_STATE;
@@ -95,6 +102,19 @@ export function isSpeakingNow(
   return at !== undefined && now - at <= options.holdMs;
 }
 
+/** Nivel RMS (0–1) de un buffer de tiempo de `AnalyserNode` (bytes centrados en 128). */
+export function rmsLevel(buffer: Uint8Array): number {
+  if (buffer.length === 0) {
+    return 0;
+  }
+  let sum = 0;
+  for (const value of buffer) {
+    const centered = (value - 128) / 128;
+    sum += centered * centered;
+  }
+  return Math.sqrt(sum / buffer.length);
+}
+
 export interface MiniPlayerTiles {
   /** userId del tile principal (null = no hay remotos: el principal es mi cámara). */
   main: string | null;
@@ -134,4 +154,65 @@ export function pickMiniPlayerTiles(
   const limit = Math.max(0, maxThumbs);
   const thumbs = rest.length <= limit ? rest : rest.slice(0, Math.max(0, limit - 1));
   return { main, thumbs, overflow: rest.length - thumbs.length };
+}
+
+/** Barras del medidor (0–3) a partir del nivel RMS: `threshold` enciende la primera. */
+export function levelBars(level: number, threshold: number = DEFAULT_SPEAKER_OPTIONS.threshold): 0 | 1 | 2 | 3 {
+  if (level < threshold) {
+    return 0;
+  }
+  if (level < threshold * 3) {
+    return 1;
+  }
+  return level < threshold * 6 ? 2 : 3;
+}
+
+const ONE_SECOND_MS = 1000;
+
+/**
+ * Tope de emisiones por segundo con coalescencia del último valor. `now` se inyecta para los tests.
+ */
+export class SpeakingThrottle {
+  private sentAt: number[] = [];
+  private pending: boolean | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(
+    private readonly maxPerSecond: number,
+    private readonly send: (speaking: boolean) => void,
+    private readonly now: () => number = () => Date.now(),
+  ) {}
+
+  push(speaking: boolean): void {
+    const t = this.now();
+    this.sentAt = this.sentAt.filter(at => t - at < ONE_SECOND_MS);
+    if (this.sentAt.length < Math.max(1, this.maxPerSecond)) {
+      this.sentAt.push(t);
+      this.pending = null;
+      this.send(speaking);
+      return;
+    }
+    // Ventana llena: se recuerda SOLO el último estado y se manda cuando caduque la emisión más vieja.
+    this.pending = speaking;
+    if (!this.timer) {
+      const wait = Math.max(0, ONE_SECOND_MS - (t - this.sentAt[0]));
+      this.timer = setTimeout(() => {
+        this.timer = null;
+        const next = this.pending;
+        this.pending = null;
+        if (next !== null) {
+          this.push(next);
+        }
+      }, wait);
+    }
+  }
+
+  dispose(): void {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    this.pending = null;
+    this.sentAt = [];
+  }
 }

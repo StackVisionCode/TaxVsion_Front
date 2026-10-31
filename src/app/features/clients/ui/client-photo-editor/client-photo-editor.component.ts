@@ -17,7 +17,12 @@ import { FileDropDirective } from '@shared/directives/file-drop.directive';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { AvatarUrlService } from '@core/profile-photo/avatar-url';
 import { PROFILE_PHOTO_ACCEPT } from '@core/profile-photo/profile-photo-image.util';
-import { PhotoStatus } from '@core/profile-photo/profile-photo-upload';
+import {
+  PHOTO_BLOCKED_MESSAGE,
+  PHOTO_UNDER_REVIEW_MESSAGE,
+  PhotoStatus,
+  photoModerationNotice,
+} from '@core/profile-photo/profile-photo-upload';
 import {
   CLIENT_PHOTO_FAILED_MESSAGE,
   CLIENT_PHOTO_STILL_PROCESSING_MESSAGE,
@@ -88,6 +93,8 @@ export class ClientPhotoEditorComponent {
   readonly statusLabel = computed(() => STATUS_LABELS[this.status()]);
   readonly imageUrl = computed(() => this.avatarUrls.url(this.client().avatarFileId));
   readonly hasPhoto = computed(() => !!this.client().avatarFileId);
+  /** T-20: aviso persistente de la última foto (en revisión o bloqueada), si no hay ya un error en línea. */
+  readonly moderationNotice = computed(() => (this.error() ? null : photoModerationNotice(this.client().avatarModerationStatus)));
   readonly removeOpen = signal(false);
 
   private readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('photoInput');
@@ -107,7 +114,9 @@ export class ClientPhotoEditorComponent {
           this.store.reset();
           this.removeOpen.set(false);
         }
-        if (editable && c.avatarUploadStatus === 'processing' && c.pendingAvatarFileId && !this.store.busy()) {
+        // En revisión de contenido espera a un revisor: no se sondea (el aviso queda bajo la cabecera).
+        const underReview = c.avatarModerationStatus === 'under_review';
+        if (editable && c.avatarUploadStatus === 'processing' && c.pendingAvatarFileId && !underReview && !this.store.busy()) {
           this.store.resume(c.id, c.pendingAvatarFileId).subscribe({
             next: outcome => outcome !== 'timeout' && this.changed.emit(),
             error: () => {},
@@ -148,6 +157,11 @@ export class ClientPhotoEditorComponent {
           this.changed.emit();
         } else if (outcome === 'failed') {
           this.toast.error(CLIENT_PHOTO_FAILED_MESSAGE);
+        } else if (outcome === 'blocked') {
+          this.toast.error(PHOTO_BLOCKED_MESSAGE);
+        } else if (outcome === 'under_review') {
+          this.toast.info(PHOTO_UNDER_REVIEW_MESSAGE);
+          this.changed.emit();
         } else {
           this.toast.info(CLIENT_PHOTO_STILL_PROCESSING_MESSAGE);
         }

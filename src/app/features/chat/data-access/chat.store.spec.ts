@@ -5,11 +5,12 @@ import { vi } from 'vitest';
 import { AuthService } from '@core/auth/auth.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { ToastService } from '@shared/ui/toast/toast.service';
+import { SoundsService } from '@core/communication/media/sounds.service';
 import { ChatAttachmentsService } from './chat-attachments.service';
 import { ChatDirectoryService } from './chat-directory.service';
 import { ChatService } from './chat.service';
 import { ChatSocketService } from './chat-socket.service';
-import { CustomerDirectoryEntry } from './chat.model';
+import { CustomerDirectoryEntry, DirectoryPage } from './chat.model';
 import { ChatStore } from './chat.store';
 import { avatarColorFor } from '@shared/utils/avatar.util';
 
@@ -23,14 +24,17 @@ const customer = (displayName: string): CustomerDirectoryEntry => ({
 
 describe('ChatStore — búsqueda de directorio', () => {
   let store: ChatStore;
-  let responses: Record<string, Subject<CustomerDirectoryEntry[]>>;
+  let responses: Record<string, Subject<DirectoryPage<CustomerDirectoryEntry>>>;
+  let pageCustomers: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     responses = {};
-    const directory = {
-      searchCustomers: vi.fn((term: string) => (responses[term] = new Subject<CustomerDirectoryEntry[]>())),
-      searchEmployees: vi.fn(),
-    };
+    // F8c (T-14): rail paginado; la clave es `término|cursor` ('' = sin término).
+    pageCustomers = vi.fn(
+      (term: string | null, cursor: string | null = null) =>
+        (responses[`${term ?? ''}|${cursor ?? ''}`] = new Subject<DirectoryPage<CustomerDirectoryEntry>>()),
+    );
+    const directory = { pageCustomers, pageEmployees: vi.fn() };
     TestBed.configureTestingModule({
       providers: [
         { provide: ChatDirectoryService, useValue: directory },
@@ -40,6 +44,7 @@ describe('ChatStore — búsqueda de directorio', () => {
         { provide: ChatAttachmentsService, useValue: {} },
         { provide: CloudStorageUploadService, useValue: {} },
         { provide: ToastService, useValue: {} },
+        { provide: SoundsService, useValue: { play: vi.fn() } },
       ],
     });
     store = TestBed.inject(ChatStore);
@@ -51,21 +56,35 @@ describe('ChatStore — búsqueda de directorio', () => {
     store.searchCustomers('mina');
     store.searchCustomers('minat');
 
-    responses['minat'].next([customer('Minato')]);
-    responses['mina'].next([customer('Minaya'), customer('Minato')]);
+    responses['minat|'].next({ items: [customer('Minato')], nextCursor: null });
+    responses['mina|'].next({ items: [customer('Minaya'), customer('Minato')], nextCursor: null });
 
     expect(store.customerResults().map(c => c.displayName)).toEqual(['Minato']);
     expect(store.employeeSearchLoading()).toBe(false);
   });
 
-  it('borrar el texto cancela la búsqueda en vuelo', () => {
+  it('borrar el texto cancela la búsqueda en vuelo y vuelve a la primera página', () => {
     store.searchCustomers('mina');
     store.searchCustomers('');
 
-    responses['mina'].next([customer('Minato')]);
-
+    responses['mina|'].next({ items: [customer('Minato')], nextCursor: null });
     expect(store.customerResults()).toEqual([]);
+
+    responses['|'].next({ items: [customer('Ana'), customer('Beto')], nextCursor: null });
+    expect(store.customerResults().map(c => c.displayName)).toEqual(['Ana', 'Beto']);
     expect(store.employeeSearchLoading()).toBe(false);
+  });
+
+  it('F8c: "Load more" pide la siguiente página con el mismo término y la suma', () => {
+    store.searchCustomers('a');
+    responses['a|'].next({ items: [customer('Ana')], nextCursor: 'c1' });
+    expect(store.hasMoreDirectory()).toBe(true);
+
+    store.loadMoreDirectory();
+    expect(pageCustomers).toHaveBeenLastCalledWith('a', 'c1');
+    responses['a|c1'].next({ items: [customer('Alba')], nextCursor: null });
+    expect(store.customerResults().map(c => c.displayName)).toEqual(['Ana', 'Alba']);
+    expect(store.hasMoreDirectory()).toBe(false);
   });
 });
 
@@ -151,6 +170,7 @@ describe('ChatStore — fotos de los participantes', () => {
         { provide: ChatAttachmentsService, useValue: {} },
         { provide: CloudStorageUploadService, useValue: {} },
         { provide: ToastService, useValue: { error: vi.fn() } },
+        { provide: SoundsService, useValue: { play: vi.fn() } },
       ],
     });
     store = TestBed.inject(ChatStore);
@@ -192,5 +212,187 @@ describe('ChatStore — fotos de los participantes', () => {
       addedAtUtc: '2026-10-28T10:00:00Z',
     });
     expect(find('g1').participants?.find(p => p.userId === 'u-luis')?.avatarFileId).toBe('f-luis');
+  });
+});
+
+describe('ChatStore — F7: transcripts de notas de voz y búsqueda', () => {
+  let store: ChatStore;
+  const streams = new Map<string, Subject<unknown>>();
+  const stream = (name: string) => {
+    if (!streams.has(name)) {
+      streams.set(name, new Subject<unknown>());
+    }
+    return streams.get(name)!;
+  };
+  let searchMessages: ReturnType<typeof vi.fn>;
+  let searchResponse: Subject<unknown>;
+  let requestVoiceNoteTranscript: ReturnType<typeof vi.fn>;
+  let transcriptResponse: Subject<unknown>;
+  let toastError: ReturnType<typeof vi.fn>;
+
+  const base = {
+    conversationId: 'c1',
+    senderDisplayName: 'Ana',
+    replyToMessageId: null,
+    forwardedFromMessageId: null,
+    isEdited: false,
+    isDeleted: false,
+    isPinned: false,
+    pinnedAtUtc: null,
+    pinnedByUserId: null,
+    editedAtUtc: null,
+  };
+  const history = {
+    items: [
+      // DESC (más nuevo primero), como el backend.
+      { ...base, id: 's1', senderId: 'system', kind: 'System', body: 'Call transcript is ready', attachmentFileId: 'f-txt', createdAtUtc: '2026-10-30T10:02:00Z' },
+      {
+        ...base,
+        id: 'v1',
+        senderId: 'u-ana',
+        kind: 'Attachment',
+        body: null,
+        attachmentFileId: 'f-voice',
+        audioDurationMs: 4000,
+        audioWaveform: [10, 20],
+        transcriptState: 'Processing',
+        transcriptText: null,
+        createdAtUtc: '2026-10-30T10:01:00Z',
+      },
+    ],
+    nextBeforeUtc: null,
+    nextAfterUtc: null,
+    editPolicy: { windowMinutes: 5, maxEdits: 3 },
+  };
+
+  beforeEach(() => {
+    streams.clear();
+    searchResponse = new Subject<unknown>();
+    searchMessages = vi.fn(() => searchResponse);
+    transcriptResponse = new Subject<unknown>();
+    requestVoiceNoteTranscript = vi.fn(() => transcriptResponse);
+    toastError = vi.fn();
+    const socket = new Proxy(
+      {
+        connected: signal(true),
+        connect: vi.fn(),
+        queryPresence: vi.fn(),
+        markRead: vi.fn(() => Promise.resolve()),
+        markDelivered: vi.fn(() => Promise.resolve()),
+        editMessage: vi.fn(() => Promise.resolve({ ok: false, code: 'Chat.Message.EditWindowExpired', message: 'x' })),
+      } as Record<string, unknown>,
+      { get: (target, key: string) => (key in target ? target[key] : key.endsWith('$') ? stream(key) : undefined) },
+    );
+    const summary = {
+      id: 'c1',
+      kind: 'Direct' as const,
+      title: null,
+      lastMessageAtUtc: null,
+      updatedAtUtc: '2026-10-30T10:00:00Z',
+      unreadCount: 0,
+      participants: [
+        { userId: 'me', displayName: 'Me', isPrimaryPreparer: false },
+        { userId: 'u-ana', displayName: 'Ana', isPrimaryPreparer: true },
+      ],
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ChatDirectoryService, useValue: {} },
+        { provide: AuthService, useValue: { currentUser: signal({ id: 'me' }) } },
+        {
+          provide: ChatService,
+          useValue: {
+            listConversations: () => of({ items: [summary], page: 1, size: 50, totalCount: 1 }),
+            getMessages: () => of(history),
+            searchMessages,
+            requestVoiceNoteTranscript,
+          },
+        },
+        { provide: ChatSocketService, useValue: socket },
+        { provide: ChatAttachmentsService, useValue: {} },
+        { provide: CloudStorageUploadService, useValue: { getFile: () => new Subject() } },
+        { provide: ToastService, useValue: { error: toastError } },
+        { provide: SoundsService, useValue: { play: vi.fn() } },
+      ],
+    });
+    store = TestBed.inject(ChatStore);
+    store.load('c1');
+  });
+
+  afterEach(() => TestBed.resetTestingModule());
+
+  const messages = () => store.conversations().find(c => c.id === 'c1')!.messages;
+
+  it('mapea el estado del transcript de la nota de voz y el archivo del mensaje del sistema', () => {
+    const voice = messages().find(m => m.id === 'v1')!;
+    expect(voice.voiceNote).toEqual(expect.objectContaining({ fileId: 'f-voice', transcriptState: 'Processing', transcriptText: null }));
+    expect(messages().find(m => m.id === 's1')!.systemAttachmentFileId).toBe('f-txt');
+  });
+
+  it('chat.message.transcript_updated parchea el mensaje cargado (y no toca otras conversaciones)', () => {
+    stream('messageTranscriptUpdated$').next({ conversationId: 'c1', messageId: 'v1', transcriptState: 'Ready', transcriptText: 'Hola, te mando el W-2.' });
+    expect(messages().find(m => m.id === 'v1')!.voiceNote).toEqual(
+      expect.objectContaining({ transcriptState: 'Ready', transcriptText: 'Hola, te mando el W-2.' }),
+    );
+
+    stream('messageTranscriptUpdated$').next({ conversationId: 'otra', messageId: 'v1', transcriptState: 'Failed', transcriptText: null });
+    expect(messages().find(m => m.id === 'v1')!.voiceNote?.transcriptState).toBe('Ready');
+  });
+
+  it('F8: la ventana de edición del historial queda en la conversación (la usa el hilo)', () => {
+    expect(store.conversations().find(c => c.id === 'c1')?.editPolicy).toEqual({ windowMinutes: 5, maxEdits: 3 });
+  });
+
+  it('F8: una edición fuera de la ventana avisa "This message can no longer be edited."', async () => {
+    await store.editMessage('v1', 'new text');
+    expect(toastError).toHaveBeenCalledWith('This message can no longer be edited.');
+  });
+
+  it('"Transcribe": marca Transcribing… al instante, pide al servidor y aplica la respuesta', () => {
+    stream('messageTranscriptUpdated$').next({ conversationId: 'c1', messageId: 'v1', transcriptState: 'NotRequested', transcriptText: null });
+
+    store.requestVoiceNoteTranscript('v1');
+
+    expect(requestVoiceNoteTranscript).toHaveBeenCalledWith('c1', 'v1');
+    expect(messages().find(m => m.id === 'v1')!.voiceNote?.transcriptState).toBe('Processing');
+    transcriptResponse.next({ conversationId: 'c1', messageId: 'v1', transcriptState: 'Processing', transcriptText: null });
+    expect(messages().find(m => m.id === 'v1')!.voiceNote?.transcriptState).toBe('Processing');
+  });
+
+  it('si el pedido falla, vuelve a "Transcribe" y avisa', () => {
+    stream('messageTranscriptUpdated$').next({ conversationId: 'c1', messageId: 'v1', transcriptState: 'NotRequested', transcriptText: null });
+
+    store.requestVoiceNoteTranscript('v1');
+    transcriptResponse.error({ status: 409 });
+
+    expect(messages().find(m => m.id === 'v1')!.voiceNote?.transcriptState).toBe('NotRequested');
+    expect(toastError).toHaveBeenCalledWith("Couldn't start the transcription. Try again.");
+  });
+
+  it('busca en la conversación activa (texto y transcripts) y con menos de 2 caracteres limpia', () => {
+    store.searchMessages('w');
+    expect(searchMessages).not.toHaveBeenCalled();
+
+    store.searchMessages('w-2');
+    expect(searchMessages).toHaveBeenCalledWith('c1', 'w-2', 30);
+    expect(store.searchLoading()).toBe(true);
+
+    searchResponse.next({
+      items: [{ ...history.items[1], transcriptState: 'Ready', transcriptText: 'te mando el W-2' }],
+      limit: 30,
+      truncated: false,
+    });
+    expect(store.searchLoading()).toBe(false);
+    expect(store.searchResults()).toEqual([expect.objectContaining({ id: 'v1', senderName: 'Ana', text: 'te mando el W-2', isVoiceNote: true })]);
+
+    store.searchMessages('');
+    expect(store.searchResults()).toEqual([]);
+  });
+
+  it('un error de la búsqueda se muestra legible', () => {
+    store.searchMessages('hola');
+    searchResponse.error({ status: 400, error: { code: 'Chat.Search.QueryTooLong', message: 'Query must be at most 200 chars.' } });
+    expect(store.searchError()).toBeTruthy();
+    expect(store.searchResults()).toEqual([]);
   });
 });

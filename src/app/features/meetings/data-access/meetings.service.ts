@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { readOnlyRequestContext } from '@core/http/read-only-request';
 import {
+  ContinueMeetingResponse,
   CreateMeetingInvitationsResponse,
   CreateMeetingRequest,
   CreateMeetingResponse,
@@ -11,17 +12,21 @@ import {
   ListMeetingInvitationsResponse,
   MeetingCustomerEntry,
   MeetingEmployeeEntry,
+  MeetingChatHistoryResponse,
+  MeetingEventsPageResponse,
   MeetingInviteeInput,
+  MeetingLimits,
   MeetingsPageResponse,
   MeetingsScope,
   MeetingStatsResponse,
+  MeetingSummaryResponse,
   StartMeetingResponse,
 } from './meeting.model';
 
 /**
  * Cliente HTTP de meetings sobre el servicio Communication (`/communication`
  * vía Gateway). El JWT lo pone el interceptor global — acá no se agregan
- * headers. Nota de contrato: NO existe GET /meetings/{id} (detalle) ni ningún
+ * headers. El detalle es la ficha (`/meetings/{id}/summary`, solo quien participó); no hay
  * endpoint de edición de título/descripción — solo reschedule de la fecha.
  * Unirse a la sala (WebRTC) es Socket.IO-only y queda fuera de este cliente.
  */
@@ -59,6 +64,11 @@ export class MeetingsService {
     return this.http.get<MeetingStatsResponse>(`${this.base}/meetings/stats`);
   }
 
+  /** GET /communication/meetings/limits — duración por defecto/máxima y cupo efectivos de la oficina (F3). */
+  limits(): Observable<MeetingLimits> {
+    return this.http.get<MeetingLimits>(`${this.base}/meetings/limits`);
+  }
+
   /** POST /communication/meetings — requiere permiso `communication.meeting.create`. */
   create(req: CreateMeetingRequest): Observable<CreateMeetingResponse> {
     return this.http.post<CreateMeetingResponse>(`${this.base}/meetings`, req);
@@ -74,6 +84,15 @@ export class MeetingsService {
     return this.http.post<EndMeetingResponse>(`${this.base}/meetings/${id}/end`, {});
   }
 
+  /**
+   * F3 — POST /communication/meetings/{id}/continue: "Start a new meeting" tras un fin por tiempo (D-34,
+   * sin prórroga). Host/cohost de una terminada + `communication.meeting.create`; crea "X (cont.)" con los
+   * mismos invitados. Después se inicia con `start` y se entra con el join normal.
+   */
+  continueMeeting(id: string): Observable<ContinueMeetingResponse> {
+    return this.http.post<ContinueMeetingResponse>(`${this.base}/meetings/${id}/continue`, {});
+  }
+
   /** POST /communication/meetings/{id}/cancel — host-only, solo desde Scheduled. 204. */
   cancel(id: string, reason?: string): Observable<void> {
     return this.http.post<void>(`${this.base}/meetings/${id}/cancel`, reason ? { reason } : {});
@@ -85,6 +104,31 @@ export class MeetingsService {
    */
   reschedule(id: string, newScheduledForUtc: string | null): Observable<void> {
     return this.http.post<void>(`${this.base}/meetings/${id}/reschedule`, { newScheduledForUtc });
+  }
+
+  // ---------- Ficha del meeting ----------
+
+  /** Ficha: resumen, asistencia por persona, invitados que no entraron y totales. */
+  summary(id: string): Observable<MeetingSummaryResponse> {
+    return this.http.get<MeetingSummaryResponse>(`${this.base}/meetings/${id}/summary`);
+  }
+
+  /** Actividad de la ficha (el servidor omite voz, calidad y media), paginada por `seq`. */
+  events(id: string, afterSeq: number | null, take = 100): Observable<MeetingEventsPageResponse> {
+    let params = new HttpParams().set('take', take).set('activity', 'true');
+    if (afterSeq !== null) {
+      params = params.set('after', afterSeq);
+    }
+    return this.http.get<MeetingEventsPageResponse>(`${this.base}/meetings/${id}/events`, { params });
+  }
+
+  /** F8a (D-01) — chat de la sala (más nuevo primero), paginado con `before`. */
+  chatHistory(id: string, before: string | null, take = 50): Observable<MeetingChatHistoryResponse> {
+    let params = new HttpParams().set('take', take);
+    if (before) {
+      params = params.set('before', before);
+    }
+    return this.http.get<MeetingChatHistoryResponse>(`${this.base}/meetings/${id}/chat`, { params });
   }
 
   // ---------- Invitaciones (host/cohost) ----------

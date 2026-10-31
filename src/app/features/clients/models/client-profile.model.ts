@@ -1,3 +1,4 @@
+import type { PhotoModerationStatus } from '@core/profile-photo/profile-photo-upload';
 import type {
   AddressResponse,
   ContactPointResponse,
@@ -83,6 +84,9 @@ export interface ClientProfile {
   /** Foto subida que todavía revisa el antivirus. */
   pendingAvatarFileId?: string | null;
   avatarUploadStatus?: CustomerAvatarUploadStatus | null;
+  /** T-20: moderación de la última foto subida (`avatarModerationFileId`). */
+  avatarModerationStatus?: PhotoModerationStatus | null;
+  avatarModerationFileId?: string | null;
   individual?: ClientProfileIndividualDetails;
   company?: ClientProfileCompanyDetails;
   /** Direcciones reales de GET /customers/{id} (companion doc §3.2). */

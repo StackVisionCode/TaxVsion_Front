@@ -42,18 +42,18 @@ describe('ProfileService · foto de perfil', () => {
     req.flush(null, { status: 204, statusText: 'No Content' });
   });
 
-  it('el sondeo lee solo avatarFileId/avatarPending de GET /auth/me (con defaults si faltan)', () => {
+  it('el sondeo lee solo la foto, su pendiente y su moderación de GET /auth/me (con defaults si faltan)', () => {
     const states: unknown[] = [];
     service.getMyAvatarState().subscribe(s => states.push(s));
     service.getMyAvatarState().subscribe(s => states.push(s));
 
     const [first, second] = http.match(api.tenantUrl('/auth/me'));
-    first.flush({ id: 'u', name: 'Ana', avatarFileId: 'f-1', avatarPending: true });
+    first.flush({ id: 'u', name: 'Ana', avatarFileId: 'f-1', avatarPending: true, avatarModerationStatus: 'under_review', avatarModerationFileId: 'f-2' });
     second.flush({ id: 'u', name: 'Ana' });
 
     expect(states).toEqual([
-      { avatarFileId: 'f-1', avatarPending: true },
-      { avatarFileId: null, avatarPending: false },
+      { avatarFileId: 'f-1', avatarPending: true, avatarModerationStatus: 'under_review', avatarModerationFileId: 'f-2' },
+      { avatarFileId: null, avatarPending: false, avatarModerationStatus: null, avatarModerationFileId: null },
     ]);
   });
 });

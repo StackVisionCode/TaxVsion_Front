@@ -160,7 +160,7 @@ export type FormRequestInboxView = 'All' | 'Clients' | 'External' | 'NeedsAction
 export type FormActionRunStatus = 'Requested' | 'Completed' | 'Rejected' | 'Failed' | 'Skipped';
 export type CustomerLinkStatus = 'None' | 'Linked' | 'Blocked';
 export type FormRevisionOutcome = 'Pending' | 'Returned' | 'Completed';
-export type FormAttachmentStatus = 'Pending' | 'Available' | 'Rejected' | 'Detached';
+export type FormAttachmentStatus = 'Pending' | 'Available' | 'Rejected' | 'Detached' | 'UnderReview';
 // P-18 — estado de la firma opcional (Signature service). Serializado PascalCase como el resto de enums.
 export type FormSignatureStatus =
   | 'None'

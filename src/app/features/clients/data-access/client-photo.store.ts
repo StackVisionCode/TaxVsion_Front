@@ -8,9 +8,11 @@ import {
   ProfilePhotoError,
 } from '@core/profile-photo/profile-photo-image.util';
 import {
+  PHOTO_BLOCKED_MESSAGE,
   PhotoPollResult,
   PhotoStatus,
   PhotoUploadOutcome,
+  photoModerationOf,
   pollPhotoOutcome,
 } from '@core/profile-photo/profile-photo-upload';
 import { ClientsStore } from './clients.store';
@@ -24,7 +26,10 @@ export const CLIENT_PHOTO_STILL_PROCESSING_MESSAGE = "The client's photo is stil
  * `pending` mientras siga pendiente (o si la lectura falló) y `failed` si se descartó o la reemplazó otra.
  */
 export function classifyCustomerAvatarPoll(
-  detail: Pick<CustomerDetailResponse, 'avatarFileId' | 'pendingAvatarFileId' | 'avatarUploadStatus'> | null,
+  detail: Pick<
+    CustomerDetailResponse,
+    'avatarFileId' | 'pendingAvatarFileId' | 'avatarUploadStatus' | 'avatarModerationStatus' | 'avatarModerationFileId'
+  > | null,
   fileId: string,
 ): PhotoPollResult {
   if (!detail) {
@@ -32,6 +37,11 @@ export function classifyCustomerAvatarPoll(
   }
   if (detail.avatarFileId === fileId) {
     return 'updated';
+  }
+  // T-20: retenida por la moderación de contenido (en revisión) o bloqueada por la política.
+  const moderation = photoModerationOf(detail.avatarModerationStatus, detail.avatarModerationFileId, fileId);
+  if (moderation) {
+    return moderation;
   }
   if (detail.pendingAvatarFileId === fileId) {
     return 'pending';
@@ -143,6 +153,8 @@ export class ClientPhotoStore {
       this.clients.afterPhotoChange(customerId);
     } else if (outcome === 'failed') {
       this._error.set(CLIENT_PHOTO_FAILED_MESSAGE);
+    } else if (outcome === 'blocked') {
+      this._error.set(PHOTO_BLOCKED_MESSAGE);
     }
   }
 }

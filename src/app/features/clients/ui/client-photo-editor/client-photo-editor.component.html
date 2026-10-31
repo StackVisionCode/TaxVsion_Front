@@ -45,6 +45,10 @@
     <p class="mt-2 flex items-center gap-1.5 text-xs text-red-600" role="alert">
       <ion-icon name="alert-circle-outline" aria-hidden="true"></ion-icon>{{ err }}
     </p>
+  } @else if (moderationNotice(); as notice) {
+    <p class="mt-2 flex items-center gap-1.5 text-xs text-amber-700" role="status" data-role="photo-moderation">
+      <ion-icon name="shield-outline" aria-hidden="true"></ion-icon>{{ notice }}
+    </p>
   }
 
   <app-confirm-dialog [isOpen]="removeOpen()" heading="Remove client photo?"

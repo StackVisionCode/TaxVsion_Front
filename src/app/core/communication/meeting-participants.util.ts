@@ -1,5 +1,6 @@
 import type { UserProfileChangedEvent } from '@core/realtime/realtime.model';
 import type { MeetingParticipantDto } from './meeting.model';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
 
 /**
  * Fotos del roster de un meeting. El backend solo resuelve `avatarFileId` en el snapshot y al entrar;
@@ -42,4 +43,23 @@ export function applyProfileChangeToRoster(
           ...(change.displayName ? { displayName: change.displayName } : {}),
         },
   );
+}
+
+/**
+ * F5 (D-49) — cola de manos: los que tienen la mano arriba, del que la levantó primero al último
+ * (`handRaisedAtUtc`). Sin marca de tiempo (backend viejo) van al final por orden de entrada.
+ */
+export function sortRaisedHands(roster: readonly MeetingParticipantDto[]): MeetingParticipantDto[] {
+  const at = (p: MeetingParticipantDto): number => {
+    const ms = p.handRaisedAtUtc ? parseUtcDate(p.handRaisedAtUtc).getTime() : NaN;
+    return Number.isNaN(ms) ? Number.POSITIVE_INFINITY : ms;
+  };
+  return roster
+    .filter(p => p.status === 'Joined' && (p.handRaised || !!p.handRaisedAtUtc))
+    .sort((a, b) => at(a) - at(b) || a.joinOrder - b.joinOrder);
+}
+
+/** Solo staff puede ser host/cohost (`Meeting.Role.NotEligible` para clientes e invitados); sin actorType se asume staff. */
+export function isRoleEligible(p: Pick<MeetingParticipantDto, 'actorType'>): boolean {
+  return !p.actorType || p.actorType === 'TenantEmployee' || p.actorType === 'TenantAdmin';
 }

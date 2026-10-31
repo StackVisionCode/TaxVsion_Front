@@ -25,6 +25,8 @@ describe('accessCanMatch', () => {
     bootstrapDelayMs?: number;
     routePath?: string;
     featureId?: string;
+    /** Cuelga la ruta gateada de un padre (p. ej. `settings`), como las secciones anidadas. */
+    parentPath?: string;
   }
 
   function setup(options: Options): Router {
@@ -57,16 +59,17 @@ describe('accessCanMatch', () => {
       },
     };
 
-    const routes: Routes = [
-      {
-        path: options.routePath ?? 'campaigns',
-        data: { feature: options.featureId ?? 'campaigns' },
-        canMatch: [accessCanMatch],
-        loadChildren: () => {
-          chunkLoaded = true;
-          return Promise.resolve([{ path: '', component: StubComponent }] as Routes);
-        },
+    const gated: Routes[number] = {
+      path: options.routePath ?? 'campaigns',
+      data: { feature: options.featureId ?? 'campaigns' },
+      canMatch: [accessCanMatch],
+      loadChildren: () => {
+        chunkLoaded = true;
+        return Promise.resolve([{ path: '', component: StubComponent }] as Routes);
       },
+    };
+    const routes: Routes = [
+      options.parentPath ? { path: options.parentPath, children: [gated] } : gated,
       { path: 'dashboard', component: StubComponent },
       { path: 'forbidden', component: StubComponent },
       { path: 'not-available', component: StubComponent },
@@ -132,6 +135,15 @@ describe('accessCanMatch', () => {
     await router.navigateByUrl('/campaigns');
 
     expect(decodeURIComponent(router.url)).toContain('from=/campaigns');
+  });
+
+  it('en una ruta anidada guarda la URL completa, no solo el tramo hijo', async () => {
+    const router = setup({ permissions: [], modules: ['campaigns'], parentPath: 'settings' });
+
+    await router.navigateByUrl('/settings/campaigns');
+
+    expect(router.url).toContain('/forbidden');
+    expect(decodeURIComponent(router.url)).toContain('from=/settings/campaigns');
   });
 
   // ---------- La carrera con el bootstrap ----------

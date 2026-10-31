@@ -58,27 +58,36 @@ export interface UploadAvatarResponse {
 export interface AvatarState {
   avatarFileId?: string | null;
   avatarPending?: boolean;
+  avatarModerationStatus?: PhotoModerationStatus | null;
+  avatarModerationFileId?: string | null;
 }
 
 /** Fase y desenlace de la foto: tipos comunes con la foto del cliente (Client 360). */
 export type { PhotoStatus, PhotoUploadOutcome } from '@core/profile-photo/profile-photo-upload';
+import {
+  photoModerationOf,
+  type PhotoModerationStatus,
+  type PhotoPollResult,
+} from '@core/profile-photo/profile-photo-upload';
 
 export const PHOTO_FAILED_MESSAGE = "We couldn't use that photo. Try another image.";
 export const PHOTO_STILL_PROCESSING_MESSAGE = 'Your photo is still being checked. It will appear shortly.';
 
 /**
- * Un tick del sondeo: `updated` si ya es la foto confirmada, `failed` si dejó de estar pendiente sin
- * serlo (infectada, bloqueada o vencida) y `pending` mientras tanto (o si /auth/me falló).
+ * Un tick del sondeo: `updated` si ya es la foto confirmada; `under_review`/`blocked` si la moderación
+ * de contenido (T-20) la retuvo; `failed` si dejó de estar pendiente sin serlo (infectada o vencida) y
+ * `pending` mientras tanto (o si /auth/me falló).
  */
-export function classifyAvatarPoll(
-  state: AvatarState | null,
-  fileId: string,
-): 'updated' | 'failed' | 'pending' {
+export function classifyAvatarPoll(state: AvatarState | null, fileId: string): PhotoPollResult {
   if (!state) {
     return 'pending';
   }
   if (state.avatarFileId === fileId) {
     return 'updated';
+  }
+  const moderation = photoModerationOf(state.avatarModerationStatus, state.avatarModerationFileId, fileId);
+  if (moderation) {
+    return moderation;
   }
   return state.avatarPending ? 'pending' : 'failed';
 }

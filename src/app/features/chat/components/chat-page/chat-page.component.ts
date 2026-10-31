@@ -3,20 +3,21 @@ import {
   CUSTOM_ELEMENTS_SCHEMA,
   DestroyRef,
   ElementRef,
-  afterNextRender,
+  ViewChild,
   computed,
   effect,
+  untracked,
   inject,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { skip } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { ChatConversationListComponent } from '../../ui/chat-conversation-list/chat-conversation-list.component';
-import { ChatThreadComponent, ChatMessage, MessageEdit } from '../../ui/chat-thread/chat-thread.component';
-import { ChatComposerComponent } from '../../ui/chat-composer/chat-composer.component';
-import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
+import type { ChatMessage } from '@shared/ui/chat/chat-message.model';
+import { ChatConversationPanelComponent } from '../conversation-panel/conversation-panel.component';
+import { ChatMessageSearchComponent } from '../../ui/chat-message-search/chat-message-search.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
@@ -35,13 +36,11 @@ import {
   presenceLabel,
   presenceTextClass,
 } from '../../data-access/chat.model';
+import { fillViewportHeight } from '@shared/utils/fill-viewport-height';
 import { ChatStore } from '../../data-access/chat.store';
-import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
-import { FileViewerDownload, FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
-import { RecordedVoiceNote } from '@core/communication/voice-note-recorder.service';
+import { GroupInfoPanelComponent } from '../../ui/group-info-panel/group-info-panel.component';
+import { ConversationContentTabsComponent } from '../../ui/conversation-content-tabs/conversation-content-tabs.component';
 
-/** Padding inferior del app-shell (`p-4`): el chat termina ahí, sin empujar la página. */
-const SHELL_BOTTOM_PADDING = 16;
 /** Alto mínimo usable (móvil apaisado): por debajo de esto sí se deja scrollear la página. */
 const MIN_CHAT_HEIGHT = 360;
 
@@ -58,16 +57,16 @@ const MIN_CHAT_HEIGHT = 360;
   imports: [
     CommonModule,
     ChatConversationListComponent,
-    ChatThreadComponent,
-    ChatComposerComponent,
+    ChatConversationPanelComponent,
     ModalComponent,
     NewConversationModalComponent,
     AvatarComponent,
     AvatarUrlPipe,
     SearchInputComponent,
     SegmentedComponent,
-    ConfirmDialogComponent,
-    FileViewerComponent,
+    ChatMessageSearchComponent,
+    GroupInfoPanelComponent,
+    ConversationContentTabsComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './chat-page.component.html',
@@ -78,6 +77,19 @@ export class ChatPageComponent {
   private readonly store = inject(ChatStore);
   private readonly activeCall = inject(ActiveCallService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+
+  /** F8a (ADD-12 H-11): el deep link pidió un chat de Support o de una sala → a su módulo. */
+  private readonly redirectEffect = effect(() => {
+    const target = this.store.redirect();
+    if (!target) {
+      return;
+    }
+    untracked(() => {
+      this.store.clearRedirect();
+      void this.router.navigate(target.commands, { queryParams: target.queryParams, replaceUrl: true });
+    });
+  });
   private readonly destroyRef = inject(DestroyRef);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
@@ -86,7 +98,7 @@ export class ChatPageComponent {
    * crece con los mensajes (solo scrollean la lista y el hilo) y, en el móvil, el composer queda
    * encima del teclado (`visualViewport` se achica al abrirlo). null hasta medir por primera vez.
    */
-  readonly fillHeight = signal<number | null>(null);
+  readonly fillHeight = fillViewportHeight(this.host, this.destroyRef, MIN_CHAT_HEIGHT);
 
   /** Por debajo de `lg` se ve un panel a la vez (maestro-detalle): la lista o la conversación. */
   readonly mobilePane = signal<'list' | 'thread'>('list');
@@ -99,7 +111,6 @@ export class ChatPageComponent {
   readonly loading = this.store.loading;
   readonly loadError = this.store.error;
   readonly activeConversationId = computed(() => this.store.activeConversationId() ?? '');
-  readonly uploadingAttachment = this.store.uploadingAttachment;
 
   /** True solo cuando hay una conversación real seleccionada — controla el thread vs. el empty state. */
   readonly hasActiveConversation = computed(() => {
@@ -121,8 +132,6 @@ export class ChatPageComponent {
   private railSearchDebounce: ReturnType<typeof setTimeout> | undefined;
 
   readonly loadingOlder = this.store.loadingOlder;
-  private readonly pendingDeleteId = signal<string | null>(null);
-  readonly isDeleteConfirmOpen = computed(() => this.pendingDeleteId() !== null);
 
   readonly employeeResults = this.store.employeeResults;
   readonly customerResults = this.store.customerResults;
@@ -131,6 +140,20 @@ export class ChatPageComponent {
   readonly newConversationError = this.store.newConversationError;
   readonly creatingConversation = this.store.creatingConversation;
   readonly canCreateGroups = this.store.canCreateGroups;
+  readonly hasMoreDirectory = this.store.hasMoreDirectory;
+  /** Filas de esqueleto mientras llega la primera página del directorio. */
+  readonly skeletonRows = [0, 1, 2, 3, 4];
+
+  // ---------- F7: búsqueda de mensajes ----------
+  @ViewChild(ChatConversationPanelComponent) protected panel?: ChatConversationPanelComponent;
+  readonly searchOpen = signal(false);
+  readonly searchQuery = this.store.searchQuery;
+  readonly searchResults = this.store.searchResults;
+  readonly searchLoading = this.store.searchLoading;
+  readonly searchError = this.store.searchError;
+  readonly searchTruncated = this.store.searchTruncated;
+  /** Resultado elegido que no está cargado en el hilo: queda resaltado en la lista. */
+  readonly searchHighlightId = signal<string | null>(null);
 
   constructor() {
     // El store suena al recibir un mensaje solo mientras esta página está a la vista.
@@ -142,7 +165,6 @@ export class ChatPageComponent {
     if (preferId || this.route.snapshot.queryParamMap.get('startUser')) {
       this.mobilePane.set('thread'); // un deep-link va directo a la conversación, también en el móvil
     }
-    this.watchViewport();
     // Si el param cambia estando ya en la página, enfocá la nueva conversación.
     this.route.queryParamMap.pipe(skip(1), takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       const id = params.get('conversation');
@@ -174,6 +196,16 @@ export class ChatPageComponent {
         });
       });
     }
+  }
+
+  get isActiveGroup(): boolean {
+    return this.activeConversation.kind === 'Group';
+  }
+
+  /** F8b: "Group · N members" en la cabecera en lugar de la presencia de un par. */
+  get groupSubtitle(): string {
+    const count = this.activeConversation.participants?.length ?? 0;
+    return `Group · ${count} ${count === 1 ? 'member' : 'members'}`;
   }
 
   get isActiveSupport(): boolean {
@@ -251,13 +283,9 @@ export class ChatPageComponent {
     );
   }
 
-  get sharedAttachments(): { name: string; size: string; fileId: string }[] {
-    return this.activeConversation.messages
-      .filter(
-        (message): message is ChatMessage & { attachment: { name: string; size: string; fileId: string } } =>
-          !!message.attachment,
-      )
-      .map(message => message.attachment);
+  /** F8d: archivo elegido en las pestañas de Info → visor del panel. */
+  openContentFile(file: { fileId: string; name: string }): void {
+    this.panel?.openFile(file.fileId, file.name);
   }
 
   openInfo(): void {
@@ -269,52 +297,41 @@ export class ChatPageComponent {
   }
 
   selectConversation(id: string): void {
+    if (id !== this.store.activeConversationId()) {
+      this.closeSearch();
+    }
     this.store.selectConversation(id);
     this.mobilePane.set('thread');
+  }
+
+  toggleSearch(): void {
+    if (this.searchOpen()) {
+      this.closeSearch();
+    } else {
+      this.searchOpen.set(true);
+    }
+  }
+
+  closeSearch(): void {
+    this.searchOpen.set(false);
+    this.searchHighlightId.set(null);
+    this.store.clearMessageSearch();
+  }
+
+  onSearch(query: string): void {
+    this.searchHighlightId.set(null);
+    this.store.searchMessages(query);
+  }
+
+  /** Salta al mensaje si está cargado en el hilo; si no, solo lo resalta en los resultados. */
+  onSearchResult(messageId: string): void {
+    const found = this.panel?.scrollToMessage(messageId) ?? false;
+    this.searchHighlightId.set(found ? null : messageId);
   }
 
   /** Móvil: vuelve de la conversación a la lista. */
   showList(): void {
     this.mobilePane.set('list');
-  }
-
-  /**
-   * Recalcula `fillHeight` al montar y cada vez que cambia el espacio: resize/rotación, teclado del
-   * móvil (`visualViewport`) o algo encima del chat que cambie de alto (p. ej. el banner de la
-   * suscripción, observado vía `body`). Si el valor no cambia, el signal no dispara nada.
-   */
-  private watchViewport(): void {
-    const measure = (): void => {
-      const el = this.host.nativeElement;
-      const viewport = window.visualViewport?.height ?? window.innerHeight;
-      const top = el.getBoundingClientRect().top + window.scrollY;
-      // 16px = padding inferior del shell (p-4). Mínimo usable en pantallas muy bajas (móvil apaisado).
-      this.fillHeight.set(Math.max(MIN_CHAT_HEIGHT, Math.floor(viewport - top - SHELL_BOTTOM_PADDING)));
-    };
-    afterNextRender(() => {
-      measure();
-      window.addEventListener('resize', measure);
-      window.visualViewport?.addEventListener('resize', measure);
-      const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => measure()) : null;
-      observer?.observe(document.body);
-      this.destroyRef.onDestroy(() => {
-        window.removeEventListener('resize', measure);
-        window.visualViewport?.removeEventListener('resize', measure);
-        observer?.disconnect();
-      });
-    });
-  }
-
-  sendMessage(text: string): void {
-    void this.store.sendMessage(text);
-  }
-
-  onRetryMessage(tempId: string): void {
-    void this.store.retryMessage(tempId);
-  }
-
-  onTyping(isTyping: boolean): void {
-    this.store.notifyTyping(isTyping);
   }
 
   // Presencia del participante activo (etiqueta/colores accesibles, no solo color).
@@ -334,67 +351,6 @@ export class ChatPageComponent {
     return this.activeConversation.presence !== 'Offline';
   }
 
-  onAttach(file: File): void {
-    void this.store.sendAttachment(file);
-  }
-
-  onSendVoiceNote(recorded: RecordedVoiceNote): void {
-    void this.store.sendVoiceNote(recorded);
-  }
-
-  onRecording(isRecording: boolean): void {
-    this.store.notifyRecording(isRecording);
-  }
-
-  // ---------- Visor global de adjuntos ----------
-
-  readonly viewerOpen = signal(false);
-  readonly viewerFiles = signal<FileViewerItem[]>([]);
-  readonly viewerIndex = signal(0);
-
-  /** Abre el adjunto en el visor; se navega entre los adjuntos cargados de la conversación. */
-  onAttachmentClicked(fileId: string): void {
-    const attachments = this.activeConversation.messages
-      .filter(m => !m.isDeleted && !!m.attachment)
-      .map(m => m.attachment!);
-    const list = attachments.some(a => a.fileId === fileId) ? attachments : [];
-    if (list.length === 0) {
-      this.store.downloadAttachment(fileId);
-      return;
-    }
-    this.viewerFiles.set(list.map(a => this.store.attachmentViewerItem(a.fileId, a.name)));
-    this.viewerIndex.set(list.findIndex(a => a.fileId === fileId));
-    this.viewerOpen.set(true);
-  }
-
-  onViewerDownload(event: FileViewerDownload): void {
-    this.store.downloadAttachment(event.item.ref as string);
-  }
-
-  onLoadOlder(): void {
-    this.store.loadOlderMessages();
-  }
-
-  onEditSubmitted(edit: MessageEdit): void {
-    void this.store.editMessage(edit.id, edit.text);
-  }
-
-  onDeleteRequested(messageId: string): void {
-    this.pendingDeleteId.set(messageId);
-  }
-
-  confirmDelete(): void {
-    const id = this.pendingDeleteId();
-    if (id) {
-      void this.store.deleteMessage(id);
-    }
-    this.pendingDeleteId.set(null);
-  }
-
-  cancelDelete(): void {
-    this.pendingDeleteId.set(null);
-  }
-
   // ---------- Rail directorio (Clients / Team) ----------
 
   switchRailTab(tab: 'chats' | 'clients' | 'team'): void {
@@ -405,6 +361,34 @@ export class ChatPageComponent {
     this.railSearch.set('');
     clearTimeout(this.railSearchDebounce);
     this.store.resetNewConversationState();
+    // F8c: la pestaña abre con la primera página (sin escribir nada).
+    if (tab === 'clients') {
+      this.store.searchCustomers('');
+    } else if (tab === 'team') {
+      this.store.searchEmployees('');
+    }
+  }
+
+  loadMoreDirectory(): void {
+    this.store.loadMoreDirectory();
+  }
+
+  /** F8c: motivo por el que una fila no es chateable (null = se puede). */
+  blockedLabel(reason: string | null | undefined): string | null {
+    if (reason === 'EmployeeToEmployeeDisabled') {
+      return 'Team chat is turned off by your admin.';
+    }
+    if (reason === 'NoPortalAccount') {
+      return "This client hasn't activated their portal yet, so they can't be messaged.";
+    }
+    return null;
+  }
+
+  /** F8c: cierra el hilo y vuelve al estado sin conversación. */
+  closeConversation(): void {
+    this.closeSearch();
+    this.store.closeConversation();
+    this.mobilePane.set('list');
   }
 
   onRailSearch(term: string): void {
@@ -438,6 +422,7 @@ export class ChatPageComponent {
 
   openNewConversation(): void {
     this.store.resetNewConversationState();
+    this.store.searchCustomers(''); // el modal abre en Clients con la primera página
     this.isNewConversationOpen.set(true);
   }
 
@@ -470,7 +455,7 @@ export class ChatPageComponent {
   }
 
   async onGroupCreateRequested(request: GroupCreateRequest): Promise<void> {
-    const ok = await this.store.createGroupConversation(request.title, request.members);
+    const ok = await this.store.createGroupConversation(request.title, request.memberUserIds, request.description);
     if (ok) {
       this.isNewConversationOpen.set(false);
       this.mobilePane.set('thread');

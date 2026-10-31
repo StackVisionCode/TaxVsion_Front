@@ -152,7 +152,7 @@ export interface MessageBody {
 }
 
 /** Espejo de AttachmentDownloadStatus (descarga bajo demanda hacia CloudStorage). */
-export type AttachmentDownloadStatus = 'NotRequested' | 'InProgress' | 'Downloaded' | 'Failed' | 'Blocked';
+export type AttachmentDownloadStatus = 'NotRequested' | 'InProgress' | 'Downloaded' | 'Failed' | 'Blocked' | 'UnderReview';
 
 /** Fila de GET /correspondence/messages/{id}/attachments — metadata, cero bytes. */
 export interface AttachmentSummary {

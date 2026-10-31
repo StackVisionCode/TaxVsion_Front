@@ -24,6 +24,11 @@ import { observeActiveSection, scrollToSection } from '@shared/utils/scroll-spy.
 import { FileDropDirective } from '@shared/directives/file-drop.directive';
 import { AvatarUrlService } from '@core/profile-photo/avatar-url';
 import { PROFILE_PHOTO_ACCEPT } from '@core/profile-photo/profile-photo-image.util';
+import {
+  PHOTO_BLOCKED_MESSAGE,
+  PHOTO_UNDER_REVIEW_MESSAGE,
+  photoModerationNotice,
+} from '@core/profile-photo/profile-photo-upload';
 import { ProfileStore } from '../../data-access/profile.store';
 import { ProfileMfaStore } from '../../data-access/mfa.store';
 import { TwoStepVerificationComponent } from '../../ui/two-step-verification/two-step-verification.component';
@@ -207,6 +212,8 @@ export class ProfilePageComponent {
   readonly photoBusy = this.store.photoBusy;
   readonly photoError = this.store.photoError;
   readonly photoStatusLabel = computed(() => PHOTO_STATUS_LABELS[this.photoStatus()]);
+  /** T-20: aviso persistente de la última foto subida (en revisión o bloqueada por contenido). */
+  readonly photoModerationNotice = computed(() => photoModerationNotice(this.auth.currentUser()?.avatarModerationStatus));
   readonly removePhotoOpen = signal(false);
   private readonly photoInput = viewChild<ElementRef<HTMLInputElement>>('photoInput');
   private readonly photoButton = viewChild<ElementRef<HTMLButtonElement>>('photoButton');
@@ -240,6 +247,10 @@ export class ProfilePageComponent {
           this.notify('Profile photo updated', 'success');
         } else if (outcome === 'failed') {
           this.notify(PHOTO_FAILED_MESSAGE, 'error');
+        } else if (outcome === 'blocked') {
+          this.notify(PHOTO_BLOCKED_MESSAGE, 'error');
+        } else if (outcome === 'under_review') {
+          this.toast.info(PHOTO_UNDER_REVIEW_MESSAGE);
         } else {
           this.toast.info(PHOTO_STILL_PROCESSING_MESSAGE);
         }

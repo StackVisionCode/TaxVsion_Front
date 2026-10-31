@@ -105,4 +105,20 @@ describe('ToastService', () => {
 
     expect(svc.toasts().map(t => t.message)).toEqual(['x']);
   });
+
+  it('a toast with an action keeps it, lives longer, and runAction runs it once and dismisses', () => {
+    const svc = new ToastService();
+    const run = vi.fn();
+    svc.info('You are already in a call.', { action: { label: 'Leave and join', run } });
+    expect(svc.toasts()[0].action?.label).toBe('Leave and join');
+
+    vi.advanceTimersByTime(3300);
+    expect(svc.toasts()).toHaveLength(1); // más allá del auto-dismiss normal sigue visible
+
+    const id = svc.toasts()[0].id;
+    svc.runAction(id);
+    expect(run).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(200);
+    expect(svc.toasts()).toHaveLength(0);
+  });
 });
