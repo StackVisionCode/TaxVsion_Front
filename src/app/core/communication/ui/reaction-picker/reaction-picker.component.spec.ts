@@ -1,7 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ReactionPickerComponent } from './reaction-picker.component';
+import { ReactionPickerComponent, computePickerPosition } from './reaction-picker.component';
 
 @Component({
   imports: [ReactionPickerComponent],
@@ -23,8 +23,9 @@ function setup() {
   TestBed.configureTestingModule({ imports: [HostComponent] });
   const fixture = TestBed.createComponent(HostComponent);
   fixture.detectChanges();
-  const el = fixture.nativeElement as HTMLElement;
-  return { fixture, host: fixture.componentInstance, el, chips: () => [...el.querySelectorAll<HTMLButtonElement>('button')] };
+  // El picker se porta al body (escapa del overflow de la barra de controles).
+  const el = document.body;
+  return { fixture, host: fixture.componentInstance, el, chips: () => [...el.querySelectorAll<HTMLButtonElement>('app-reaction-picker button')] };
 }
 
 describe('ReactionPickerComponent', () => {
@@ -57,5 +58,27 @@ describe('ReactionPickerComponent', () => {
     dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     fixture.detectChanges();
     expect(host.open()).toBe(false);
+  });
+});
+
+describe('ReactionPickerComponent — fuera de la barra de controles', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('se porta al body (la pastilla con overflow-x-auto ya no lo recorta) y se quita al cerrar', () => {
+    const { fixture, host } = setup();
+    const picker = document.querySelector('app-reaction-picker') as HTMLElement;
+    expect(picker.parentElement).toBe(document.body);
+    expect(picker.classList).toContain('fixed');
+    host.open.set(false);
+    fixture.detectChanges();
+    expect(document.querySelector('app-reaction-picker')).toBeNull();
+  });
+
+  it('computePickerPosition: encima del botón y centrado, dentro de la ventana', () => {
+    const viewport = { width: 1000, height: 800 };
+    const panel = { width: 200, height: 60 };
+    expect(computePickerPosition({ top: 700, left: 480, width: 40 }, panel, viewport)).toEqual({ top: 632, left: 400 });
+    expect(computePickerPosition({ top: 700, left: 0, width: 40 }, panel, viewport).left).toBe(8);
+    expect(computePickerPosition(null, panel, viewport)).toEqual({ top: 644, left: 400 });
   });
 });
