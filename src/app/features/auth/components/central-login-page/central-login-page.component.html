@@ -154,6 +154,12 @@
                 <input [id]="'mfa-' + officeKey(office)" type="text" inputmode="numeric" autocomplete="one-time-code"
                   [ngModel]="mfaCode()" (ngModelChange)="mfaCode.set($event)" placeholder="123456"
                   class="block h-11 w-full rounded-lg border border-[#E4DCCF] bg-white px-4 text-sm tracking-widest text-[#083645] placeholder-[#3E5F6B]/50 transition-colors focus:border-[#083645] focus:outline-none" />
+                <!-- Igual que la vista de una sola oficina: el backend solo lo honra con un código del autenticador. -->
+                <label class="flex cursor-pointer select-none items-center gap-2 text-[0.8125rem] text-[#3E5F6B]">
+                  <input type="checkbox" [checked]="rememberDevice()" (change)="toggleRememberDevice()"
+                    class="h-4 w-4 rounded border-[#E4DCCF] text-[#083645] focus:ring-[#083645]/20" />
+                  Don't ask for a code on this device again
+                </label>
                 <div class="flex items-center gap-2">
                   <button type="button" (click)="submitMfa(office)" [disabled]="isBusy()"
                     class="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#083645] text-sm font-semibold text-white transition-colors hover:bg-[#057BC1] disabled:opacity-70">

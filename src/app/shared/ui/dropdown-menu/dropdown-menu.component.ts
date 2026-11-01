@@ -169,10 +169,7 @@ export class DropdownMenuComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
-    // Si el anfitrión muere con el menú abierto, Angular solo quita el host: el panel portado se va a mano.
-    const panel = this.panelEl();
     this.detach();
-    panel?.remove();
   }
 
   private setOpen(next: boolean): void {
@@ -199,9 +196,12 @@ export class DropdownMenuComponent implements OnDestroy {
     window.addEventListener('resize', this.reposition, { passive: true });
   }
 
+  // El panel portado se quita aquí mismo: si el anfitrión muere en el mismo clic (un "Edit" que navega),
+  // Angular solo quita el host y el panel quedaba flotando en la pantalla siguiente.
   private detach(): void {
     window.removeEventListener('scroll', this.reposition, { capture: true });
     window.removeEventListener('resize', this.reposition);
+    this.panelEl()?.remove();
     this.position.set(null);
     this.panelEl.set(null);
   }

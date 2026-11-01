@@ -1,0 +1,74 @@
+<div class="flex flex-1 flex-col gap-6">
+  <a routerLink="/settings" class="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
+    <ion-icon name="arrow-back-outline" class="text-base" aria-hidden="true"></ion-icon> Settings
+  </a>
+
+  <div class="rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm">
+    <h1 class="text-xl font-bold text-gray-900">Two-step verification</h1>
+    <p class="mt-1 text-sm text-gray-500">
+      Choose who must enter a code from an authenticator app when signing in. Anyone can still turn it on for their
+      own account.
+    </p>
+
+    @if (loading()) {
+      <div class="mt-5 h-40 animate-pulse rounded-2xl bg-gray-100"></div>
+    } @else if (error(); as msg) {
+      <app-state-block class="mt-5 block" [error]="msg" retryLabel="Try again" (retry)="load()"></app-state-block>
+    } @else if (draft(); as policy) {
+      <ul class="mt-5 divide-y divide-gray-100 rounded-2xl border border-gray-100">
+        <li class="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Office administrators</p>
+            <p class="text-xs text-gray-500">Set for your account by the platform.</p>
+          </div>
+          <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+            [class]="saved()?.requireForAdmins ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'">
+            {{ saved()?.requireForAdmins ? 'Required' : 'Optional' }}
+          </span>
+        </li>
+        <li class="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
+          <div class="min-w-0">
+            <p id="mfa-employees" class="text-sm font-semibold text-gray-900">Employees</p>
+            <p class="text-xs text-gray-500">Team members without it set it up the next time they sign in.</p>
+          </div>
+          <app-switch [checked]="policy.requireForEmployees" ariaLabel="Require two-step verification for employees"
+            (checkedChange)="set('requireForEmployees', $event)"></app-switch>
+        </li>
+        <li class="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Client portal</p>
+            <p class="text-xs text-gray-500">
+              Clients without it set it up the next time they sign in to the portal. If a client loses their phone,
+              reset it from their profile → Portal access.
+            </p>
+          </div>
+          <app-switch [checked]="policy.requireForCustomerPortal" ariaLabel="Require two-step verification for the client portal"
+            (checkedChange)="set('requireForCustomerPortal', $event)"></app-switch>
+        </li>
+        <li class="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
+          <div class="min-w-0">
+            <label for="trusted-days" class="text-sm font-semibold text-gray-900">Remember trusted devices for</label>
+            <p class="text-xs text-gray-500">How long a device marked as trusted skips the code.</p>
+          </div>
+          <select id="trusted-days" [value]="policy.trustedDeviceDays" (change)="onDaysChange($any($event.target).value)"
+            class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-bold focus:outline-none focus:ring-1 focus:ring-brand-bold">
+            @for (days of dayOptions(); track days) {
+              <option [value]="days" [selected]="days === policy.trustedDeviceDays">{{ days }} days</option>
+            }
+          </select>
+        </li>
+      </ul>
+
+      <div class="mt-5 flex flex-wrap justify-end gap-3">
+        <button type="button" (click)="discard()" [disabled]="!dirty() || saving()"
+          class="rounded-full px-4 py-2 text-sm font-semibold text-gray-500 hover:text-gray-900 disabled:opacity-40 transition-colors">
+          Discard
+        </button>
+        <button type="button" (click)="save()" [disabled]="!dirty() || saving()"
+          class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-40 transition-colors">
+          {{ saving() ? 'Saving…' : 'Save changes' }}
+        </button>
+      </div>
+    }
+  </div>
+</div>

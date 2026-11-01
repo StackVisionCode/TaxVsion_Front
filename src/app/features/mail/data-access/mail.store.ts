@@ -23,7 +23,9 @@ import { MailService } from './mail.service';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { EmbeddedCustomer, injectEmbeddedCustomer } from '@core/customers/embedded-customer';
-import { MailSocketService } from './mail-socket.service';
+import { MailSocketService, MailThreadStatePayload } from './mail-socket.service';
+import { ToastService } from '@shared/ui/toast/toast.service';
+import { MailUnreadStore } from './mail-unread.store';
 import {
   AttachFileToDraftRequest,
   AttachmentSummary,
@@ -35,6 +37,7 @@ import {
   MailCustomerScope,
   MessageSummary,
   SentMessageListItem,
+  TestManualConnectionResult,
   ThreadSummary,
   TrashItem,
   isUsableAccount,
@@ -45,7 +48,10 @@ import { ProviderDetection, detectProvider } from './mail-provider-detect.util';
 import { ConnectorsCapabilities } from './connectors-permissions';
 
 /** Carpetas honestas: solo las que tienen respaldo real en Correspondence. */
-export type MailFolderId = 'conversations' | 'sent' | 'archived' | 'drafts' | 'trash';
+export type MailFolderId = 'inbox' | 'sent' | 'archived' | 'drafts' | 'trash';
+
+/** Carpetas de lo que uno manda o redacta: las únicas donde existe correo a quien no es cliente. */
+export const OUTGOING_FOLDERS: ReadonlySet<MailFolderId> = new Set<MailFolderId>(['sent', 'drafts', 'trash']);
 
 /** Lote de hilos/drafts por página del listado. */
 const LIST_PAGE_SIZE = 50;
@@ -105,6 +111,11 @@ export interface ComposeState {
    * a mitad de redacción no debe re-archivar lo que se está escribiendo.
    */
   customerId: string | null;
+  /**
+   * Elegir como destinatario a un cliente archiva en él una redacción que aún no tiene cliente. Se
+   * apaga si el usuario pidió explícitamente no archivarla en ninguno.
+   */
+  autoFile: boolean;
 }
 
 /**
@@ -136,13 +147,14 @@ const EMPTY_COMPOSE: ComposeState = {
   error: null,
   initialTo: null,
   customerId: null,
+  autoFile: true,
 };
 
 /**
  * Store del módulo Mail (Connectors + Correspondence vía Gateway). providedIn: 'root'.
- * El inbox del backend es POR CUSTOMER (no existe bandeja global del tenant), así que el
- * estado pivota sobre el cliente seleccionado: sus hilos (activos/archivados) y sus drafts.
- * Los componentes ui/ siguen dumb: solo mail-page consume este store.
+ * /email abre en el Inbox de la oficina: los hilos de todos los clientes que el usuario puede ver. El
+ * cliente es un filtro opcional (y "Not a client" otro, solo para Sent/Drafts/Trash, porque no entra
+ * correo de quien no es cliente). Los componentes ui/ siguen dumb: solo mail-page consume este store.
  *
  * Modo embebido (perfil del cliente): `ClientMailWorkspaceComponent` provee una instancia PROPIA
  * de este store; el cliente queda fijado por `injectEmbeddedCustomer()` y no se carga el directorio.
@@ -154,6 +166,8 @@ export class MailStore {
   private readonly uploads = inject(CloudStorageUploadService);
   private readonly auth = inject(AuthService);
   private readonly mailSocket = inject(MailSocketService);
+  private readonly unread = inject(MailUnreadStore);
+  private readonly toast = inject(ToastService);
   private readonly caps = inject(ConnectorsCapabilities);
   /** Root: nunca se destruye. Instancia del wrapper embebido: corta las suscripciones al destruirse. */
   private readonly destroyRef = inject(DestroyRef);
@@ -180,13 +194,11 @@ export class MailStore {
   private readonly _bootLoading = signal(false);
   private readonly _bootError = signal<string | null>(null);
   private readonly _accounts = signal<MailAccount[]>([]);
-  private readonly _customers = signal<CustomerSummary[]>([]);
   private initialized = false;
 
   readonly bootLoading = this._bootLoading.asReadonly();
   readonly bootError = this._bootError.asReadonly();
   readonly accounts = this._accounts.asReadonly();
-  readonly customers = this._customers.asReadonly();
 
   /** Cuentas con las que se puede leer/enviar. */
   readonly usableAccounts = computed(() => this._accounts().filter(isUsableAccount));
@@ -279,36 +291,52 @@ export class MailStore {
   readonly manualConnecting = this._manualConnecting.asReadonly();
   readonly manualError = this._manualError.asReadonly();
 
+  // "Test connection" del alta manual: prueba IMAP y SMTP sin guardar nada.
+  private readonly _manualTesting = signal(false);
+  private readonly _manualTestResult = signal<TestManualConnectionResult | null>(null);
+  private readonly _manualTestError = signal<string | null>(null);
+
+  readonly manualTesting = this._manualTesting.asReadonly();
+  readonly manualTestResult = this._manualTestResult.asReadonly();
+  readonly manualTestError = this._manualTestError.asReadonly();
+
   // ---------- Selección de cliente y carpeta ----------
 
   private readonly _selectedCustomerId = signal<string | null>(null);
-  private readonly _activeFolderId = signal<MailFolderId>('conversations');
+  private readonly _activeFolderId = signal<MailFolderId>('inbox');
 
   readonly selectedCustomerId = this._selectedCustomerId.asReadonly();
   readonly activeFolderId = this._activeFolderId.asReadonly();
 
   /**
-   * Vista "Not a client" de /email: Drafts/Sent/Trash del correo mandado a quien no es cliente. Nunca
-   * en el perfil del cliente (embebido), donde todo cuelga del cliente fijado.
+   * Filtro "Not a client" de /email: Drafts/Sent/Trash solo del correo mandado a quien no es cliente.
+   * Excluye al filtro de cliente y no aplica al Inbox. Nunca en el perfil (embebido).
    */
   private readonly _unlinkedView = signal(false);
   readonly unlinkedView = this._unlinkedView.asReadonly();
 
-  /** Alcance de Drafts/Sent/Trash; null mientras no hay cliente elegido (nada que listar todavía). */
-  private readonly listScope = computed<MailCustomerScope | null>(() => {
-    if (this._unlinkedView()) {
-      return { kind: 'unlinked' };
-    }
+  /** Alcance de Drafts/Sent/Trash: el cliente filtrado, solo "Not a client", o todo. */
+  private readonly listScope = computed<MailCustomerScope>(() => {
     const customerId = this._selectedCustomerId();
-    return customerId ? { kind: 'customer', customerId } : null;
+    if (customerId) {
+      return { kind: 'customer', customerId };
+    }
+    return this._unlinkedView() ? { kind: 'unlinked' } : { kind: 'all' };
   });
 
-  // ---------- Cliente activo ----------
+  // ---------- Nombres de los clientes de las filas ----------
+  // El Inbox mezcla clientes: cada fila trae solo el id, el nombre sale del directorio compartido.
+  private readonly _customerIndex = signal<ReadonlyMap<string, CustomerSummary>>(new Map());
+  readonly customerIndex = this._customerIndex.asReadonly();
+  /** Ids ya pedidos (aunque no existan más): no se vuelven a pedir en cada página. */
+  private readonly requestedCustomerIds = new Set<string>();
+
+  // ---------- Filtro de cliente ----------
   // La búsqueda y los recientes viven en `app-customer-picker` + CustomerDirectoryStore (compartidos
-  // con el resto de módulos). `_customers` (boot) queda solo para el cliente por defecto.
+  // con el resto de módulos).
   private readonly _selectedCustomer = signal<CustomerSummary | null>(null);
 
-  /** Cliente activo completo (nombre + email + avatar), para el chip del selector. */
+  /** Cliente filtrado completo (nombre + email + avatar), para el chip del selector; null = todos. */
   readonly selectedCustomer = this._selectedCustomer.asReadonly();
   /** Nombre del cliente activo (compat con lo existente). */
   readonly selectedCustomerName = computed(() => this._selectedCustomer()?.displayName ?? null);
@@ -324,7 +352,7 @@ export class MailStore {
   readonly recipientResults = this._recipientResults.asReadonly();
   readonly recipientSearchLoading = this._recipientSearchLoading.asReadonly();
 
-  // ---------- Hilos del cliente seleccionado ----------
+  // ---------- Hilos del Inbox (todos los clientes visibles o el filtrado) ----------
 
   private readonly _threads = signal<ThreadSummary[]>([]);
   private readonly _threadsLoading = signal(false);
@@ -340,6 +368,13 @@ export class MailStore {
   /** El listado del backend trae todos los estados: la UI separa activo/archivado por página cargada. */
   readonly activeThreads = computed(() => this._threads().filter(thread => thread.status === 'Active'));
   readonly archivedThreads = computed(() => this._threads().filter(thread => thread.status === 'Archived'));
+
+  /** Búsqueda en el servidor (asunto, remitente y vista previa) del Inbox y Archived. */
+  private readonly _threadSearch = signal('');
+  readonly threadSearch = this._threadSearch.asReadonly();
+  private readonly threadSearch$ = new Subject<string>();
+  /** Solo la última carga de hilos pinta: una respuesta vieja (búsqueda anterior) no pisa a la nueva. */
+  private threadsRequestSeq = 0;
 
   // ---------- Drafts del cliente seleccionado ----------
 
@@ -444,7 +479,9 @@ export class MailStore {
     }
     this.initialized = true;
     this.subscribeIncomingMailRealtime();
+    this.subscribeThreadStateRealtime();
     this.wireRecipientSearch();
+    this.wireThreadSearch();
     this.refreshBoot();
   }
 
@@ -469,43 +506,74 @@ export class MailStore {
       });
   }
 
+  /** Búsqueda debounced del Inbox/Archived contra el servidor; vacía = vuelve al listado normal. */
+  private wireThreadSearch(): void {
+    this.threadSearch$
+      .pipe(takeUntilDestroyed(this.destroyRef), debounceTime(300), distinctUntilChanged())
+      .subscribe(term => {
+        // Ya aplicada (p. ej. la vació un cambio de carpeta al instante): no se recarga dos veces.
+        if (term === this._threadSearch()) return;
+        this._threadSearch.set(term);
+        this.clearThreadSelection();
+        this.loadThreads(true);
+      });
+  }
+
+  /** La lista pide buscar en el servidor lo tecleado (Inbox y Archived). */
+  searchThreads(term: string): void {
+    this.threadSearch$.next(term.trim());
+  }
+
   /** El composer pide sugerencias para el destinatario que se está tecleando. */
   searchRecipients(term: string): void {
     this._recipientSearch$.next(term.trim());
   }
 
-  /** Fija el cliente activo (elegido en el picker, que ya lo sube a recientes) y carga sus hilos. */
+  /** Filtra el correo por un cliente (elegido en el picker, que ya lo sube a recientes). */
   pickCustomer(customer: CustomerSummary): void {
     if (this.embedded()) {
       return;
     }
     this._selectedCustomer.set(customer);
+    this.rememberCustomers([customer]);
     this.selectCustomer(customer.id);
   }
 
+  /** Quita el filtro de cliente: vuelve al correo de todos los clientes visibles. */
+  clearCustomer(): void {
+    if (this.embedded() || !this._selectedCustomerId()) {
+      return;
+    }
+    this._selectedCustomerId.set(null);
+    this._selectedCustomer.set(null);
+    this.reloadForScope(true);
+  }
+
   /**
-   * Pasa /email a la vista "Not a client". Sin conversaciones (solo entra correo de clientes): abre en
-   * Sent. El cliente elegido se conserva para volver a él con `showCustomerMail`.
+   * Filtro "Not a client" de Sent/Drafts/Trash. Quita el de cliente (son excluyentes) y, si se estaba en
+   * el Inbox o Archived, pasa a Sent: allí no hay correo de quien no es cliente.
    */
   showUnlinkedMail(): void {
     if (this.embedded() || this._unlinkedView()) {
       return;
     }
+    const hadCustomer = this._selectedCustomerId() !== null;
     this._unlinkedView.set(true);
-    this.resetListsFor('sent');
-    this.loadSent(true);
-    this.loadDrafts(true);
+    this._selectedCustomerId.set(null);
+    this._selectedCustomer.set(null);
+    if (!OUTGOING_FOLDERS.has(this._activeFolderId())) {
+      this._activeFolderId.set('sent');
+    }
+    this.reloadForScope(hadCustomer);
   }
 
-  /** Vuelve de "Not a client" al correo del cliente elegido. */
-  showCustomerMail(): void {
+  /** Quita el filtro "Not a client": Sent/Drafts/Trash vuelven a mostrar todo. */
+  showAllMail(): void {
     if (!this._unlinkedView()) {
       return;
     }
     this._unlinkedView.set(false);
-    this.resetListsFor('conversations');
-    this.loadThreads(true);
-    this.loadDrafts(true);
+    this.reloadForScope(false);
   }
 
   /** Cierra el socket realtime al salir del módulo Mail (lo llama el componente en ngOnDestroy). */
@@ -515,21 +583,54 @@ export class MailStore {
 
   /**
    * Escucha `mail.incoming` de Communication (una sola suscripción, persiste con el store singleton):
-   * si el correo entrante es del cliente seleccionado recarga sus hilos (el correo nuevo aparece SIN
-   * recargar la página y sube el badge de no-leídos); si además está abierto ese mismo hilo, recarga
-   * sus mensajes. Para otros clientes no hace nada: sus hilos se cargan frescos al seleccionarlos.
+   * recarga el Inbox sin vaciarlo (el correo nuevo aparece SIN recargar la página) y, si está abierto
+   * ese mismo hilo, sus mensajes. Con un cliente filtrado, el correo de otros no toca la lista. El
+   * badge lo refresca `MailUnreadStore` con el mismo evento.
    */
   private subscribeIncomingMailRealtime(): void {
     this.mailSocket.incomingEmail$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(evt => {
-      // Embebido: el cliente seleccionado ES el fijado, así que esto ya ignora a los demás.
-      if (evt.customerId !== this._selectedCustomerId()) {
+      // Embebido: el cliente filtrado ES el fijado, así que esto ya ignora a los demás.
+      const filter = this._selectedCustomerId();
+      if (filter && evt.customerId !== filter) {
         return;
       }
-      this.loadThreads(true);
+      this.loadThreads(true, true);
       if (evt.emailThreadId === this._selectedThreadId()) {
         this.loadMessages(true);
       }
     });
+  }
+
+  /**
+   * Escucha `mail.thread_state` (otra pestaña u otro empleado leyó, archivó o movió a la papelera algo):
+   * si el hilo está en la lista se actualiza en el sitio, sin recargar; si no está (p. ej. alguien lo
+   * desarchivó) se recarga la lista en segundo plano. El badge lo refresca `MailUnreadStore`.
+   */
+  private subscribeThreadStateRealtime(): void {
+    this.mailSocket.threadState$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(evt => this.applyThreadState(evt));
+  }
+
+  private applyThreadState(evt: MailThreadStatePayload): void {
+    const filter = this._selectedCustomerId();
+    if (filter && evt.customerId !== filter) {
+      return;
+    }
+    const status = evt.status === 'Archived' ? 'Archived' : 'Active';
+    if (!this._threads().some(thread => thread.threadId === evt.emailThreadId)) {
+      this.loadThreads(true, true);
+      return;
+    }
+    this._threads.update(list =>
+      list.map(thread =>
+        thread.threadId === evt.emailThreadId
+          ? { ...thread, status, unreadCount: evt.unreadCount, messageCount: evt.messageCount }
+          : thread,
+      ),
+    );
+    // Hilo abierto que alguien dejó todo leído: sus mensajes tampoco se pintan sin leer.
+    if (evt.emailThreadId === this._selectedThreadId() && evt.unreadCount === 0) {
+      this._messages.update(items => items.map(item => (item.direction === 'Inbound' ? { ...item, isRead: true } : item)));
+    }
   }
 
   refreshBoot(): void {
@@ -540,28 +641,17 @@ export class MailStore {
     }
     this._bootLoading.set(true);
     this._bootError.set(null);
-    forkJoin({
-      accounts: this.service.listAccounts(),
-      customers: this.directory.search({ status: 'NotArchived', size: 200 }),
-    }).subscribe({
-      next: ({ accounts, customers }) => {
+    this.unread.refresh();
+    this.service.listAccounts().subscribe({
+      next: accounts => {
         this._accounts.set(accounts);
-        this._customers.set(customers.items);
         this._bootLoading.set(false);
-        // Defaults: primera cuenta utilizable + primer cliente, para llegar al inbox sin fricción.
+        // Default: primera cuenta utilizable. Sin cliente elegido: el Inbox es de todos los clientes.
         const usable = accounts.filter(isUsableAccount);
         if (!this._activeAccountId() || !usable.some(account => account.id === this._activeAccountId())) {
           this._activeAccountId.set(usable[0]?.id ?? null);
         }
-        if (!this._selectedCustomerId() && customers.items.length > 0) {
-          // Arranca en el cliente reciente más reciente si sigue existiendo; si no, el primero.
-          const recent = this.directory.recent()[0];
-          const initial =
-            (recent && customers.items.find(c => c.id === recent.id)) ?? recent ?? customers.items[0];
-          this._selectedCustomerId.set(initial.id);
-          this._selectedCustomer.set(initial);
-        }
-        if (this._selectedCustomerId() && usable.length > 0) {
+        if (usable.length > 0) {
           this.loadThreads(true);
           this.loadDrafts(true);
         }
@@ -596,8 +686,8 @@ export class MailStore {
         this._accounts.set(accounts);
         if (customer) {
           this._selectedCustomer.set(customer);
+          this.rememberCustomers([customer]);
         }
-        this._customers.set([this._selectedCustomer() ?? this.fallbackSummary(embedded)]);
         this._bootLoading.set(false);
         const usable = accounts.filter(isUsableAccount);
         if (!this._activeAccountId() || !usable.some(account => account.id === this._activeAccountId())) {
@@ -635,7 +725,7 @@ export class MailStore {
         if (!this._activeAccountId() || !usable.some(account => account.id === this._activeAccountId())) {
           this._activeAccountId.set(usable[0]?.id ?? null);
         }
-        if (this._selectedCustomerId() && usable.length > 0 && this._threads().length === 0) {
+        if (usable.length > 0 && this._threads().length === 0) {
           this.loadThreads(true);
           this.loadDrafts(true);
         }
@@ -698,9 +788,31 @@ export class MailStore {
     });
   }
 
-  /** Limpia el error del alta manual (al cerrar/reabrir el formulario). */
+  /** Limpia el error y la última prueba del alta manual (al cerrar/reabrir el formulario). */
   clearManualError(): void {
     this._manualError.set(null);
+    this._manualTestResult.set(null);
+    this._manualTestError.set(null);
+  }
+
+  /** "Test connection": el resultado de cada servidor queda en `manualTestResult`; un 4xx, en `manualTestError`. */
+  testManualConnection(body: ConnectManualAccountRequest): void {
+    if (this._manualTesting()) {
+      return;
+    }
+    this._manualTesting.set(true);
+    this._manualTestResult.set(null);
+    this._manualTestError.set(null);
+    this.service.testManualConnection(body).subscribe({
+      next: result => {
+        this._manualTestResult.set(result);
+        this._manualTesting.set(false);
+      },
+      error: err => {
+        this._manualTestError.set(toApiError(err).message);
+        this._manualTesting.set(false);
+      },
+    });
   }
 
   /** Reintenta el watch/subscription de una cuenta (POST /connectors/accounts/{id}/reauth). */
@@ -744,39 +856,59 @@ export class MailStore {
 
   // ---------- Selección ----------
 
+  /** Filtra por cliente sin cambiar de carpeta (en Sent, p. ej., quedan los enviados a ese cliente). */
   selectCustomer(customerId: string): void {
     // Embebido: el cliente está fijado por el perfil, no se cambia.
     if (this.embedded()) {
       return;
     }
-    // Elegir un cliente desde "Not a client" vuelve a su correo, aunque sea el mismo que estaba.
     if (customerId === this._selectedCustomerId() && !this._unlinkedView()) {
       return;
     }
     this._selectedCustomerId.set(customerId);
     this._unlinkedView.set(false);
-    this.resetListsFor('conversations');
-    this.loadThreads(true);
-    this.loadDrafts(true);
+    this.reloadForScope(true);
   }
 
-  /** Cambio de alcance (cliente ↔ sin cliente): lo cargado y lo seleccionado era del anterior. */
-  private resetListsFor(folderId: MailFolderId): void {
+  /**
+   * Cambio de filtro: lo cargado y lo seleccionado era del anterior. Se queda en la carpeta y recarga lo
+   * que esa carpeta muestra; Sent/Trash de otras carpetas se recargan perezosos al entrar.
+   * `threadsToo` = false cuando el cambio solo toca a Sent/Drafts/Trash ("Not a client").
+   */
+  private reloadForScope(threadsToo: boolean): void {
     this.clearThreadSelection();
     this.closeComposeSilently();
-    this._activeFolderId.set(folderId);
-    this._threads.set([]);
     this._drafts.set([]);
     this._draftsTotal.set(0);
-    // Sent/Trash se recargan perezosos al entrar a la carpeta.
     this._sent.set([]);
     this._trash.set([]);
+    if (threadsToo) {
+      this._threads.set([]);
+      this.loadThreads(true);
+    }
+    this.loadDrafts(true);
+    const folder = this._activeFolderId();
+    if (folder === 'sent') this.loadSent(true);
+    if (folder === 'trash') this.loadTrash(true);
   }
 
   selectFolder(folderId: MailFolderId): void {
     this._activeFolderId.set(folderId);
     this.clearThreadSelection();
     this.closeComposeSilently();
+    // Cambiar de carpeta vacía el buscador de la lista: la búsqueda en el servidor deja de filtrar.
+    if (this._threadSearch()) {
+      this._threadSearch.set('');
+      this.threadSearch$.next('');
+      this.loadThreads(true);
+    }
+    // "Not a client" no existe en el Inbox ni en Archived: al volver ahí, Sent/Drafts/Trash vuelven a todo.
+    if (!OUTGOING_FOLDERS.has(folderId) && this._unlinkedView()) {
+      this._unlinkedView.set(false);
+      this._sent.set([]);
+      this._trash.set([]);
+      this.loadDrafts(true);
+    }
     // Carga perezosa al entrar (una vez); las demás ya vienen del boot.
     if (folderId === 'sent' && this._sent().length === 0 && !this._sentLoading()) {
       this.loadSent(true);
@@ -788,29 +920,61 @@ export class MailStore {
 
   // ---------- Hilos ----------
 
-  loadThreads(reset: boolean): void {
+  /**
+   * Hilos del Inbox (activos y archivados en una sola lista). `silent` = refresco en segundo plano
+   * (correo entrante): no vacía la lista ni muestra el loader, solo la reemplaza al llegar.
+   */
+  loadThreads(reset: boolean, silent = false): void {
     const customerId = this._selectedCustomerId();
-    // Sin cliente no hay conversaciones: solo entra correo de clientes.
-    if (!customerId || this._unlinkedView()) {
-      return;
-    }
     const page = reset ? 1 : this._threadsPage() + 1;
-    this._threadsLoading.set(true);
-    this._threadsError.set(null);
-    if (reset) {
-      this._threads.set([]);
+    const seq = ++this.threadsRequestSeq;
+    if (!silent) {
+      this._threadsLoading.set(true);
+      this._threadsError.set(null);
+      if (reset) {
+        this._threads.set([]);
+      }
     }
-    this.service.listThreads(customerId, page, LIST_PAGE_SIZE).subscribe({
+    this.service.listInboxThreads({ customerId, search: this._threadSearch() }, page, LIST_PAGE_SIZE).subscribe({
       next: result => {
+        if (seq !== this.threadsRequestSeq) return;
         this._threads.update(list => (reset ? result.items : [...list, ...result.items]));
         this._threadsPage.set(result.page);
         this._threadsHasMore.set(result.hasMore);
         this._threadsLoading.set(false);
+        this.resolveCustomers(result.items.map(item => item.customerId));
       },
       error: err => {
-        this._threadsError.set(toApiError(err).message);
+        if (seq !== this.threadsRequestSeq) return;
         this._threadsLoading.set(false);
+        if (!silent) this._threadsError.set(toApiError(err).message);
       },
+    });
+  }
+
+  /** Pide al directorio los clientes de las filas que aún no tienen nombre. */
+  private resolveCustomers(ids: readonly (string | null | undefined)[]): void {
+    const missing = [...new Set(ids)].filter(
+      (id): id is string => !!id && !this._customerIndex().has(id) && !this.requestedCustomerIds.has(id),
+    );
+    if (missing.length === 0) {
+      return;
+    }
+    missing.forEach(id => this.requestedCustomerIds.add(id));
+    this.directory
+      .byId(missing)
+      .pipe(catchError(() => of(new Map<string, CustomerSummary>())))
+      .subscribe(found => this.rememberCustomers([...found.values()]));
+  }
+
+  private rememberCustomers(customers: readonly CustomerSummary[]): void {
+    if (customers.length === 0) {
+      return;
+    }
+    this._customerIndex.update(current => {
+      const next = new Map(current);
+      customers.forEach(customer => next.set(customer.id, customer));
+      return next;
     });
   }
 
@@ -818,9 +982,6 @@ export class MailStore {
 
   loadDrafts(reset: boolean): void {
     const scope = this.listScope();
-    if (!scope) {
-      return;
-    }
     const page = reset ? 1 : this._draftsPage() + 1;
     this._draftsLoading.set(true);
     this._draftsError.set(null);
@@ -834,6 +995,7 @@ export class MailStore {
         this._draftsHasMore.set(result.hasMore);
         this._draftsTotal.set(result.totalCount);
         this._draftsLoading.set(false);
+        this.resolveCustomers(result.items.map(item => item.customerId));
       },
       error: err => {
         this._draftsError.set(toApiError(err).message);
@@ -846,9 +1008,6 @@ export class MailStore {
 
   loadSent(reset: boolean): void {
     const scope = this.listScope();
-    if (!scope) {
-      return;
-    }
     const page = reset ? 1 : this._sentPage() + 1;
     this._sentLoading.set(true);
     this._sentError.set(null);
@@ -861,6 +1020,7 @@ export class MailStore {
         this._sentPage.set(result.page);
         this._sentHasMore.set(result.hasMore);
         this._sentLoading.set(false);
+        this.resolveCustomers(result.items.map(item => item.customerId));
       },
       error: err => {
         this._sentError.set(toApiError(err).message);
@@ -873,9 +1033,6 @@ export class MailStore {
 
   loadTrash(reset: boolean): void {
     const scope = this.listScope();
-    if (!scope) {
-      return;
-    }
     const page = reset ? 1 : this._trashPage() + 1;
     this._trashLoading.set(true);
     this._trashError.set(null);
@@ -888,6 +1045,7 @@ export class MailStore {
         this._trashPage.set(result.page);
         this._trashHasMore.set(result.hasMore);
         this._trashLoading.set(false);
+        this.resolveCustomers(result.items.map(item => item.customerId));
       },
       error: err => {
         this._trashError.set(toApiError(err).message);
@@ -918,30 +1076,69 @@ export class MailStore {
     });
   }
 
-  /** Manda un mensaje (abierto en el reading-pane) a la papelera. */
+  /**
+   * Manda un mensaje (abierto en el reading-pane) a la papelera. Optimista: desaparece en el acto y un
+   * toast dice adónde fue, con "Undo"; si el backend falla, vuelve a su sitio.
+   */
   trashOpenMessage(messageId: string): void {
     const message = this._messages().find(m => m.messageId === messageId);
-    if (!message) {
+    const threadId = this._selectedThreadId();
+    if (!message || !threadId) {
       return;
     }
-    const threadId = this._selectedThreadId();
-    const req$ = message.direction === 'Outbound' ? this.service.trashSent(messageId) : this.service.trashMessage(messageId);
+    const previousMessages = this._messages();
+    const previousThreads = this._threads();
+    const outbound = message.direction === 'Outbound';
+
+    this._messages.update(list => list.filter(m => m.messageId !== messageId));
+    if (this._messages().length === 0) {
+      // Hilo sin mensajes visibles: sacarlo de la lista y cerrar.
+      this.patchThreads(list => list.filter(t => t.threadId !== threadId));
+      this.clearThreadSelection();
+    } else if (!outbound) {
+      this.patchThreads(list =>
+        list.map(t =>
+          t.threadId === threadId
+            ? {
+                ...t,
+                messageCount: Math.max(0, t.messageCount - 1),
+                unreadCount: message.isRead ? t.unreadCount : Math.max(0, t.unreadCount - 1),
+              }
+            : t,
+        ),
+      );
+    }
+    this._sent.set([]);
+    this._trash.set([]);
+
+    const req$ = outbound ? this.service.trashSent(messageId) : this.service.trashMessage(messageId);
+    req$.subscribe({
+      next: () =>
+        this.toast.info('Message moved to Trash', {
+          action: { label: 'Undo', run: () => this.undoTrash(messageId, outbound, threadId) },
+        }),
+      error: err => {
+        this.patchThreads(() => previousThreads);
+        if (this._selectedThreadId() === threadId || this._selectedThreadId() === null) {
+          this._selectedThreadId.set(threadId);
+          this._messages.set(previousMessages);
+        }
+        this.toast.error(toApiError(err).message);
+      },
+    });
+  }
+
+  /** "Undo" del toast de papelera: restaura el mensaje y vuelve a pedir lo que lo muestra. */
+  private undoTrash(messageId: string, outbound: boolean, threadId: string): void {
+    const req$ = outbound ? this.service.restoreSent(messageId) : this.service.restoreMessage(messageId);
     req$.subscribe({
       next: () => {
-        this._messages.update(list => list.filter(m => m.messageId !== messageId));
-        if (this._messages().length === 0) {
-          // Hilo sin mensajes visibles: sacarlo de la lista y cerrar.
-          this._threads.update(list => list.filter(t => t.threadId !== threadId));
-          this.clearThreadSelection();
-        } else if (message.direction === 'Inbound') {
-          // Reflejar el conteo del hilo abierto sin recargar la lista (evita el flicker).
-          this._threads.update(list =>
-            list.map(t => (t.threadId === threadId ? { ...t, messageCount: Math.max(0, t.messageCount - 1) } : t)),
-          );
-        }
         this._sent.set([]);
+        this._trash.set([]);
+        this.loadThreads(true, true);
+        if (this._selectedThreadId() === threadId) this.loadMessages(true);
       },
-      error: err => this._messagesError.set(toApiError(err).message),
+      error: err => this.toast.error(toApiError(err).message),
     });
   }
 
@@ -963,6 +1160,7 @@ export class MailStore {
       firstMessageAtUtc: item.sentAtUtc,
       lastMessageAtUtc: item.sentAtUtc,
       unreadCount: 0,
+      customerId: item.customerId ?? undefined,
     });
     this._selectedThreadId.set(`sent:${item.messageId}`);
     this._messages.set([this.sentItemToMessage(item)]);
@@ -1034,7 +1232,44 @@ export class MailStore {
     this._syntheticThread.set(null); // abrir un hilo real descarta la vista suelta de un enviado
     this._selectedThreadId.set(threadId);
     this.resetThreadDetail();
+    this.markReadOnOpen(threadId);
     this.loadMessages(true);
+  }
+
+  /** Hilo marcado leído al abrirlo: sus mensajes llegan después y no deben volver a pintarse sin leer. */
+  private readOnOpenThreadId: string | null = null;
+
+  /**
+   * Abrir un hilo lo marca leído en el acto (como Gmail), sin esperar a que el cuerpo baje del buzón
+   * externo: antes el contador y la fila seguían "sin leer" varios segundos, o para siempre si el cuerpo
+   * fallaba o el mensaje sin leer no era el que se expandía.
+   */
+  private markReadOnOpen(threadId: string): void {
+    const thread = this._threads().find(item => item.threadId === threadId);
+    if (!thread || thread.unreadCount === 0) {
+      this.readOnOpenThreadId = null;
+      return;
+    }
+    const unread = thread.unreadCount;
+    this.readOnOpenThreadId = threadId;
+    this.patchThreads(list => list.map(item => (item.threadId === threadId ? { ...item, unreadCount: 0 } : item)));
+    this.service.markThreadRead(threadId).subscribe({
+      error: () => {
+        // El backend no lo guardó: se devuelve el estado real para no mentir en el contador.
+        if (this.readOnOpenThreadId === threadId) this.readOnOpenThreadId = null;
+        this.patchThreads(list =>
+          list.map(item => (item.threadId === threadId ? { ...item, unreadCount: unread } : item)),
+        );
+        if (this._selectedThreadId() === threadId) {
+          this._messages.update(items => items.map(item => (item.direction === 'Inbound' ? { ...item, isRead: false } : item)));
+        }
+      },
+    });
+  }
+
+  /** Cierra la conversación abierta (el "Back" de pantallas chicas). */
+  closeThread(): void {
+    this.clearThreadSelection();
   }
 
   private clearThreadSelection(): void {
@@ -1067,7 +1302,11 @@ export class MailStore {
     this.service.listThreadMessages(threadId, page, THREAD_PAGE_SIZE).subscribe({
       next: result => {
         // Cronológico ascendente: páginas siguientes agregan mensajes MÁS NUEVOS al final.
-        this._messages.update(list => (reset ? result.items : [...list, ...result.items]));
+        const items =
+          this.readOnOpenThreadId === threadId
+            ? result.items.map(item => (item.direction === 'Inbound' ? { ...item, isRead: true } : item))
+            : result.items;
+        this._messages.update(list => (reset ? items : [...list, ...items]));
         this._messagesPage.set(result.page);
         this._messagesHasMore.set(result.hasMore);
         this._messagesLoading.set(false);
@@ -1377,46 +1616,49 @@ export class MailStore {
 
   archiveSelectedThread(): void {
     const threadId = this._selectedThreadId();
-    if (!threadId || this._archiving()) {
-      return;
-    }
-    this._archiving.set(true);
-    this.service.archiveThread(threadId).subscribe({
-      next: () => {
-        this._archiving.set(false);
-        // Archivar marca leído en el backend: reflejar unreadCount 0 local.
-        this._threads.update(list =>
-          list.map(thread =>
-            thread.threadId === threadId ? { ...thread, status: 'Archived', unreadCount: 0 } : thread,
-          ),
-        );
-        this.clearThreadSelection();
-      },
-      error: err => {
-        this._archiving.set(false);
-        this._messagesError.set(toApiError(err).message);
-      },
-    });
+    if (threadId) this.moveThread(threadId, 'Archived', true);
   }
 
   /** Desarchiva el hilo abierto (Archived → Active). */
   unarchiveSelectedThread(): void {
     const threadId = this._selectedThreadId();
-    if (!threadId || this._archiving()) {
+    if (threadId) this.moveThread(threadId, 'Active', true);
+  }
+
+  /**
+   * Archiva o desarchiva optimista: el hilo cambia de carpeta en el acto y un toast dice adónde fue, con
+   * "Undo" (que es el movimiento contrario, sin otro Undo). Archivar también lo deja leído, como el backend.
+   * Si el backend falla, el hilo vuelve a como estaba.
+   */
+  private moveThread(threadId: string, status: 'Active' | 'Archived', undoable: boolean): void {
+    const previous = this._threads().find(thread => thread.threadId === threadId);
+    if (!previous || previous.status === status) {
       return;
     }
+    this.patchThreads(list =>
+      list.map(thread =>
+        thread.threadId === threadId
+          ? { ...thread, status, unreadCount: status === 'Archived' ? 0 : thread.unreadCount }
+          : thread,
+      ),
+    );
+    if (this._selectedThreadId() === threadId) {
+      this.clearThreadSelection();
+    }
     this._archiving.set(true);
-    this.service.unarchiveThread(threadId).subscribe({
+    const req$ = status === 'Archived' ? this.service.archiveThread(threadId) : this.service.unarchiveThread(threadId);
+    req$.subscribe({
       next: () => {
         this._archiving.set(false);
-        this._threads.update(list =>
-          list.map(thread => (thread.threadId === threadId ? { ...thread, status: 'Active' } : thread)),
-        );
-        this.clearThreadSelection();
+        if (!undoable) return;
+        this.toast.info(status === 'Archived' ? 'Conversation archived' : 'Conversation moved to Inbox', {
+          action: { label: 'Undo', run: () => this.moveThread(threadId, previous.status, false) },
+        });
       },
       error: err => {
         this._archiving.set(false);
-        this._messagesError.set(toApiError(err).message);
+        this.patchThreads(list => list.map(thread => (thread.threadId === threadId ? previous : thread)));
+        this.toast.error(toApiError(err).message);
       },
     });
   }
@@ -1428,6 +1670,7 @@ export class MailStore {
    * contador de no-leídos del hilo baja/sube al toque) y revierte si el backend falla.
    */
   setMessageRead(messageId: string, isRead: boolean): void {
+    if (!isRead) this.readOnOpenThreadId = null;
     const message = this._messages().find(item => item.messageId === messageId);
     if (!message || message.direction !== 'Inbound' || message.isRead === isRead) {
       return;
@@ -1448,12 +1691,13 @@ export class MailStore {
     if (!threadId) {
       return;
     }
+    if (!isRead) this.readOnOpenThreadId = null;
     const previousMessages = this._messages();
     const previousThreads = this._threads();
     this._messages.update(list =>
       list.map(item => (item.direction === 'Inbound' ? { ...item, isRead } : item)),
     );
-    this._threads.update(list =>
+    this.patchThreads(list =>
       list.map(thread =>
         thread.threadId === threadId
           ? { ...thread, unreadCount: isRead ? 0 : this.inboundCountOf(threadId) }
@@ -1464,18 +1708,30 @@ export class MailStore {
     request$.subscribe({
       error: err => {
         this._messages.set(previousMessages);
-        this._threads.set(previousThreads);
+        this.patchThreads(() => previousThreads);
         this._messagesError.set(toApiError(err).message);
       },
     });
   }
 
-  /** No-leídos totales del cliente activo (para el badge de la carpeta Conversations). */
-  readonly unreadTotal = computed(() =>
-    this._threads()
-      .filter(thread => thread.status === 'Active')
-      .reduce((sum, thread) => sum + thread.unreadCount, 0),
+  /**
+   * Conversaciones sin leer del Inbox (badge de la carpeta). Sin filtro de cliente es el conteo del
+   * servidor (la lista solo tiene la primera página); con cliente, lo cargado de ese cliente.
+   */
+  readonly inboxUnread = computed(() =>
+    !this.embedded() && !this._selectedCustomerId() ? this.unread.threads() : countUnreadActive(this.activeThreads()),
   );
+
+  /**
+   * Cambio optimista de la lista de hilos que mueve el badge global en el mismo paso (sin esperar al
+   * próximo conteo del servidor). Las cargas no pasan por acá: reemplazan la lista, no la editan.
+   */
+  private patchThreads(update: (list: ThreadSummary[]) => ThreadSummary[]): void {
+    const before = countUnreadActive(this._threads());
+    this._threads.update(update);
+    const delta = countUnreadActive(this._threads()) - before;
+    if (delta !== 0) this.unread.adjustThreads(delta);
+  }
 
   /** Actualiza isRead de un mensaje en memoria y ajusta el unreadCount del hilo abierto por el delta. */
   private applyMessageReadLocal(messageId: string, isRead: boolean): void {
@@ -1491,7 +1747,7 @@ export class MailStore {
       }),
     );
     if (delta !== 0 && threadId) {
-      this._threads.update(list =>
+      this.patchThreads(list =>
         list.map(thread =>
           thread.threadId === threadId
             ? { ...thread, unreadCount: Math.max(0, thread.unreadCount + delta) }
@@ -1594,7 +1850,8 @@ export class MailStore {
 
   /**
    * Redacción nueva; `initialTo` precarga el destinatario (p. ej. el email del cliente). Se archiva en
-   * el cliente que se está viendo: en el perfil, siempre el del perfil; en "Not a client", en ninguno.
+   * el cliente filtrado (en el perfil, siempre el del perfil); sin filtro, en el cliente que se elija
+   * como destinatario (`fileComposeUnder`) o en ninguno.
    */
   openCompose(initialTo: string | null = null): void {
     this._reply.set(null);
@@ -1602,8 +1859,25 @@ export class MailStore {
       ...EMPTY_COMPOSE,
       open: true,
       initialTo: initialTo?.trim() || null,
-      customerId: this._unlinkedView() ? null : this._selectedCustomerId(),
+      customerId: this._selectedCustomerId(),
     });
+  }
+
+  /** Elegir a un cliente como destinatario archiva en él la redacción nueva que aún no tiene cliente. */
+  fileComposeUnder(customer: CustomerSummary): void {
+    const compose = this._compose();
+    if (
+      this.embedded() ||
+      !compose.open ||
+      compose.draft ||
+      compose.loadingDraft ||
+      compose.customerId !== null ||
+      !compose.autoFile
+    ) {
+      return;
+    }
+    this.rememberCustomers([customer]);
+    this._compose.update(state => ({ ...state, customerId: customer.id }));
   }
 
   /** En una redacción nueva de /email aún se puede no archivarla en el cliente; nunca en el perfil. */
@@ -1617,7 +1891,7 @@ export class MailStore {
     if (!this.canUnlinkComposeCustomer()) {
       return;
     }
-    this._compose.update(state => ({ ...state, customerId: null }));
+    this._compose.update(state => ({ ...state, customerId: null, autoFile: false }));
   }
 
   /** Retoma un draft existente desde la carpeta Drafts (GET /drafts/{id} para prellenar). */
@@ -1788,4 +2062,9 @@ export class MailStore {
       this._sentToast.set(false);
     }, 2500);
   }
+}
+
+/** Conversaciones activas con algo sin leer. */
+function countUnreadActive(threads: readonly ThreadSummary[]): number {
+  return threads.filter(thread => thread.status === 'Active' && thread.unreadCount > 0).length;
 }

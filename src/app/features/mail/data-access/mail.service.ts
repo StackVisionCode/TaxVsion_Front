@@ -9,6 +9,7 @@ import {
   AutoSaveDraftRequest,
   ConnectManualAccountRequest,
   ConnectManualAccountResult,
+  TestManualConnectionResult,
   DownloadAttachmentResult,
   DraftDetail,
   DraftListItem,
@@ -23,13 +24,26 @@ import {
   SendDraftResult,
   StartReplyResult,
   ThreadSummary,
+  UnreadMailCount,
 } from './mail.model';
 
 /** Alcance de los listados de Correspondence: `customerId=` o `unlinked=true`, nunca ninguno. */
 function scopeParams(scope: MailCustomerScope): HttpParams {
-  return scope.kind === 'customer'
-    ? new HttpParams().set('customerId', scope.customerId)
-    : new HttpParams().set('unlinked', true);
+  switch (scope.kind) {
+    case 'customer':
+      return new HttpParams().set('customerId', scope.customerId);
+    case 'unlinked':
+      return new HttpParams().set('unlinked', true);
+    default:
+      return new HttpParams().set('scope', 'all');
+  }
+}
+
+/** Filtros del inbox de la oficina; sin cliente = todos los visibles. */
+export interface InboxThreadsQuery {
+  customerId?: string | null;
+  unreadOnly?: boolean;
+  search?: string | null;
 }
 
 /**
@@ -84,6 +98,11 @@ export class MailService {
     return this.http.post<ConnectManualAccountResult>(`${this.connectors}/accounts/manual`, body);
   }
 
+  /** "Test connection": prueba IMAP y SMTP con lo tecleado, sin guardar nada. 200 aunque un servidor falle. */
+  testManualConnection(body: ConnectManualAccountRequest): Observable<TestManualConnectionResult> {
+    return this.http.post<TestManualConnectionResult>(`${this.connectors}/accounts/manual/test`, body);
+  }
+
   /** Reintenta el watch/subscription de una cuenta (Draft/Connected/Error). 204. */
   reauthAccount(accountId: string): Observable<void> {
     return this.http.post<void>(`${this.connectors}/accounts/${accountId}/reauth`, {});
@@ -96,12 +115,21 @@ export class MailService {
 
   // ---------- Correspondence: hilos ----------
 
-  listThreads(customerId: string, page: number, size: number): Observable<PagedResult<ThreadSummary>> {
-    const params = new HttpParams().set('page', page).set('size', size);
-    return this.http.get<PagedResult<ThreadSummary>>(
-      `${this.correspondence}/customers/${customerId}/threads`,
-      { params },
-    );
+  /**
+   * Inbox de la oficina: hilos de todos los clientes visibles (o de uno, con `customerId`), activos y
+   * archivados en una sola lista que la UI separa por carpeta.
+   */
+  listInboxThreads(query: InboxThreadsQuery, page: number, size: number): Observable<PagedResult<ThreadSummary>> {
+    let params = new HttpParams().set('status', 'all').set('page', page).set('size', size);
+    if (query.customerId) params = params.set('customerId', query.customerId);
+    if (query.unreadOnly) params = params.set('unreadOnly', true);
+    if (query.search?.trim()) params = params.set('q', query.search.trim());
+    return this.http.get<PagedResult<ThreadSummary>>(`${this.correspondence}/threads`, { params });
+  }
+
+  /** No leídos de los hilos activos visibles (badges del Inbox y del menú). */
+  getUnreadCount(): Observable<UnreadMailCount> {
+    return this.http.get<UnreadMailCount>(`${this.correspondence}/unread-count`);
   }
 
   /** Carpeta "Sent": mensajes ya enviados del cliente (o sin cliente), más reciente primero. */

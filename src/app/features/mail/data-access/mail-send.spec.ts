@@ -4,6 +4,7 @@ import { of } from 'rxjs';
 import { MailStore, ComposeSendPayload } from './mail.store';
 import { MailService } from './mail.service';
 import { MailSocketService } from './mail-socket.service';
+import { MailUnreadStore } from './mail-unread.store';
 import { AuthService } from '@core/auth/auth.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { AutoSaveDraftRequest, PagedResult } from './mail.model';
@@ -63,7 +64,7 @@ describe('MailStore.sendCompose', () => {
         return of({ sentMessageId: 'm1', providerMessageId: 'p1' });
       }),
       listDrafts: vi.fn(() => of(emptyPage<never>())),
-      listThreads: vi.fn(() => of(emptyPage<never>())),
+      listInboxThreads: vi.fn(() => of(emptyPage<never>())),
       removeDraftAttachment: vi.fn(() => of(void 0)),
     };
 
@@ -72,6 +73,7 @@ describe('MailStore.sendCompose', () => {
         MailStore,
         { provide: MailService, useValue: service },
         { provide: MailSocketService, useValue: { connect: vi.fn(), on: vi.fn(() => of()) } },
+        { provide: MailUnreadStore, useValue: { threads: () => 0, refresh: vi.fn(), adjustThreads: vi.fn() } },
         { provide: AuthService, useValue: { currentUser: () => null } },
         { provide: CloudStorageUploadService, useValue: {} },
       ],

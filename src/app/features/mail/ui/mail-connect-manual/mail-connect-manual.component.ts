@@ -10,29 +10,40 @@ import {
 import { CommonModule } from '@angular/common';
 import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
-import { ConnectManualAccountRequest } from '../../data-access/mail.model';
 import {
-  GENERIC_MANUAL_PRESET,
+  ConnectManualAccountRequest,
+  ManualConnectionCheck,
+  TestManualConnectionResult,
+} from '../../data-access/mail.model';
+import {
   ImapSmtpPreset,
   MANUAL_PROVIDER_OPTIONS,
   ManualProviderOption,
   providerOptionIdFor,
 } from '../../data-access/mail-provider-detect.util';
+import { ConnectionGuidance, connectionGuidance } from '../../data-access/mail-connection-guidance.util';
+
+/** Fila del resultado de "Test connection" ya lista para pintar. */
+export interface ManualTestRow {
+  label: string;
+  check: ManualConnectionCheck;
+  guidance: ConnectionGuidance | null;
+}
 
 /**
- * Formulario de alta de buzón por IMAP+SMTP (POST /connectors/accounts/manual). Dumb: recibe el email
- * de login, un preset opcional del proveedor detectado, si el alta es del buzón de oficina y estado de
- * envío; emite el request al padre.
+ * Alta de buzón por IMAP+SMTP (POST /connectors/accounts/manual). Dumb: recibe el email de login, un
+ * preset opcional del proveedor detectado, si el alta es del buzón de oficina y el estado de envío y de
+ * la prueba; emite el request al padre.
  *
- * Dos modos según `asOffice`:
- * - Personal (asOffice=false): `emailAddress` = email de login, bloqueado. Conectar otro correo
- *   devuelve 403 (guard de identidad del backend).
- * - Oficina (asOffice=true): `emailAddress` es editable (el buzón compartido casi nunca es el login
- *   del admin); el backend salta el guard para oficina.
+ * Lo común se ve sin ruido: email y contraseña. Servidores, puertos, cifrado y nombre visible quedan en
+ * "Advanced settings" ya prellenados por el proveedor (abiertos solo cuando no hay preset que usar).
+ * La misma contraseña sirve para entrar y enviar salvo que el usuario marque credenciales distintas.
  *
- * Un dropdown de proveedor prellena host/puerto/cifrado (Microsoft 365 / Gmail / Yahoo / iCloud /
- * Zoho / otro). El username de IMAP/SMTP casi siempre ES el email completo, así que se prellena y se
- * puede ajustar si el proveedor usa otro usuario.
+ * - Personal (asOffice=false): el buzón y el usuario de IMAP/SMTP son el email de login (guard del backend).
+ * - Oficina (asOffice=true): email y usuarios editables (un buzón compartido puede autenticarse con otra cuenta).
+ *
+ * "Test connection" prueba los dos servidores sin guardar; el resultado solo se muestra mientras los datos
+ * sigan siendo los probados (cambiar un campo lo invalida).
  */
 @Component({
   selector: 'app-mail-connect-manual',
@@ -42,51 +53,59 @@ import {
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
 })
 export class MailConnectManualComponent implements OnChanges {
-  /** Email de login: fija `emailAddress` (personal) y prellena los usernames. */
+  /** Email de login: fija el buzón (personal) y prellena los usuarios. */
   @Input() loginEmail: string | null = null;
-  /** Preset del proveedor detectado (null → se elige en el dropdown; genérico por defecto). */
+  /** Preset del proveedor detectado (null → se elige en Advanced settings; genérico por defecto). */
   @Input() preset: ImapSmtpPreset | null = null;
   /** Nombre legible del proveedor detectado, para el encabezado. */
   @Input() providerLabel = 'your email provider';
-  /** true = alta del buzón de oficina: `emailAddress` editable (el backend salta el guard). */
+  /** true = alta del buzón de oficina: email y usuarios editables (el backend salta el guard). */
   @Input() asOffice = false;
-  /** Alta en curso (deshabilita el submit). */
+  /** Alta en curso (deshabilita los botones). */
   @Input() busy = false;
-  /** Error real del backend (conectividad IMAP/SMTP o identidad). */
+  /** Error real del alta (conectividad IMAP/SMTP o identidad). */
   @Input() error: string | null = null;
+  /** Prueba en curso, su resultado y un error de la petición (p. ej. identidad o límite de intentos). */
+  @Input() testing = false;
+  @Input() testResult: TestManualConnectionResult | null = null;
+  @Input() testError: string | null = null;
 
   @Output() submitConnect = new EventEmitter<ConnectManualAccountRequest>();
+  @Output() testConnection = new EventEmitter<ConnectManualAccountRequest>();
   @Output() cancel = new EventEmitter<void>();
 
   readonly providers = MANUAL_PROVIDER_OPTIONS;
   selectedProviderId = 'custom';
+  showAdvanced = false;
+  /** Credenciales propias para el servidor de salida (si no, se reusan las de entrada). */
+  separateSmtpCredentials = false;
 
   /** Solo se usa en modo oficina (editable); en personal el buzón es siempre `loginEmail`. */
   emailAddress = '';
   displayName = '';
+  password = '';
   imapHost = '';
   imapPort = 993;
   imapUseSsl = true;
   imapUsername = '';
-  imapPassword = '';
   smtpHost = '';
   smtpPort = 587;
   smtpUseStartTls = true;
   smtpUsername = '';
   smtpPassword = '';
 
+  /** Datos con los que se pidió la última prueba: si cambian, su resultado ya no aplica. */
+  private testedKey: string | null = null;
+
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['preset'] || changes['asOffice']) {
-      // El proveedor inicial sale del preset detectado; si no hay, oficina asume Microsoft 365 (lo
-      // más común en un despacho) y personal queda en genérico para que el usuario lo elija.
-      this.selectedProviderId =
-        providerOptionIdFor(this.preset) ?? (this.asOffice ? 'office365' : 'custom');
+      // Proveedor inicial: el detectado; sin preset, oficina asume Microsoft 365 (lo más común en un
+      // despacho) y personal queda en "Other" con los servidores a la vista para completarlos.
+      this.selectedProviderId = providerOptionIdFor(this.preset) ?? (this.asOffice ? 'office365' : 'custom');
       this.applySelectedProvider();
+      this.showAdvanced = this.selectedProviderId === 'custom';
     }
     if (changes['loginEmail'] && this.loginEmail && !this.asOffice) {
-      // Personal: la identidad es el email de login; el username de IMAP/SMTP ES ese mismo email
-      // (los proveedores de consumidor lo usan como usuario) — no se pide aparte para no confundir ni
-      // permitir apuntar a un buzón ajeno bajo tu identidad. En oficina el username sí es editable.
       this.emailAddress = this.loginEmail;
     }
   }
@@ -96,19 +115,23 @@ export class MailConnectManualComponent implements OnChanges {
     return this.asOffice ? this.emailAddress.trim() : (this.loginEmail ?? '');
   }
 
-  /**
-   * Usuario de login del servidor. Personal: SIEMPRE el email del buzón (no editable). Oficina: lo que
-   * el admin teclee (un buzón compartido puede autenticarse con una cuenta de servicio distinta).
-   */
+  /** Usuario de entrada. Personal: siempre el email. Oficina: el tecleado o, vacío, el email. */
   get effectiveImapUsername(): string {
-    return this.asOffice ? this.imapUsername.trim() : this.effectiveEmail;
+    return this.asOffice ? this.imapUsername.trim() || this.effectiveEmail : this.effectiveEmail;
   }
 
   get effectiveSmtpUsername(): string {
-    return this.asOffice ? this.smtpUsername.trim() : this.effectiveEmail;
+    if (this.asOffice && this.separateSmtpCredentials) {
+      return this.smtpUsername.trim() || this.effectiveEmail;
+    }
+    return this.effectiveImapUsername;
   }
 
-  /** Cambió el proveedor del dropdown: reaplica host/puerto/cifrado (no toca usuario/contraseña). */
+  get effectiveSmtpPassword(): string {
+    return this.separateSmtpCredentials ? this.smtpPassword : this.password;
+  }
+
+  /** Cambió el proveedor: reaplica host/puerto/cifrado (no toca usuario ni contraseña). */
   onProviderChange(): void {
     this.applySelectedProvider();
   }
@@ -124,48 +147,93 @@ export class MailConnectManualComponent implements OnChanges {
     this.smtpUseStartTls = option.preset.smtpUseStartTls;
   }
 
-  /** En oficina, al teclear el email se prellenan los usernames vacíos (suelen ser el email completo). */
-  onEmailChange(): void {
-    if (this.asOffice && this.emailAddress.trim()) {
-      this.imapUsername ||= this.emailAddress.trim();
-      this.smtpUsername ||= this.emailAddress.trim();
-    }
-  }
-
   get isValid(): boolean {
     const email = this.effectiveEmail;
     return (
-      email.length > 0 &&
       email.includes('@') &&
       this.imapHost.trim().length > 0 &&
       this.imapPort > 0 &&
-      this.effectiveImapUsername.length > 0 &&
-      this.imapPassword.length > 0 &&
+      this.password.length > 0 &&
       this.smtpHost.trim().length > 0 &&
       this.smtpPort > 0 &&
-      this.effectiveSmtpUsername.length > 0 &&
-      this.smtpPassword.length > 0
+      this.effectiveSmtpPassword.length > 0
     );
   }
 
-  onSubmit(): void {
-    if (!this.isValid || this.busy) {
-      return;
-    }
-    this.submitConnect.emit({
+  /** Falta el servidor (proveedor "Other"): se avisa en vez de dejar el botón apagado sin explicación. */
+  get missingServers(): boolean {
+    return !this.imapHost.trim() || !this.smtpHost.trim();
+  }
+
+  private buildRequest(): ConnectManualAccountRequest {
+    return {
       emailAddress: this.effectiveEmail,
       displayName: this.displayName.trim() || null,
       imapHost: this.imapHost.trim(),
       imapPort: this.imapPort,
       imapUseSsl: this.imapUseSsl,
       imapUsername: this.effectiveImapUsername,
-      imapPassword: this.imapPassword,
+      imapPassword: this.password,
       smtpHost: this.smtpHost.trim(),
       smtpPort: this.smtpPort,
       smtpUseStartTls: this.smtpUseStartTls,
       smtpUsername: this.effectiveSmtpUsername,
-      smtpPassword: this.smtpPassword,
+      smtpPassword: this.effectiveSmtpPassword,
       asOffice: this.asOffice,
-    });
+    };
+  }
+
+  /** Huella de lo que se prueba (sin el nombre visible, que no afecta a la conexión). */
+  private keyOf(request: ConnectManualAccountRequest): string {
+    const { displayName: _ignored, ...connection } = request;
+    return JSON.stringify(connection);
+  }
+
+  onTest(): void {
+    if (!this.isValid || this.testing || this.busy) {
+      return;
+    }
+    const request = this.buildRequest();
+    this.testedKey = this.keyOf(request);
+    this.testConnection.emit(request);
+  }
+
+  /** El resultado mostrado es el de los datos actuales; si el usuario cambió algo, se oculta. */
+  get currentTestResult(): TestManualConnectionResult | null {
+    if (!this.testResult || this.testedKey === null) {
+      return null;
+    }
+    return this.keyOf(this.buildRequest()) === this.testedKey ? this.testResult : null;
+  }
+
+  get testRows(): ManualTestRow[] {
+    const result = this.currentTestResult;
+    if (!result) {
+      return [];
+    }
+    return [
+      {
+        label: 'Incoming mail (IMAP)',
+        check: result.imap,
+        guidance: connectionGuidance(result.imap, 'imap', this.selectedProviderId),
+      },
+      {
+        label: 'Outgoing mail (SMTP)',
+        check: result.smtp,
+        guidance: connectionGuidance(result.smtp, 'smtp', this.selectedProviderId),
+      },
+    ];
+  }
+
+  get testPassed(): boolean {
+    const result = this.currentTestResult;
+    return !!result && result.imap.ok && result.smtp.ok;
+  }
+
+  onSubmit(): void {
+    if (!this.isValid || this.busy) {
+      return;
+    }
+    this.submitConnect.emit(this.buildRequest());
   }
 }

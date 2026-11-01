@@ -427,6 +427,37 @@ describe('FormTemplateBuilderComponent mapping and actions (P-16/P-17)', () => {
     expect(fixture.componentInstance.mappingNotice()).toContain('feeds a data mapping');
   });
 
+  it('deletes a section after confirming and drops the mappings of what it held', () => {
+    const { fixture, store, definition } = render({ selection: { kind: 'section', id: 'sc_deps00001' } });
+
+    expect(fixture.componentInstance.canRemoveStructure()).toBe(true);
+    fixture.componentInstance.requestRemoveStructure();
+    expect(fixture.componentInstance.structureRemoval()).toMatchObject({ kind: 'section', id: 'sc_deps00001' });
+    expect(store.change).not.toHaveBeenCalled();
+
+    fixture.componentInstance.confirmRemoveStructure();
+    const mutate = store.change.mock.calls[0][0] as (value: typeof definition) => typeof definition;
+    expect(mutate(definition).pages[0].sections.map((section) => section.id)).not.toContain('sc_deps00001');
+    expect(store.select).toHaveBeenLastCalledWith(null);
+  });
+
+  it('explains instead of deleting a section with a mapped field without the configure permission', () => {
+    const { fixture, store } = render({ canConfigure: false });
+    store.selection.set({ kind: 'section', id: store.definition().pages[0].sections[0].id } as never);
+
+    fixture.componentInstance.requestRemoveStructure();
+
+    expect(fixture.componentInstance.structureRemoval()).toBeNull();
+    expect(fixture.componentInstance.mappingNotice()).toContain('feed a data mapping');
+  });
+
+  it('does not offer deleting the only page', () => {
+    const { fixture, store } = render();
+    store.selection.set({ kind: 'page', id: store.definition().pages[0].id } as never);
+
+    expect(fixture.componentInstance.canRemoveStructure()).toBe(store.definition().pages.length > 1);
+  });
+
   it('explains instead of removing the signature step without the configure permission', () => {
     const { fixture, store, definition } = render({ canConfigure: false });
     definition.pages[0].sections[0].components.push({ id: 'fd_sign00001', type: 'signatureStep' });

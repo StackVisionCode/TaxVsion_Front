@@ -127,6 +127,69 @@ export function removeComponent(
   };
 }
 
+/** Resultado de borrar una sección o página: bloqueada por referencias externas o por ser la última. */
+export interface RemoveStructureResult {
+  definition: FormDefinition;
+  blockedBy: ComponentReference[];
+  /** Una página necesita al menos una sección y la plantilla al menos una página. */
+  lastOne: boolean;
+  /** Campos que se van con ella (para limpiar sus mapeos). */
+  removedComponentIds: string[];
+}
+
+export function removeSection(definition: FormDefinition, sectionId: string): RemoveStructureResult {
+  const page = definition.pages.find((item) => item.sections.some((section) => section.id === sectionId));
+  const section = page?.sections.find((item) => item.id === sectionId);
+  if (!page || !section) return { definition, blockedBy: [], lastOne: false, removedComponentIds: [] };
+  if (page.sections.length <= 1) return { definition, blockedBy: [], lastOne: true, removedComponentIds: [] };
+  return removeStructure(definition, [section], {
+    ...definition,
+    pages: definition.pages.map((item) =>
+      item.id === page.id ? { ...item, sections: item.sections.filter((s) => s.id !== sectionId) } : item,
+    ),
+  });
+}
+
+export function removePage(definition: FormDefinition, pageId: string): RemoveStructureResult {
+  const page = definition.pages.find((item) => item.id === pageId);
+  if (!page) return { definition, blockedBy: [], lastOne: false, removedComponentIds: [] };
+  if (definition.pages.length <= 1) return { definition, blockedBy: [], lastOne: true, removedComponentIds: [] };
+  return removeStructure(definition, page.sections, {
+    ...definition,
+    pages: definition.pages.filter((item) => item.id !== pageId),
+  }, page.id);
+}
+
+// Solo bloquean las referencias desde fuera de lo que se borra: lo que se va junto no queda colgando.
+function removeStructure(
+  definition: FormDefinition,
+  sections: readonly FormSection[],
+  next: FormDefinition,
+  pageId?: string,
+): RemoveStructureResult {
+  const components = sections.flatMap((section) => section.components);
+  const removedIds = new Set<string>([
+    ...components.map((component) => component.id),
+    ...sections.map((section) => section.id),
+    ...(pageId ? [pageId] : []),
+  ]);
+  const blockedBy = components
+    .flatMap((component) => componentReferences(definition, component.id))
+    .filter((reference) => !removedIds.has(reference.ownerId))
+    .filter(
+      (reference, index, all) =>
+        all.findIndex((item) => item.ownerId === reference.ownerId && item.property === reference.property) === index,
+    );
+  if (blockedBy.length > 0) return { definition, blockedBy, lastOne: false, removedComponentIds: [] };
+  const hadSignature = components.some((component) => component.type === 'signatureStep');
+  return {
+    definition: hadSignature ? withoutSignatureActions(next) : next,
+    blockedBy: [],
+    lastOne: false,
+    removedComponentIds: components.map((component) => component.id),
+  };
+}
+
 // Sin paso de firma no hay firma que pedir ni que esperar.
 function withoutSignatureActions(definition: FormDefinition): FormDefinition {
   return {

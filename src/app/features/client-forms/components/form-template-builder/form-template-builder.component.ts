@@ -42,6 +42,8 @@ import {
   findSection,
   moveComponent,
   removeComponent,
+  removePage,
+  removeSection,
   updateComponent,
   updatePage,
   updateSection,
@@ -447,6 +449,8 @@ type TemplateTab = 'structure' | 'actions' | 'coverage';
                       (sectionChange)="updateSelectedSection($event)"
                       (mappingChange)="updateSelectedMapping('section', $event)"
                       (mappingRetry)="catalogStore.reload()"
+                      [canRemove]="canRemoveStructure()"
+                      (removed)="requestRemoveStructure()"
                     />
                   }
                   @default {
@@ -619,10 +623,20 @@ type TemplateTab = 'structure' | 'actions' | 'coverage';
       </div>
     </app-modal>
 
+    <app-confirm-dialog
+      [isOpen]="structureRemoval() !== null"
+      [heading]="structureRemoval()?.kind === 'page' ? 'Delete this page?' : 'Delete this section?'"
+      [message]="structureRemovalMessage()"
+      confirmLabel="Delete"
+      tone="danger"
+      (cancelled)="structureRemoval.set(null)"
+      (confirmed)="confirmRemoveStructure()"
+    />
+
     <app-modal
       [isOpen]="blockedRemoval() !== null"
-      heading="This field is used by conditions"
-      subheading="Remove those conditions before deleting the field."
+      [heading]="'This ' + blockedSubject() + ' is used by conditions'"
+      [subheading]="'Remove those conditions before deleting the ' + blockedSubject() + '.'"
       size="sm"
       (closed)="blockedRemoval.set(null)"
     >
@@ -822,6 +836,25 @@ export class FormTemplateBuilderComponent implements OnInit, OnDestroy {
   readonly publishingVersion = signal(1);
   readonly archiveOpen = signal(false);
   readonly blockedRemoval = signal<ReturnType<typeof removeComponent>['blockedBy'] | null>(null);
+  /** Qué se intentaba borrar cuando lo bloquearon las condiciones (título del aviso). */
+  readonly blockedSubject = signal<'field' | 'section' | 'page'>('field');
+  /** Sección o página pendiente de confirmar su borrado. */
+  readonly structureRemoval = signal<{ kind: 'section' | 'page'; id: string; fields: number } | null>(null);
+  readonly canRemoveStructure = computed(() => {
+    const definition = this.store.definition();
+    const section = this.selectedSection();
+    if (!definition) return false;
+    if (section) return (definition.pages.find((page) => page.sections.some((s) => s.id === section.id))?.sections.length ?? 0) > 1;
+    return this.selectedPage() != null && definition.pages.length > 1;
+  });
+  readonly structureRemovalMessage = computed(() => {
+    const pending = this.structureRemoval();
+    if (!pending) return '';
+    const what = pending.kind === 'page' ? 'page' : 'section';
+    return pending.fields > 0
+      ? `This ${what} and its ${pending.fields} ${pending.fields === 1 ? 'component' : 'components'} will be removed from the template.`
+      : `This empty ${what} will be removed from the template.`;
+  });
   readonly conflictChoices = signal<Record<string, BuilderConflictChoice>>({});
   readonly leaveOpen = signal(false);
   private readonly destroyRef = inject(DestroyRef);
@@ -1088,6 +1121,7 @@ export class FormTemplateBuilderComponent implements OnInit, OnDestroy {
     if (!selected || !definition) return;
     const result = removeComponent(definition, selected.id);
     if (result.blockedBy.length) {
+      this.blockedSubject.set('field');
       this.blockedRemoval.set(result.blockedBy);
       return;
     }
@@ -1111,6 +1145,69 @@ export class FormTemplateBuilderComponent implements OnInit, OnDestroy {
     this.store.change(() => withoutComponentMappings(result.definition, selected.id));
     this.store.select(null);
   }
+  /** Borrar sección o página: mismas reglas que un campo (condiciones, mapeos) y confirmación. */
+  requestRemoveStructure(): void {
+    const definition = this.store.definition();
+    const section = this.selectedSection();
+    const page = section ? null : this.selectedPage();
+    if (!definition || (!section && !page) || !this.canRemoveStructure()) return;
+    const kind = section ? 'section' : 'page';
+    const result = section ? removeSection(definition, section.id) : removePage(definition, page!.id);
+    if (result.lastOne) return;
+    if (result.blockedBy.length) {
+      this.blockedSubject.set(kind);
+      this.blockedRemoval.set(result.blockedBy);
+      return;
+    }
+    const sections = section ? [section] : page!.sections;
+    if (!this.canConfigureActions()) {
+      const mapped =
+        sections.some((item) => mappingReferences(definition, item.id).own) ||
+        result.removedComponentIds.some((id) => {
+          const references = mappingReferences(definition, id);
+          return references.own || references.rowsOf.length > 0;
+        });
+      if (mapped) {
+        this.mappingNotice.set(
+          `This ${kind} has fields that feed a data mapping. Ask someone with Configure actions to remove the mapping first.`,
+        );
+        return;
+      }
+      if (sections.some((item) => item.components.some((component) => component.type === 'signatureStep'))) {
+        this.mappingNotice.set(
+          `This ${kind} has the signature step, which comes with a Request signature action. Ask someone with Configure actions to remove it.`,
+        );
+        return;
+      }
+    }
+    this.structureRemoval.set({
+      kind,
+      id: section?.id ?? page!.id,
+      fields: sections.reduce((total, item) => total + item.components.length, 0),
+    });
+  }
+
+  confirmRemoveStructure(): void {
+    const pending = this.structureRemoval();
+    this.structureRemoval.set(null);
+    const definition = this.store.definition();
+    if (!pending || !definition) return;
+    const removedSections =
+      pending.kind === 'section'
+        ? [pending.id]
+        : (definition.pages.find((page) => page.id === pending.id)?.sections.map((section) => section.id) ?? []);
+    const result = pending.kind === 'section' ? removeSection(definition, pending.id) : removePage(definition, pending.id);
+    if (result.lastOne || result.blockedBy.length) return;
+    // Los mapeos de lo borrado (campos y repeaters) no sobreviven.
+    this.store.change(() =>
+      [...result.removedComponentIds, ...removedSections].reduce(
+        (next, id) => withoutComponentMappings(next, id),
+        result.definition,
+      ),
+    );
+    this.store.select(null);
+  }
+
   async validate(): Promise<void> {
     await this.store.validate();
     if (this.store.actionError()) return;

@@ -1,15 +1,18 @@
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
+  ElementRef,
   EventEmitter,
   Input,
   OnChanges,
   Output,
   SimpleChanges,
+  ViewChild,
   inject,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import {
@@ -42,7 +45,7 @@ import {
  */
 @Component({
   selector: 'app-mail-reading-pane',
-  imports: [InfinityLoaderComponent, CommonModule, FormsModule, AvatarComponent, BytesPipe],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, RouterLink, AvatarComponent, BytesPipe],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mail-reading-pane.component.html',
   styleUrl: './mail-reading-pane.component.css',
@@ -62,7 +65,9 @@ export class MailReadingPaneComponent implements OnChanges {
   /** Sin cuenta de buzón activa no se puede crear el draft de respuesta. */
   @Input() canReply = false;
   /** Cliente del buzón: si el remitente es su email, se muestra su foto (los externos quedan con iniciales). */
-  @Input() customer: Pick<CustomerSummary, 'id' | 'primaryEmail' | 'avatarFileId'> | null = null;
+  @Input() customer: Pick<CustomerSummary, 'id' | 'displayName' | 'primaryEmail' | 'avatarFileId'> | null = null;
+  /** Chip del cliente con enlace a su ficha (no en el perfil, donde ya se está en ella). */
+  @Input() showCustomerLink = false;
 
   @Output() messageToggled = new EventEmitter<string>();
   @Output() bodyRetryRequested = new EventEmitter<string>();
@@ -86,6 +91,7 @@ export class MailReadingPaneComponent implements OnChanges {
   /** Texto del reply inline (el body viaja en el autosave justo antes del send). */
   readonly replyText = signal('');
   private lastReplyMessageId: string | null = null;
+  @ViewChild('replyBox') private replyBox?: ElementRef<HTMLTextAreaElement>;
 
   ngOnChanges(changes: SimpleChanges): void {
     // Cambiar de hilo descarta lo que se estuviera escribiendo.
@@ -100,6 +106,11 @@ export class MailReadingPaneComponent implements OnChanges {
       if (currentId !== this.lastReplyMessageId) {
         this.replyText.set('');
         this.lastReplyMessageId = currentId;
+      }
+      // El editor queda listo (StartReply respondió): el foco va a escribir, con mouse o con `r`.
+      const previous = changes['reply'].previousValue as ReplyState | null;
+      if (previous?.starting && this.reply && !this.reply.starting && previous.messageId === this.reply.messageId) {
+        setTimeout(() => this.replyBox?.nativeElement.focus());
       }
     }
   }

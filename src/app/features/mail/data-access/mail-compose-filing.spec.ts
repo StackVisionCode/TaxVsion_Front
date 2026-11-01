@@ -4,6 +4,7 @@ import { of } from 'rxjs';
 import { MailStore, ComposeSendPayload } from './mail.store';
 import { MailService } from './mail.service';
 import { MailSocketService } from './mail-socket.service';
+import { MailUnreadStore } from './mail-unread.store';
 import { AuthService } from '@core/auth/auth.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { InitiateUploadRequest, InitiatedUploadResponse } from '@core/cloud-storage/cloud-storage.model';
@@ -11,6 +12,7 @@ import { CustomerDirectoryStore } from '@core/customers/customer-directory.store
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { EmbeddedCustomerContext } from '@core/customers/embedded-customer';
 import { DraftDetail, MailCustomerScope, PagedResult } from './mail.model';
+import { InboxThreadsQuery } from './mail.service';
 
 const emptyPage = <T>(): PagedResult<T> => ({
   items: [],
@@ -62,19 +64,22 @@ const draftOf = (customerId: string | null): DraftDetail => ({
 });
 
 /**
- * Dónde se archiva un correo saliente: en el cliente que se está viendo, en ninguno ("Not a client")
- * o, dentro del perfil, SIEMPRE en el cliente del perfil. Y a quién pertenecen sus adjuntos.
+ * Dónde se archiva un correo saliente: en el cliente filtrado, en el elegido como destinatario, en
+ * ninguno ("Not a client") o, dentro del perfil, SIEMPRE en el cliente del perfil. Y a quién pertenecen
+ * sus adjuntos. También qué alcance pide cada listado con cada filtro.
  */
 describe('MailStore: a qué cliente se archiva el correo', () => {
   let created: Array<string | null>;
   let uploads: InitiateUploadRequest[];
   let listed: Array<{ list: string; scope: MailCustomerScope }>;
+  let inboxQueries: InboxThreadsQuery[];
   let currentUserId: string | null;
 
   function configure(embedded: { id: string; name: string } | null = null): MailStore {
     created = [];
     uploads = [];
     listed = [];
+    inboxQueries = [];
     const service: Partial<MailService> = {
       createDraft: vi.fn((customerId: string | null) => {
         created.push(customerId);
@@ -85,7 +90,10 @@ describe('MailStore: a qué cliente se archiva el correo', () => {
       sendDraft: vi.fn(() => of({ sentMessageId: 'm1', providerMessageId: 'p1' })),
       getDraft: vi.fn(() => of(draftOf('c9'))),
       listAccounts: vi.fn(() => of([])),
-      listThreads: vi.fn(() => of(emptyPage<never>())),
+      listInboxThreads: vi.fn((query: InboxThreadsQuery) => {
+        inboxQueries.push(query);
+        return of(emptyPage<never>());
+      }),
       listDrafts: vi.fn((scope: MailCustomerScope) => {
         listed.push({ list: 'drafts', scope });
         return of(emptyPage<never>());
@@ -121,6 +129,7 @@ describe('MailStore: a qué cliente se archiva el correo', () => {
         MailStore,
         { provide: MailService, useValue: service },
         { provide: MailSocketService, useValue: { connect: vi.fn(), on: vi.fn(() => of()) } },
+        { provide: MailUnreadStore, useValue: { threads: () => 0, refresh: vi.fn(), adjustThreads: vi.fn() } },
         { provide: AuthService, useValue: { currentUser: () => (currentUserId ? { id: currentUserId } : null) } },
         { provide: CloudStorageUploadService, useValue: upload },
         {
@@ -177,8 +186,56 @@ describe('MailStore: a qué cliente se archiva el correo', () => {
     });
   });
 
-  describe('en /email, vista "Not a client"', () => {
-    it('lista Sent y Drafts sin cliente, y redacta sin cliente', () => {
+  describe('en /email, sin filtro de cliente (Inbox de la oficina)', () => {
+    it('el Inbox y las carpetas salientes piden todo, sin elegir cliente', () => {
+      const store = configure();
+      store.selectFolder('sent');
+
+      expect(store.selectedCustomerId()).toBeNull();
+      expect(store.activeFolderId()).toBe('sent');
+      expect(listed).toEqual([{ list: 'sent', scope: { kind: 'all' } }]);
+    });
+
+    it('una redacción nueva no tiene cliente hasta elegir a uno como destinatario', () => {
+      const store = configure();
+      store.openCompose();
+      expect(store.compose().customerId).toBeNull();
+
+      store.fileComposeUnder(customer('c2', 'Luis Gómez'));
+      store.sendCompose(payload([file()]));
+
+      expect(created).toEqual(['c2']);
+      expect(uploads[0]).toMatchObject({ ownerType: 'Customer', ownerId: 'c2' });
+      expect(store.customerIndex().get('c2')?.displayName).toBe('Luis Gómez');
+    });
+
+    it('tras "Don\'t file under this client", elegir otro destinatario cliente no la vuelve a archivar', () => {
+      const store = configure();
+      store.openCompose();
+      store.fileComposeUnder(customer('c2'));
+      store.unlinkComposeCustomer();
+
+      store.fileComposeUnder(customer('c3'));
+
+      expect(store.compose().customerId).toBeNull();
+    });
+
+    it('quitar el filtro de cliente vuelve a pedir el correo de todos', () => {
+      const store = configure();
+      store.pickCustomer(customer('c1'));
+      inboxQueries = [];
+      listed = [];
+
+      store.clearCustomer();
+
+      expect(store.selectedCustomerId()).toBeNull();
+      expect(inboxQueries).toEqual([{ customerId: null, search: '' }]);
+      expect(listed).toEqual([{ list: 'drafts', scope: { kind: 'all' } }]);
+    });
+  });
+
+  describe('en /email, filtro "Not a client"', () => {
+    it('lista Sent y Drafts sin cliente, quita el filtro de cliente y redacta sin cliente', () => {
       const store = configure();
       store.pickCustomer(customer('c1'));
       listed = [];
@@ -188,26 +245,40 @@ describe('MailStore: a qué cliente se archiva el correo', () => {
       store.sendCompose(payload());
 
       expect(listed).toEqual([
-        { list: 'sent', scope: { kind: 'unlinked' } },
         { list: 'drafts', scope: { kind: 'unlinked' } },
+        { list: 'sent', scope: { kind: 'unlinked' } },
         { list: 'drafts', scope: { kind: 'unlinked' } }, // recarga tras el envío
       ]);
+      expect(store.selectedCustomerId()).toBeNull();
       expect(store.activeFolderId()).toBe('sent');
       expect(created).toEqual([null]);
       expect(store.canUnlinkComposeCustomer()).toBe(false);
     });
 
-    it('volver a un cliente lista otra vez su correo', () => {
+    it('elegir un cliente quita "Not a client" y se queda en la carpeta', () => {
       const store = configure();
-      store.pickCustomer(customer('c1'));
       store.showUnlinkedMail();
       listed = [];
 
       store.pickCustomer(customer('c1'));
 
       expect(store.unlinkedView()).toBe(false);
-      expect(store.activeFolderId()).toBe('conversations');
-      expect(listed).toEqual([{ list: 'drafts', scope: { kind: 'customer', customerId: 'c1' } }]);
+      expect(store.activeFolderId()).toBe('sent');
+      expect(listed).toEqual([
+        { list: 'drafts', scope: { kind: 'customer', customerId: 'c1' } },
+        { list: 'sent', scope: { kind: 'customer', customerId: 'c1' } },
+      ]);
+    });
+
+    it('volver al Inbox quita "Not a client"', () => {
+      const store = configure();
+      store.showUnlinkedMail();
+      listed = [];
+
+      store.selectFolder('inbox');
+
+      expect(store.unlinkedView()).toBe(false);
+      expect(listed).toEqual([{ list: 'drafts', scope: { kind: 'all' } }]);
     });
 
     it('sin identidad del usuario no deja enviar adjuntos ni crea el draft', () => {

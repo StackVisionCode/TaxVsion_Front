@@ -52,6 +52,7 @@ const EMPTY_STATE: ComposeState = {
   error: null,
   initialTo: null,
   customerId: null,
+  autoFile: true,
 };
 
 /** Campo de destinatarios con autocompletar. Bcc no existe en el payload del store. */
@@ -116,6 +117,8 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
   @Output() recipientSearchRequested = new EventEmitter<string>();
   /** "No archivar en este cliente": el padre lo resuelve contra el store. */
   @Output() customerUnlinked = new EventEmitter<void>();
+  /** Cliente elegido como destinatario en To: el padre decide si archiva el correo en él. */
+  @Output() recipientCustomerPicked = new EventEmitter<CustomerSummary>();
 
   private readonly sanitizer = inject(DomSanitizer);
 
@@ -304,6 +307,7 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
     // tipo "Peña, Enger" partiría la dirección en dos: se aplana antes de escribirlo.
     const name = customer.displayName.replace(/[,;]+/g, ' ').replace(/\s+/g, ' ').trim();
     this.commitToken(field, name ? `${name} <${customer.primaryEmail}>` : customer.primaryEmail);
+    if (field === 'to') this.recipientCustomerPicked.emit(customer);
   }
 
   useTypedEmail(field: RecipientField): void {

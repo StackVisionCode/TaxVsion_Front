@@ -51,15 +51,22 @@ export class CentralLoginService {
     accountKind: AccountKind,
     rememberDevice = false,
   ): Observable<HandoffTicketView> {
-    return this.http.post<HandoffTicketView>(`${this.api.systemBase()}/auth/session/handoff`, {
-      discoverySessionRef: sessionRef,
-      chosenTenantId,
-      mfaCode: mfaCode || null,
-      accountKind,
-      // El backend solo lo honra si de verdad hubo reto y el código fue del autenticador: un código
-      // de recuperación no deja el equipo marcado.
-      rememberDevice,
-    });
+    return this.http
+      .post<HandoffTicketView>(`${this.api.systemBase()}/auth/session/handoff`, {
+        discoverySessionRef: sessionRef,
+        chosenTenantId,
+        mfaCode: mfaCode || null,
+        accountKind,
+        // El backend solo lo honra si de verdad hubo reto y el código fue del autenticador: un código
+        // de recuperación no deja el equipo marcado.
+        rememberDevice,
+      })
+      .pipe(
+        // Se guarda acá, antes de saltar a la oficina: este origen es el que vuelve a hacer el discover.
+        tap(view => {
+          if (view.deviceToken) this.tokenService.setDeviceToken(view.deviceToken);
+        }),
+      );
   }
 
   /** Paso 3 (ya en el subdominio): canjea el vale por tokens de sesión y los persiste. */

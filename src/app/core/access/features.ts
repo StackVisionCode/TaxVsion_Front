@@ -217,6 +217,13 @@ export const FEATURES: readonly FeatureDefinition[] = [
   // ---- Administración de la oficina ----
   { id: 'users', label: 'Users', route: 'company/users', module: null, anyOf: ['users.view'] },
   {
+    id: 'security-settings',
+    label: 'Security settings',
+    route: 'settings/security',
+    module: null,
+    anyOf: ['settings.manage'],
+  },
+  {
     id: 'company-settings',
     label: 'Office settings',
     route: 'company/settings',

@@ -23,10 +23,40 @@
 
 <!-- 3) Sin buzón usable (o en modo gestión): flujo de conexión + gestión de buzones.
      Embebido en el perfil nunca se muestra (evita redirecciones OAuth desde el perfil). -->
-<div *ngIf="!embedded() && !store.bootLoading() && !store.bootError() && (!store.hasMailbox() || showMailboxManager())"
+<div *ngIf="!embedded() && !store.bootLoading() && !store.bootError() && (!store.hasMailbox() || showMailboxManager() || connectedNotice())"
   class="flex-1 min-h-0 pt-3 pb-1 flex items-start justify-center overflow-y-auto">
   <div class="w-full max-w-xl rounded-[1.5rem] bg-white p-8 border border-gray-100 shadow-sm">
 
+    <!-- Pantalla final tras conectar: qué quedó conectado y si ya recibe correo -->
+    <div *ngIf="connectedNotice() as notice" class="text-center">
+      <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
+        <ion-icon name="checkmark-done-outline" class="text-2xl text-emerald-600"></ion-icon>
+      </span>
+      <h2 class="mt-4 text-xl font-bold text-gray-900">You're all set</h2>
+      <p class="mx-auto mt-2 max-w-md text-sm text-gray-500">
+        <span class="font-semibold text-gray-800">{{ connectedAccount()?.emailAddress || notice.email || 'Your mailbox' }}</span>
+        is connected. New mail from your clients will show up in your Inbox as it arrives.
+      </p>
+      <div *ngIf="connectedAccount() as account" class="mt-4">
+        <p *ngIf="account.status === 'Active'" class="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700">
+          <span class="h-2 w-2 rounded-full bg-emerald-500"></span> Receiving mail
+        </p>
+        <div *ngIf="account.status === 'Connected' || account.status === 'Error'"
+          class="mx-auto flex max-w-md flex-wrap items-center justify-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p class="text-sm text-amber-800">It isn't receiving incoming mail yet.</p>
+          <button type="button" (click)="reauthAccount(account.id)" [disabled]="!!store.reauthBusyId()"
+            class="rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
+            {{ store.reauthBusyId() === account.id ? 'Retrying…' : 'Enable sync' }}
+          </button>
+        </div>
+      </div>
+      <button type="button" (click)="goToInbox()" [disabled]="!store.hasMailbox()"
+        class="mt-6 inline-flex items-center gap-2 rounded-full bg-brand-bold px-6 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink disabled:opacity-50 transition-colors">
+        Go to Inbox <ion-icon name="arrow-forward-outline" class="text-base"></ion-icon>
+      </button>
+    </div>
+
+    <ng-container *ngIf="!connectedNotice()">
     <!-- Volver a la bandeja (solo en modo gestión, cuando ya hay un buzón usable) -->
     <div *ngIf="showMailboxManager() && store.hasMailbox()" class="mb-4">
       <button type="button" (click)="toggleMailboxManager()"
@@ -105,35 +135,44 @@
       </ng-template>
     </div>
 
-    <!-- OAuth: solo el proveedor del dominio detectado (ambos solo si es dominio propio: Google Workspace vs M365 no se distinguen) -->
-    <div *ngIf="!showManualForm() && showOAuthOptions()" class="mt-6 flex flex-wrap items-center justify-center gap-3">
-      <button *ngIf="showGmailOption()" type="button" (click)="connectMailbox('Gmail')" [disabled]="!!store.connectBusy()"
-        class="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
-        [ngClass]="store.providerDetection().provider === 'Gmail'
-          ? 'bg-brand-bold text-white hover:bg-brand-ink disabled:hover:bg-brand-bold'
-          : 'border border-gray-200 text-gray-700 hover:bg-gray-50'">
-        <app-infinity-loader *ngIf="store.connectBusy() === 'Gmail'" size="xs" tone="light" />
-        <ion-icon *ngIf="store.connectBusy() !== 'Gmail'" name="logo-google" class="text-base"></ion-icon>
-        {{ store.connectBusy() === 'Gmail' ? 'Redirecting…' : 'Connect Gmail' }}
-      </button>
-      <button *ngIf="showGraphOption()" type="button" (click)="connectMailbox('Graph')" [disabled]="!!store.connectBusy()"
-        class="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
-        [ngClass]="store.providerDetection().provider === 'Graph'
-          ? 'bg-brand-bold text-white hover:bg-brand-ink disabled:hover:bg-brand-bold'
-          : 'border border-gray-200 text-gray-700 hover:bg-gray-50'">
-        <app-infinity-loader *ngIf="store.connectBusy() === 'Graph'" size="xs" tone="light" />
-        <ion-icon *ngIf="store.connectBusy() !== 'Graph'" name="logo-microsoft" class="text-base"></ion-icon>
-        {{ store.connectBusy() === 'Graph' ? 'Redirecting…' : 'Connect Microsoft 365' }}
-      </button>
-    </div>
-
-    <!-- Proveedor conocido sin OAuth (Yahoo/iCloud/Zoho): el setup manual ES la acción primaria -->
-    <div *ngIf="!showManualForm() && !showOAuthOptions()" class="mt-6 flex items-center justify-center">
-      <button type="button" (click)="toggleManualForm()"
-        class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-        <ion-icon name="options-outline" class="text-base"></ion-icon>
-        Set up {{ store.providerDetection().label }}
-      </button>
+    <!-- Proveedor: tarjetas grandes (solo las que aplican al dominio del login; oficina ve todas). La
+         recomendada va destacada. Google y Microsoft se conectan en su propia página (OAuth). -->
+    <div *ngIf="!showManualForm()" class="mt-6">
+      <p class="text-center text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Choose your provider</p>
+      <div class="mt-3 grid grid-cols-1 gap-3" [ngClass]="{ 'sm:grid-cols-3': showGmailOption() && showGraphOption(), 'sm:grid-cols-2': showGmailOption() !== showGraphOption() }">
+        <button *ngIf="showGmailOption()" type="button" (click)="connectMailbox('Gmail')" [disabled]="!!store.connectBusy()"
+          class="relative flex flex-col items-center gap-2 rounded-2xl border px-4 py-5 text-center transition-colors disabled:opacity-50"
+          [ngClass]="recommendedProvider() === 'Gmail' ? 'border-brand-bold bg-brand-bold/5' : 'border-gray-200 hover:bg-gray-50'">
+          <span *ngIf="recommendedProvider() === 'Gmail'" class="absolute -top-2.5 rounded-full bg-brand-bold px-2 py-0.5 text-[0.625rem] font-semibold text-white">Recommended</span>
+          <app-infinity-loader *ngIf="store.connectBusy() === 'Gmail'" size="sm" />
+          <ion-icon *ngIf="store.connectBusy() !== 'Gmail'" name="logo-google" class="text-2xl text-gray-800"></ion-icon>
+          <span class="text-sm font-semibold text-gray-900">{{ store.connectBusy() === 'Gmail' ? 'Redirecting…' : 'Google' }}</span>
+          <span class="text-xs text-gray-500">Gmail or Google Workspace</span>
+        </button>
+        <button *ngIf="showGraphOption()" type="button" (click)="connectMailbox('Graph')" [disabled]="!!store.connectBusy()"
+          class="relative flex flex-col items-center gap-2 rounded-2xl border px-4 py-5 text-center transition-colors disabled:opacity-50"
+          [ngClass]="recommendedProvider() === 'Graph' ? 'border-brand-bold bg-brand-bold/5' : 'border-gray-200 hover:bg-gray-50'">
+          <span *ngIf="recommendedProvider() === 'Graph'" class="absolute -top-2.5 rounded-full bg-brand-bold px-2 py-0.5 text-[0.625rem] font-semibold text-white">Recommended</span>
+          <app-infinity-loader *ngIf="store.connectBusy() === 'Graph'" size="sm" />
+          <ion-icon *ngIf="store.connectBusy() !== 'Graph'" name="logo-microsoft" class="text-2xl text-gray-800"></ion-icon>
+          <span class="text-sm font-semibold text-gray-900">{{ store.connectBusy() === 'Graph' ? 'Redirecting…' : 'Microsoft' }}</span>
+          <span class="text-xs text-gray-500">Outlook or Microsoft 365</span>
+        </button>
+        <button type="button" (click)="toggleManualForm()" [disabled]="!!store.connectBusy()"
+          class="relative flex flex-col items-center gap-2 rounded-2xl border px-4 py-5 text-center transition-colors disabled:opacity-50"
+          [ngClass]="recommendedProvider() === 'Other' ? 'border-brand-bold bg-brand-bold/5' : 'border-gray-200 hover:bg-gray-50'">
+          <span *ngIf="recommendedProvider() === 'Other'" class="absolute -top-2.5 rounded-full bg-brand-bold px-2 py-0.5 text-[0.625rem] font-semibold text-white">Recommended</span>
+          <ion-icon name="mail-outline" class="text-2xl text-gray-800"></ion-icon>
+          <span class="text-sm font-semibold text-gray-900">
+            {{ recommendedProvider() === 'Other' ? store.providerDetection().label : 'Other provider' }}
+          </span>
+          <span class="text-xs text-gray-500">{{ recommendedProvider() === 'Other' ? 'Email and password' : 'Yahoo, iCloud, Zoho or your own server' }}</span>
+        </button>
+      </div>
+      <p *ngIf="showOAuthOptions()" class="mt-3 flex items-center justify-center gap-1.5 text-xs text-gray-400">
+        <ion-icon name="lock-closed-outline" class="text-sm"></ion-icon>
+        Google and Microsoft sign you in on their own page — we never see your password.
+      </p>
     </div>
 
     <p *ngIf="store.connectError() as connectErr"
@@ -141,24 +180,15 @@
       {{ connectErr }}
     </p>
 
-    <!-- Escape hatch a IMAP/SMTP: solo cuando ya hay opciones OAuth (Gmail/M365/dominio propio) -->
-    <div *ngIf="!showManualForm() && showOAuthOptions()" class="mt-4 text-center">
-      <button type="button" (click)="toggleManualForm()"
-        class="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
-        <ion-icon name="settings-outline" class="text-base"></ion-icon>
-        Use another provider (IMAP/SMTP)
-      </button>
-    </div>
-
     <div *ngIf="showManualForm()" class="mt-6 border-t border-gray-100 pt-5">
       <div class="flex items-center justify-between">
         <p class="flex items-center gap-2 text-sm font-semibold text-gray-900">
-          <ion-icon name="options-outline" class="text-base text-brand-bold"></ion-icon>
-          Manual setup · {{ store.providerDetection().label }}
+          <ion-icon name="mail-outline" class="text-base text-brand-bold"></ion-icon>
+          Email and password
         </p>
         <button type="button" (click)="toggleManualForm()"
-          class="text-sm font-medium text-gray-400 hover:text-gray-700 transition-colors">
-          Back to OAuth
+          class="inline-flex items-center gap-1 text-sm font-medium text-gray-400 hover:text-gray-700 transition-colors">
+          <ion-icon name="arrow-back-outline" class="text-sm"></ion-icon> Choose another provider
         </button>
       </div>
       <app-mail-connect-manual
@@ -168,6 +198,10 @@
         [providerLabel]="store.providerDetection().label"
         [busy]="store.manualConnecting()"
         [error]="store.manualError()"
+        [testing]="store.manualTesting()"
+        [testResult]="store.manualTestResult()"
+        [testError]="store.manualTestError()"
+        (testConnection)="testManualConnect($event)"
         (submitConnect)="submitManualConnect($event)"
         (cancel)="toggleManualForm()">
       </app-mail-connect-manual>
@@ -218,12 +252,13 @@
         {{ store.hasMailbox() ? 'Refresh status' : 'Already connected? Refresh' }}
       </button>
     </div>
+    </ng-container>
   </div>
 </div>
 
 <!-- 4) Bandeja real: 3 paneles (rail | listado | lectura/compose).
      Embebido se muestra aun sin buzón: hilos del cliente en solo lectura. -->
-<div *ngIf="!store.bootLoading() && !store.bootError() && (store.hasMailbox() || embedded()) && !showMailboxManager()"
+<div *ngIf="!store.bootLoading() && !store.bootError() && (store.hasMailbox() || embedded()) && !showMailboxManager() && !connectedNotice()"
   class="flex-1 min-h-0 pt-3 pb-1 flex flex-col gap-3">
 
   <!-- Embebido sin buzón: aviso compacto; la conexión se hace en la página de Mail -->
@@ -256,20 +291,13 @@
     <p class="text-sm text-amber-800">
       <span class="font-semibold">{{ account.emailAddress }}</span>
       {{ account.status === 'Error' ? 'stopped syncing.' : "isn't receiving incoming mail yet." }}
-      Enable sync to start receiving your clients' emails.
+      {{ account.status === 'Error' ? "Reconnect it to keep receiving your clients' emails." : "Enable sync to start receiving your clients' emails." }}
     </p>
-    <div class="flex shrink-0 items-center gap-2">
-      <button type="button" (click)="reauthAccount(account.id)"
-        [disabled]="!!store.reauthBusyId() || !!store.disconnectBusyId()"
-        class="rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
-        {{ store.reauthBusyId() === account.id ? 'Retrying…' : (account.status === 'Error' ? 'Reauthorize' : 'Enable sync') }}
-      </button>
-      <button type="button" (click)="disconnectAccount(account.id)"
-        [disabled]="!!store.disconnectBusyId() || !!store.reauthBusyId()"
-        class="rounded-full border border-amber-300 px-4 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50 transition-colors">
-        {{ store.disconnectBusyId() === account.id ? 'Disconnecting…' : 'Disconnect' }}
-      </button>
-    </div>
+    <button *ngIf="canManageAccount(account)" type="button" (click)="reauthAccount(account.id)"
+      [disabled]="!!store.reauthBusyId()"
+      class="shrink-0 rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+      {{ store.reauthBusyId() === account.id ? 'Retrying…' : (account.status === 'Error' ? 'Reconnect' : 'Enable sync') }}
+    </button>
   </div>
 
   <div *ngIf="store.connectError() as connectErr"
@@ -279,7 +307,9 @@
 
   <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)] gap-6">
     <!-- Folders rail -->
-    <div class="bg-white rounded-[1.5rem] p-5 lg:col-span-2 flex flex-col min-h-0 overflow-y-auto border border-gray-100 shadow-sm">
+    <!-- Móvil: lista o lectura, una a la vez (con algo abierto, rail y lista se ocultan bajo lg) -->
+    <div class="bg-white rounded-[1.5rem] p-5 lg:col-span-2 lg:flex flex-col min-h-0 overflow-y-auto border border-gray-100 shadow-sm"
+      [ngClass]="detailOpen() ? 'hidden' : 'flex'">
       <h2 class="text-xl font-bold text-gray-900 px-1">Mail</h2>
       <p class="mt-1 truncate text-sm text-gray-500 px-1">{{ store.activeAccount()?.emailAddress || 'Your inbox' }}</p>
       <button *ngIf="!embedded()" type="button" (click)="toggleMailboxManager()"
@@ -299,20 +329,28 @@
           (composeClicked)="openCompose()"></app-mail-folder-list>
       </div>
 
-      <!-- Selector de cliente: los hilos cuelgan de un cliente. "Not a client" muestra lo que se mandó
-           a quien no es cliente (proveedor, IRS, colega). Nunca en el perfil: ahí el cliente está fijo.
-           Picker compartido (búsqueda server-side, recientes del directorio y teclado ↑/↓/Enter/Esc). -->
+      <!-- Filtros opcionales: sin cliente, el Inbox es el de toda la oficina. "Not a client" solo existe
+           en lo que uno manda o redacta (no entra correo de quien no es cliente). Nunca en el perfil. -->
       <div *ngIf="!embedded()" class="mt-5">
-        <app-segmented class="w-full" [options]="mailViewOptions" [value]="mailView()"
-          (valueChange)="setMailView($event)"></app-segmented>
-        <app-customer-picker *ngIf="mailView() === 'client'" class="mt-3" [selected]="store.selectedCustomer()"
-          placeholder="Search clients by name or email…" (selectedChange)="onCustomerChange($event)"></app-customer-picker>
-        <p *ngIf="mailView() === 'unlinked'" class="mt-3 px-1 text-xs leading-relaxed text-gray-500">
-          Mail you sent to people who aren't clients. Their replies stay in your mailbox, not here.
-        </p>
+        <label class="px-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Filter by client</label>
+        <app-customer-picker class="mt-2" [selected]="store.selectedCustomer()"
+          placeholder="All clients" (selectedChange)="onCustomerChange($event)"></app-customer-picker>
+        <ng-container *ngIf="showOutgoingFilter() && !store.selectedCustomerId()">
+          <app-segmented class="mt-3 w-full" [options]="outgoingFilterOptions" [value]="outgoingFilter()"
+            (valueChange)="setOutgoingFilter($event)"></app-segmented>
+          <p *ngIf="store.unlinkedView()" class="mt-2 px-1 text-xs leading-relaxed text-gray-500">
+            Mail you sent to people who aren't clients. Their replies stay in your mailbox, not here.
+          </p>
+        </ng-container>
       </div>
 
-      <!-- Buzón activo: sólo si hay más de una cuenta utilizable -->
+      <!-- Ayuda de atajos (solo con teclado físico: en pantallas chicas no aplica) -->
+      <button *ngIf="!embedded()" type="button" (click)="shortcutsOpen.set(true)"
+        class="mt-5 hidden items-center gap-2 px-1 text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors lg:inline-flex">
+        <kbd class="rounded-md border border-gray-200 px-1.5 py-0.5 font-mono text-[0.625rem] text-gray-500">?</kbd>
+        Keyboard shortcuts
+      </button>
+
       <!-- Buzón activo (desde el que se envía): picker con avatar + chip Office/My email. Solo si hay >1. -->
       <div *ngIf="store.usableAccounts().length > 1" class="relative mt-4">
         <label class="px-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Send from</label>
@@ -352,10 +390,13 @@
     </div>
 
     <!-- Message list -->
-    <div class="bg-white rounded-[1.5rem] p-5 lg:col-span-4 flex flex-col min-h-0 border border-gray-100 shadow-sm">
+    <div class="bg-white rounded-[1.5rem] p-5 lg:col-span-4 lg:flex flex-col min-h-0 border border-gray-100 shadow-sm"
+      [ngClass]="detailOpen() ? 'hidden' : 'flex'">
       <app-mail-list class="flex-1 min-h-0" [rows]="rows()" [selectedId]="selectedRowId()" [loading]="listLoading()"
         [error]="listError()" [hasMore]="listHasMore()" [emptyText]="listEmptyText()"
-        [showTrashActions]="store.activeFolderId() === 'trash'"
+        [showTrashActions]="store.activeFolderId() === 'trash'" [serverSearch]="threadFolder()"
+        [searchPlaceholder]="threadFolder() ? 'Search mail' : 'Search loaded mail'"
+        [searchResetKey]="store.activeFolderId()" (serverSearchChange)="store.searchThreads($event)"
         (rowSelected)="selectRow($event)" (retryRequested)="retryList()"
         [canManage]="can.canManage()"
         (restoreRequested)="restoreTrash($event)" (purgeRequested)="purgeTrash($event)"
@@ -363,11 +404,17 @@
     </div>
 
     <!-- Reading pane / compose editor -->
-    <div class="bg-white rounded-[1.5rem] p-6 lg:col-span-6 min-h-[32rem] flex flex-col lg:pt-[var(--shell-notch-height)] border border-gray-100 shadow-sm">
+    <div class="bg-white rounded-[1.5rem] p-6 lg:col-span-6 min-h-[32rem] lg:flex flex-col lg:pt-[var(--shell-notch-height)] border border-gray-100 shadow-sm"
+      [ngClass]="detailOpen() ? 'flex' : 'hidden'">
+      <button *ngIf="detailOpen()" type="button" (click)="backToList()"
+        class="mb-4 inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors lg:hidden">
+        <ion-icon aria-hidden="true" name="arrow-back-outline" class="text-base"></ion-icon> Back to list
+      </button>
       <app-mail-compose *ngIf="store.compose().open; else readingView" class="flex-1 min-h-0"
         [state]="store.compose()" [accountEmail]="store.activeAccount()?.emailAddress ?? null"
         [customerName]="composeCustomerName()" [canUnlinkCustomer]="store.canUnlinkComposeCustomer()"
-        (customerUnlinked)="unlinkComposeCustomer()" [recipientSuggestions]="store.recipientResults()"
+        (customerUnlinked)="unlinkComposeCustomer()" (recipientCustomerPicked)="fileComposeUnder($event)"
+        [recipientSuggestions]="store.recipientResults()"
         [recipientSearching]="store.recipientSearchLoading()" (recipientSearchRequested)="searchRecipients($event)"
         (closed)="closeCompose()" (discarded)="discardCompose()"
         (sendRequested)="sendCompose($event)"></app-mail-compose>
@@ -376,7 +423,8 @@
           [messages]="store.messages()" [bodies]="store.bodies()" [attachments]="store.attachments()"
           [expandedId]="store.expandedMessageId()" [reply]="store.reply()" [loading]="store.messagesLoading()"
           [error]="store.messagesError()" [hasMore]="store.messagesHasMore()" [archiving]="store.archiving()"
-          [canReply]="!!store.activeAccountId()" [customer]="store.selectedCustomer()" (messageToggled)="toggleMessage($event)"
+          [canReply]="!!store.activeAccountId()" [customer]="threadCustomer()" [showCustomerLink]="!embedded()"
+          (messageToggled)="toggleMessage($event)"
           (bodyRetryRequested)="retryBody($event)" (attachmentsRetryRequested)="retryAttachments($event)"
           (attachmentDownloadRequested)="downloadAttachment($event)" (attachmentPreviewRequested)="previewAttachment($event)" (replyStarted)="startReply($event)"
           (replyCancelled)="cancelReply()" (replySent)="sendReply($event)" (archiveRequested)="archiveThread()"
@@ -389,11 +437,22 @@
 </div>
 
 <!-- Toast de envío (reply o compose) -->
-<div *ngIf="store.sentToast()"
+<div *ngIf="store.sentToast()" role="status" aria-live="polite"
   class="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-3 text-sm font-semibold text-white shadow-xl">
   <ion-icon name="checkmark-circle-outline" class="text-lg"></ion-icon>
   Message sent
 </div>
+
+<!-- Atajos de teclado (`?`) -->
+<app-modal [isOpen]="shortcutsOpen()" heading="Keyboard shortcuts" size="md" (closed)="shortcutsOpen.set(false)">
+  <dl class="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-3 text-sm">
+    <ng-container *ngFor="let shortcut of shortcuts">
+      <dt><kbd class="inline-flex min-w-[1.75rem] justify-center rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 font-mono text-xs text-gray-700">{{ shortcut.key }}</kbd></dt>
+      <dd class="text-gray-600">{{ shortcut.description }}</dd>
+    </ng-container>
+  </dl>
+  <p class="mt-5 text-xs text-gray-400">Shortcuts don't work while you're typing in a field.</p>
+</app-modal>
 
 <!-- Visor global de adjuntos -->
 <app-file-viewer [isOpen]="viewerOpen()" [files]="viewerFiles()" [startIndex]="viewerIndex()"

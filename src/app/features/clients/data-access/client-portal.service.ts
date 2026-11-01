@@ -5,6 +5,8 @@ import { ApiConfigService } from '@core/config/api-config.service';
 import {
   InvitationResponse,
   PagedResult,
+  PortalMfaResetResponse,
+  PortalMfaStatus,
   PortalUserResponse,
   RequestPortalInvitationResponse,
 } from './client-portal.model';
@@ -28,6 +30,19 @@ export class ClientPortalService {
       this.api.tenantUrl(`/customers/${customerId}/portal-invitations`),
       {},
     );
+  }
+
+  /** GET /customers/{id}/portal-mfa — segundo factor del portal (perm `customers.view`, cliente visible). */
+  getPortalMfa(customerId: string): Observable<PortalMfaStatus> {
+    return this.http.get<PortalMfaStatus>(this.api.tenantUrl(`/customers/${customerId}/portal-mfa`));
+  }
+
+  /**
+   * POST /customers/{id}/portal-mfa/reset — quita el segundo factor del portal (perdió el teléfono). Perm
+   * `customers.manage` y cliente visible; 409 si aún no tiene acceso al portal.
+   */
+  resetPortalMfa(customerId: string): Observable<PortalMfaResetResponse> {
+    return this.http.post<PortalMfaResetResponse>(this.api.tenantUrl(`/customers/${customerId}/portal-mfa/reset`), {});
   }
 
   /** GET /auth/invitations?customerId=&size= — invitaciones de este cliente (perm `users.invite`). */

@@ -9,6 +9,16 @@ export interface MailIncomingEmailPayload {
   incomingEmailId: string;
 }
 
+/** Payload de `mail.thread_state`: estado visible de un hilo tras leerlo, archivarlo o mover un mensaje. */
+export interface MailThreadStatePayload {
+  customerId: string;
+  emailThreadId: string;
+  status: string;
+  unreadCount: number;
+  messageCount: number;
+  actorUserId: string | null;
+}
+
 /**
  * Fachada de realtime del módulo Mail sobre {@link CommunicationRealtimeService}. Solo
  * escucha `mail.incoming`: cuando llega un correo entrante de un cliente, Communication lo
@@ -24,6 +34,9 @@ export class MailSocketService {
   readonly connected = this.realtime.connected;
   readonly incomingEmail$: Observable<MailIncomingEmailPayload> =
     this.realtime.on<MailIncomingEmailPayload>('mail.incoming');
+  /** Otro empleado (u otra pestaña) leyó, archivó o movió a la papelera algo de un hilo. */
+  readonly threadState$: Observable<MailThreadStatePayload> =
+    this.realtime.on<MailThreadStatePayload>('mail.thread_state');
 
   /** Asegura que el socket compartido esté arriba. Idempotente; normalmente el shell ya lo conectó. */
   connect(): void {

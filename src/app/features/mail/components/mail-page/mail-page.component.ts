@@ -1,6 +1,7 @@
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
+  HostListener,
   OnDestroy,
   OnInit,
   computed,
@@ -8,17 +9,18 @@ import {
   inject,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MailFolder, MailFolderListComponent } from '../../ui/mail-folder-list/mail-folder-list.component';
-import { MailListComponent, MailListRow } from '../../ui/mail-list/mail-list.component';
+import { MailListComponent, MailListRow, MailRowTag } from '../../ui/mail-list/mail-list.component';
 import { MailReadingPaneComponent } from '../../ui/mail-reading-pane/mail-reading-pane.component';
 import { ComposeDraftPayload, MailComposeComponent } from '../../ui/mail-compose/mail-compose.component';
 import { MailConnectManualComponent } from '../../ui/mail-connect-manual/mail-connect-manual.component';
-import { MailFolderId, MailStore } from '../../data-access/mail.store';
+import { MailFolderId, MailStore, OUTGOING_FOLDERS } from '../../data-access/mail.store';
 import {
   ConnectManualAccountRequest,
   MailAccount,
@@ -36,6 +38,8 @@ import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.componen
 import { FileViewerDownload, FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 import { ToastService } from '@shared/ui/toast/toast.service';
+import { ModalComponent } from '@shared/ui/modal/modal.component';
+import { MAIL_SHORTCUTS, MailShortcut, shortcutFor } from '../../utils/mail-shortcuts';
 
 interface NotificationMailDeepLink {
   accountId: string | null;
@@ -44,25 +48,20 @@ interface NotificationMailDeepLink {
   messageId: string | null;
 }
 
-/** Vista del rail en /email: el correo de un cliente, o el mandado a quien no es cliente. */
-type MailView = 'client' | 'unlinked';
-
-/** Carpetas que tienen sentido sin cliente: lo que uno manda o redacta (nunca entra correo sin cliente). */
-const UNLINKED_FOLDERS: ReadonlySet<string> = new Set<MailFolderId>(['sent', 'drafts', 'trash']);
+/** Filtro de Sent/Drafts/Trash en /email: todo, o solo lo mandado a quien no es cliente. */
+type OutgoingFilter = 'all' | 'unlinked';
 
 /**
  * Página del módulo Mail conectada a los dos servicios reales del Gateway:
  * - Connectors.Api (`/connectors`): cuentas de buzón externas del tenant. SIN una
  *   cuenta utilizable no hay correo, así que la página muestra el flujo de
  *   "conectar buzón" (OAuth Gmail/Microsoft) en vez de una bandeja falsa.
- * - Correspondence.Api (`/correspondence`): el inbox real, que es
- *   CUSTOMER-CÉNTRICO — los hilos cuelgan de un cliente, no existe una bandeja
- *   global del tenant. Por eso el rail izquierdo obliga a elegir cliente antes
- *   de listar conversaciones.
+ * - Correspondence.Api (`/correspondence`): el Inbox de la oficina con los hilos de
+ *   todos los clientes que el usuario puede ver; cada fila dice de qué cliente es.
+ *   El cliente es un filtro opcional del rail, no un paso previo obligatorio.
  *
- * Se conserva el layout de 3 paneles del diseño (rail | listado | lectura), pero
- * las carpetas del mock (Inbox/Sent/Starred/Trash) se reducen a las tres que el
- * backend respalda: Conversations, Archived y Drafts. Toda la lógica (paginación,
+ * Layout de 3 paneles (rail | listado | lectura) con las carpetas que el backend
+ * respalda: Inbox, Sent, Archived, Trash y Drafts. Toda la lógica (paginación,
  * cuerpos en vivo, adjuntos bajo demanda, reply y compose) vive en MailStore;
  * este componente sólo traduce estado a la UI y despacha intenciones.
  *
@@ -82,6 +81,7 @@ const UNLINKED_FOLDERS: ReadonlySet<string> = new Set<MailFolderId>(['sent', 'dr
     CustomerPickerComponent,
     SegmentedComponent,
     FileViewerComponent,
+    ModalComponent,
     RouterLink,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
@@ -172,6 +172,31 @@ export class MailPageComponent implements OnInit, OnDestroy {
    * y `app.routes.ts` desvía esa raíz hasta acá conservando los query params.
    */
   readonly connectResult = signal<{ ok: boolean; text: string } | null>(null);
+
+  /**
+   * Buzón recién conectado (manual o vuelta del OAuth): muestra la pantalla final "You're all set" en vez
+   * de saltar al Inbox sin decir nada. Se identifica por id (callback OAuth) o por email (alta manual).
+   */
+  readonly connectedNotice = signal<{ accountId: string | null; email: string | null } | null>(null);
+  readonly connectedAccount = computed(() => {
+    const notice = this.connectedNotice();
+    if (!notice) {
+      return null;
+    }
+    const email = notice.email?.trim().toLowerCase();
+    return (
+      this.store
+        .accounts()
+        .find(account => account.id === notice.accountId || (!!email && account.emailAddress.toLowerCase() === email)) ??
+      null
+    );
+  });
+
+  /** "Go to Inbox" de la pantalla final. */
+  goToInbox(): void {
+    this.connectedNotice.set(null);
+    this.showMailboxManager.set(false);
+  }
 
   ngOnInit(): void {
     // Idempotente: cuentas de buzón + clientes + realtime; si ya hay ambos, dispara hilos y drafts.
@@ -298,7 +323,7 @@ export class MailPageComponent implements OnInit, OnDestroy {
     this.consumedOAuthCallback = key;
     untracked(() => {
       if (connected === 'true') {
-        this.connectResult.set({ ok: true, text: 'Mailbox connected.' });
+        this.connectedNotice.set({ accountId: params.get('accountId'), email: null });
         this.store.reloadAccounts();
       } else if (adminConsent) {
         this.connectResult.set(
@@ -319,21 +344,15 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   // ---------- Carpetas (sólo las que el backend respalda) ----------
 
-  /** Sin cliente no hay conversaciones ni archivados: solo entra correo de clientes. */
-  readonly folders = computed<MailFolder[]>(() =>
-    this.store.unlinkedView()
-      ? this.allFolders().filter(folder => UNLINKED_FOLDERS.has(folder.id))
-      : this.allFolders(),
-  );
-
-  private readonly allFolders = computed<MailFolder[]>(() => [
+  readonly folders = computed<MailFolder[]>(() => [
     {
-      id: 'conversations',
+      id: 'inbox',
       // El badge cuenta conversaciones CON no-leídos (baja al abrir/marcar leído, desaparece en 0),
       // no el total de hilos — así refleja "cuántas te faltan por leer", estilo cliente de correo.
-      label: 'Conversations',
-      icon: 'chatbubbles-outline',
-      count: this.store.activeThreads().filter(thread => thread.unreadCount > 0).length,
+      label: 'Inbox',
+      icon: 'file-tray-outline',
+      count: this.store.inboxUnread(),
+      countLabel: 'unread',
     },
     {
       // Enviados del cliente. Sin badge: no hay "no-leídos" en lo que uno mismo envió.
@@ -343,10 +362,11 @@ export class MailPageComponent implements OnInit, OnDestroy {
       count: 0,
     },
     {
+      // Sin badge: lo cargado es solo la primera página del Inbox, un total sería inventado.
       id: 'archived',
       label: 'Archived',
       icon: 'archive-outline',
-      count: this.store.archivedThreads().length,
+      count: 0,
     },
     {
       id: 'trash',
@@ -360,6 +380,7 @@ export class MailPageComponent implements OnInit, OnDestroy {
       label: 'Drafts',
       icon: 'document-text-outline',
       count: this.store.draftsTotal(),
+      countLabel: 'drafts',
     },
   ]);
 
@@ -377,52 +398,79 @@ export class MailPageComponent implements OnInit, OnDestroy {
         // El estado sólo se muestra cuando NO es el normal (Sending/Failed/Sent).
         badge: draft.status === 'Draft' ? null : draft.status,
         unreadCount: 0,
+        tag: this.clientTag(draft.customerId),
       }));
     }
 
     if (this.store.activeFolderId() === 'trash') {
       return this.store.trash().map(item => ({
         id: item.messageId,
-        avatarName: item.subject || 'Trash',
-        avatarColor: avatarColorFor(item.subject || item.messageId),
-        title: item.subject || '(No subject)',
-        subtitle: `${item.kind === 'Sent' ? 'To' : 'From'} ${item.counterparty}`,
+        avatarName: item.counterparty || item.subject || 'Trash',
+        avatarColor: avatarColorFor(item.counterparty || item.messageId),
+        title: `${item.kind === 'Sent' ? 'To' : 'From'} ${item.counterparty}`,
+        subtitle: item.subject || '(No subject)',
         time: formatMailTime(item.deletedAtUtc),
         badge: item.kind,
         unreadCount: 0,
         attachmentCount: item.hasAttachments ? item.attachmentCount : 0,
+        tag: this.clientTag(item.customerId),
       }));
     }
 
     if (this.store.activeFolderId() === 'sent') {
       return this.store.sent().map(item => ({
         id: item.messageId,
-        avatarName: item.subject || 'Sent',
-        avatarColor: avatarColorFor(item.subject || item.messageId),
-        title: item.subject || '(No subject)',
-        // Muestra el destinatario; el clip 📎 lo pinta la lista con attachmentCount.
-        subtitle: item.toAddresses.length > 0 ? `To ${item.toAddresses.join(', ')}` : 'Sent message',
+        avatarName: item.toAddresses[0] || item.subject || 'Sent',
+        avatarColor: avatarColorFor(item.toAddresses[0] || item.messageId),
+        // Destinatario primero, como en un cliente de correo; el clip lo pinta la lista con attachmentCount.
+        title: item.toAddresses.length > 0 ? `To ${item.toAddresses.join(', ')}` : 'Sent message',
+        subtitle: item.subject || '(No subject)',
         time: formatMailTime(item.sentAtUtc),
         badge: item.isReply ? 'Reply' : null,
         unreadCount: 0,
         attachmentCount: item.hasAttachments ? item.attachmentCount : 0,
+        tag: this.clientTag(item.customerId),
       }));
     }
 
     const threads =
       this.store.activeFolderId() === 'archived' ? this.store.archivedThreads() : this.store.activeThreads();
+    const index = this.store.customerIndex();
 
-    return threads.map(thread => ({
-      id: thread.threadId,
-      avatarName: thread.subject || 'Thread',
-      avatarColor: avatarColorFor(thread.subject || thread.threadId),
-      title: thread.subject || '(No subject)',
-      subtitle: `${thread.messageCount} ${thread.messageCount === 1 ? 'message' : 'messages'}`,
-      time: formatMailTime(thread.lastMessageAtUtc),
-      badge: null,
-      unreadCount: thread.unreadCount,
-    }));
+    return threads.map(thread => {
+      const client = thread.customerId ? index.get(thread.customerId) : undefined;
+      // Quién escribió por última vez; un hilo de solo enviados cae al nombre del cliente.
+      const sender = thread.lastSenderName || thread.lastSenderAddress || client?.displayName || null;
+      const subject = thread.subject || '(No subject)';
+      return {
+        id: thread.threadId,
+        avatarName: sender || subject,
+        avatarColor: avatarColorFor(thread.lastSenderAddress || thread.customerId || thread.threadId),
+        title: sender ? (thread.messageCount > 1 ? `${sender} (${thread.messageCount})` : sender) : subject,
+        subtitle: sender ? subject : `${thread.messageCount} ${thread.messageCount === 1 ? 'message' : 'messages'}`,
+        preview: thread.snippet ?? null,
+        time: formatMailTime(thread.lastMessageAtUtc),
+        badge: null,
+        unreadCount: thread.unreadCount,
+        hasAttachments: thread.hasAttachments ?? false,
+        tag: this.clientTag(thread.customerId),
+      };
+    });
   });
+
+  /**
+   * Etiqueta de cliente de una fila: su nombre, o "Not a client". Con un filtro activo (o en el perfil)
+   * todas las filas son del mismo lado y la etiqueta no aporta nada.
+   */
+  private clientTag(customerId: string | null | undefined): MailRowTag | null {
+    if (this.embedded() || this.store.selectedCustomerId() || this.store.unlinkedView()) {
+      return null;
+    }
+    if (!customerId) {
+      return { label: 'Not a client', muted: true };
+    }
+    return { label: this.store.customerIndex().get(customerId)?.displayName ?? 'Client', muted: false };
+  }
 
   readonly listLoading = computed(() => {
     switch (this.store.activeFolderId()) {
@@ -474,83 +522,108 @@ export class MailPageComponent implements OnInit, OnDestroy {
     }
   });
 
-  /** Estados vacíos honestos: distinguen "falta elegir cliente" de "no hay nada". */
+  /** Inbox y Archived buscan en el servidor; Sent/Drafts/Trash filtran lo cargado. */
+  readonly threadFolder = computed(() => !OUTGOING_FOLDERS.has(this.store.activeFolderId()));
+
+  /** Estados vacíos honestos: dicen qué falta según carpeta y filtro, sin inventar un siguiente paso. */
   readonly listEmptyText = computed(() => {
+    const folder = this.store.activeFolderId();
+    const search = this.store.threadSearch();
+    if (search && this.threadFolder()) {
+      return `No conversations match "${search}"`;
+    }
+    if (folder === 'trash') {
+      return 'Trash is empty';
+    }
     if (this.store.unlinkedView()) {
-      switch (this.store.activeFolderId()) {
+      return folder === 'drafts'
+        ? "No drafts to people who aren't clients"
+        : "No messages sent to people who aren't clients yet";
+    }
+    // Perfil o filtro de cliente: el texto habla de ese cliente.
+    if (this.embedded() || this.store.selectedCustomerId()) {
+      switch (folder) {
         case 'drafts':
-          return "No drafts to people who aren't clients";
-        case 'trash':
-          return 'Trash is empty';
+          return 'No drafts for this client';
+        case 'sent':
+          return 'No sent messages for this client yet';
+        case 'archived':
+          return 'No archived conversations for this client';
         default:
-          return "No messages sent to people who aren't clients yet";
+          return 'No conversations with this client yet';
       }
     }
-    // Embebido: el cliente siempre está fijado, solo aplican los textos por carpeta.
-    if (!this.embedded() && this.store.customers().length === 0) {
-      return 'No clients yet — mail threads belong to a client';
-    }
-    if (!this.embedded() && !this.store.selectedCustomerId()) {
-      return 'Select a client to see their mail';
-    }
-    switch (this.store.activeFolderId()) {
+    switch (folder) {
       case 'drafts':
-        return 'No drafts for this client';
+        return 'No drafts';
       case 'sent':
-        return 'No sent messages for this client yet';
-      case 'trash':
-        return 'Trash is empty';
+        return 'Nothing sent yet';
       case 'archived':
-        return 'No archived conversations for this client';
+        return 'No archived conversations';
       default:
-        return 'No conversations for this client yet';
+        return "You're all caught up — new client mail lands here";
     }
   });
 
   /**
    * Cliente en cuya ficha se archiva lo que se está redactando (null = ninguno). Sale del composer, no
-   * del rail: es el que quedó fijado al abrirlo.
+   * del rail: es el que quedó fijado al abrirlo o el elegido como destinatario.
    */
   readonly composeCustomerName = computed(() => {
     const customerId = this.store.compose().customerId;
     if (!customerId) {
       return null;
     }
-    return customerId === this.store.selectedCustomerId() ? this.store.selectedCustomerName() || 'this client' : 'a client';
+    return this.store.customerIndex().get(customerId)?.displayName || 'this client';
   });
 
-  // ---------- Vista: correo de un cliente o a quien no es cliente ----------
+  /** Cliente del hilo abierto (sale del índice de nombres: el Inbox mezcla clientes). */
+  readonly threadCustomer = computed(() => {
+    const customerId = this.store.selectedThread()?.customerId;
+    if (!customerId) {
+      return null;
+    }
+    const selected = this.store.selectedCustomer();
+    return this.store.customerIndex().get(customerId) ?? (selected?.id === customerId ? selected : null);
+  });
 
-  readonly mailViewOptions: readonly SegmentedOption<MailView>[] = [
-    { id: 'client', label: 'Client' },
+  // ---------- Filtro "Not a client" (solo Sent/Drafts/Trash) ----------
+
+  readonly outgoingFilterOptions: readonly SegmentedOption<OutgoingFilter>[] = [
+    { id: 'all', label: 'Everyone' },
     { id: 'unlinked', label: 'Not a client' },
   ];
 
-  readonly mailView = computed<MailView>(() => (this.store.unlinkedView() ? 'unlinked' : 'client'));
+  readonly outgoingFilter = computed<OutgoingFilter>(() => (this.store.unlinkedView() ? 'unlinked' : 'all'));
 
-  setMailView(view: MailView): void {
+  /** El filtro existe donde hay correo a quien no es cliente: lo que uno manda o redacta. */
+  readonly showOutgoingFilter = computed(
+    () => !this.embedded() && OUTGOING_FOLDERS.has(this.store.activeFolderId()),
+  );
+
+  setOutgoingFilter(filter: OutgoingFilter): void {
     this.selectedDraftId.set(null);
     this.selectedSentId.set(null);
-    if (view === 'unlinked') {
+    if (filter === 'unlinked') {
       this.store.showUnlinkedMail();
     } else {
-      this.store.showCustomerMail();
+      this.store.showAllMail();
     }
   }
 
-  // ---------- Selector de cliente ----------
-  // Correspondence no tiene bandeja global: los hilos cuelgan de un cliente, así que elegir cliente
-  // es la acción más frecuente del módulo. Lo resuelve `app-customer-picker` (búsqueda server-side,
-  // recientes compartidos del CustomerDirectoryStore y navegación por teclado).
+  // ---------- Filtro de cliente ----------
+  // Opcional: sin cliente, el Inbox es el de toda la oficina. Lo resuelve `app-customer-picker`
+  // (búsqueda server-side, recientes compartidos del CustomerDirectoryStore y teclado).
 
-  /**
-   * `null` = el usuario pulsó "Change client" en el chip: el picker pasa a modo búsqueda pero la
-   * bandeja sigue siendo la del cliente activo hasta que elija otro.
-   */
+  /** `null` = el usuario quitó el cliente (la X del chip): vuelve al correo de todos los clientes. */
   onCustomerChange(customer: CustomerSummary | null): void {
     if (customer) {
       this.pickCustomer(customer);
+      return;
     }
+    this.selectedDraftId.set(null);
+    this.selectedSentId.set(null);
+    this.store.clearCustomer();
   }
 
   /** Cambiar de cliente cambia el listado entero: las filas resaltadas del anterior ya no aplican. */
@@ -566,12 +639,10 @@ export class MailPageComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Redactar exige un buzón utilizable y saber dónde se archiva: el cliente elegido o, en la vista
-   * "Not a client", ninguno.
+   * Redactar exige un buzón utilizable. Dónde se archiva lo decide el composer: el cliente filtrado, el
+   * elegido como destinatario o ninguno.
    */
-  readonly canCompose = computed(
-    () => !!this.store.activeAccountId() && (this.store.unlinkedView() || !!this.store.selectedCustomerId()),
-  );
+  readonly canCompose = computed(() => !!this.store.activeAccountId());
 
   // ---------- Cuentas de buzón ----------
 
@@ -671,10 +742,15 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   submitManualConnect(body: ConnectManualAccountRequest): void {
     this.store.connectManualAccount(body, () => {
-      // Éxito: la cuenta ya existe y hasMailbox() pasa a true → la bandeja aparece sola.
+      // Éxito: la cuenta ya existe; antes de la bandeja, la pantalla final dice qué quedó conectado.
       this.showManualForm.set(false);
-      this.connectResult.set({ ok: true, text: 'Mailbox connected.' });
+      this.connectedNotice.set({ accountId: null, email: body.emailAddress });
     });
+  }
+
+  /** "Test connection" del alta manual: prueba IMAP y SMTP sin guardar nada. */
+  testManualConnect(body: ConnectManualAccountRequest): void {
+    this.store.testManualConnection(body);
   }
 
   reauthAccount(accountId: string): void {
@@ -688,6 +764,18 @@ export class MailPageComponent implements OnInit, OnDestroy {
   reloadAccounts(): void {
     this.store.reloadAccounts();
   }
+
+  /** El proveedor recomendado (tarjeta destacada): el detectado por el dominio del login; oficina no sugiere. */
+  readonly recommendedProvider = computed<'Gmail' | 'Graph' | 'Other' | null>(() => {
+    if (this.connectingOffice()) {
+      return null;
+    }
+    const provider = this.store.providerDetection().provider;
+    if (provider === 'Gmail' || provider === 'Graph') {
+      return provider;
+    }
+    return provider === 'Imap' ? 'Other' : null;
+  });
 
   /** Panel de gestión de buzones (reauth / desconectar / agregar) accesible desde la bandeja. */
   readonly showMailboxManager = signal(false);
@@ -776,6 +864,101 @@ export class MailPageComponent implements OnInit, OnDestroy {
   // ---------- Visor global de adjuntos ----------
 
   readonly viewerOpen = signal(false);
+
+  // ---------- Teclado (estilo Gmail) ----------
+
+  readonly shortcuts = MAIL_SHORTCUTS;
+  readonly shortcutsOpen = signal(false);
+  private readonly mailList = viewChild(MailListComponent);
+
+  /**
+   * Atajos de una tecla sobre la bandeja. Solo en /email con buzón, sin el composer, el visor ni la ayuda
+   * abiertos; `shortcutFor` ya ignora lo que se teclea en campos y las combinaciones con Ctrl/Cmd/Alt.
+   */
+  @HostListener('document:keydown', ['$event'])
+  onKeydown(event: KeyboardEvent): void {
+    if (
+      this.embedded() ||
+      !this.store.hasMailbox() ||
+      this.showMailboxManager() ||
+      this.connectedNotice() ||
+      this.store.compose().open ||
+      this.viewerOpen() ||
+      this.shortcutsOpen()
+    ) {
+      return;
+    }
+    const action = shortcutFor(event);
+    if (!action) {
+      return;
+    }
+    event.preventDefault();
+    this.runShortcut(action);
+  }
+
+  private runShortcut(action: MailShortcut): void {
+    switch (action) {
+      case 'next':
+      case 'previous':
+        this.moveSelection(action === 'next' ? 1 : -1);
+        break;
+      case 'archive': {
+        const thread = this.store.selectedThread();
+        if (!thread || thread.threadId.startsWith('sent:')) return;
+        if (thread.status === 'Active') this.archiveThread();
+        else this.unarchiveThread();
+        break;
+      }
+      case 'markUnread':
+        if (this.store.selectedThreadId() && !this.store.selectedThreadId()!.startsWith('sent:')) this.setThreadRead(false);
+        break;
+      case 'reply': {
+        const latest = [...this.store.messages()].reverse().find(message => message.direction === 'Inbound' && !!message.from);
+        if (latest && this.store.activeAccountId()) this.startReply(latest.messageId);
+        break;
+      }
+      case 'compose':
+        if (this.canCompose() && this.can.canCompose()) this.openCompose();
+        break;
+      case 'search':
+        this.mailList()?.focusSearch();
+        break;
+      case 'help':
+        this.shortcutsOpen.set(true);
+        break;
+    }
+  }
+
+  /** j/k: abre la conversación siguiente/anterior de la lista (la papelera no abre lectura). */
+  private moveSelection(step: 1 | -1): void {
+    if (this.store.activeFolderId() === 'trash') {
+      return;
+    }
+    const rows = this.rows();
+    if (rows.length === 0) {
+      return;
+    }
+    const current = rows.findIndex(row => row.id === this.selectedRowId());
+    const target = current < 0 ? 0 : Math.min(rows.length - 1, Math.max(0, current + step));
+    if (target !== current) {
+      this.selectRow(rows[target].id);
+    }
+  }
+
+  // ---------- Móvil: lista o lectura, una a la vez ----------
+
+  /** Hay algo abierto en el panel derecho (conversación, enviado o composer). */
+  readonly detailOpen = computed(() => !!this.store.selectedThread() || this.store.compose().open);
+
+  /** "Back" del panel de lectura en pantallas chicas: vuelve a la lista. */
+  backToList(): void {
+    this.selectedDraftId.set(null);
+    this.selectedSentId.set(null);
+    if (this.store.compose().open) {
+      this.store.closeCompose();
+    }
+    this.store.closeThread();
+  }
   readonly viewerFiles = signal<FileViewerItem[]>([]);
   readonly viewerIndex = signal(0);
 
@@ -863,9 +1046,8 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   openCompose(): void {
     this.selectedDraftId.set(null);
-    // Si el correo se archiva en un cliente (perfil o /email viendo un cliente), "To" arranca con su
-    // email principal. En "Not a client" arranca vacío: es para escribirle a otra persona.
-    const prefillTo = this.store.unlinkedView() ? null : this.store.selectedCustomer()?.primaryEmail || null;
+    // Con un cliente filtrado (o en el perfil), "To" arranca con su email principal; sin filtro, vacío.
+    const prefillTo = this.store.selectedCustomerId() ? this.store.selectedCustomer()?.primaryEmail || null : null;
     this.store.openCompose(prefillTo);
   }
 
@@ -893,5 +1075,10 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   unlinkComposeCustomer(): void {
     this.store.unlinkComposeCustomer();
+  }
+
+  /** Un cliente elegido como destinatario archiva en él la redacción que aún no tiene cliente. */
+  fileComposeUnder(customer: CustomerSummary): void {
+    this.store.fileComposeUnder(customer);
   }
 }

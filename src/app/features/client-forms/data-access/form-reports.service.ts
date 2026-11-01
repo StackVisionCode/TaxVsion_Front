@@ -33,6 +33,7 @@ export class FormReportsService {
   answers(filters: FormReportAnswersFilters): Observable<PagedResult<FormReportAnswerRow>> {
     let params = new HttpParams().set('templateId', filters.templateId).set('key', filters.key);
     if (filters.value) params = params.set('value', filters.value);
+    if (filters.contains) params = params.set('contains', filters.contains);
     if (filters.from) params = params.set('from', filters.from);
     if (filters.to) params = params.set('to', filters.to);
     params = params.set('page', filters.page ?? 1);

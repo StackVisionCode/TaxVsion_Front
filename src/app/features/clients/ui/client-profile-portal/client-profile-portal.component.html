@@ -72,6 +72,27 @@
         </div>
       </div>
 
+      <!-- Segundo factor del portal (solo con acceso activo) -->
+      <div *ngIf="access().status === 'active'" class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
+        <div class="min-w-0">
+          <p class="text-xs text-gray-400">Two-step verification</p>
+          <p *ngIf="mfa() as status" class="mt-0.5 flex flex-wrap items-center gap-2 text-sm font-medium text-gray-800">
+            {{ status.mfaEnabled ? 'On' : 'Off' }}
+            <span *ngIf="status.requiredByPolicy" class="rounded-full bg-gray-100 px-2 py-0.5 text-[0.6875rem] font-semibold text-gray-500">Required by your office</span>
+          </p>
+          <p *ngIf="!mfa() && !mfaError()" class="mt-0.5 text-sm text-gray-400">Loading…</p>
+          <p *ngIf="mfaError()" class="mt-0.5 text-sm text-gray-500">
+            Couldn't load it.
+            <button type="button" (click)="loadMfa()" class="font-medium text-brand-bold hover:underline">Try again</button>
+          </p>
+        </div>
+        <button *ngIf="mfa()?.mfaEnabled && canResetMfa()" type="button" (click)="mfaConfirmOpen.set(true)" [disabled]="mfaResetting()"
+          class="flex items-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+          <ion-icon name="key-outline" class="text-base" aria-hidden="true"></ion-icon>
+          {{ mfaResetting() ? 'Resetting…' : 'Reset two-step verification' }}
+        </button>
+      </div>
+
       <!-- Detalle de la invitación pendiente -->
       <div *ngIf="access().status === 'pending'" class="mt-4 flex flex-wrap gap-x-8 gap-y-2 border-t border-gray-100 pt-4 text-sm">
         <div>
@@ -128,6 +149,11 @@
   mode="customer"
   [open]="overridesOpen()"
   (closed)="closeOverrides()"></app-customer-document-access-drawer>
+
+<!-- Reset del segundo factor: solo tras confirmar la identidad del cliente fuera del sistema -->
+<app-confirm-dialog [isOpen]="mfaConfirmOpen()" heading="Reset two-step verification"
+  [message]="'Only do this after confirming it is really ' + (clientName || 'this client') + ' (for example, by phone). They will sign in with just their password' + (mfa()?.requiredByPolicy ? ' and set up two-step verification again, because your office requires it.' : ' and can turn two-step verification back on from their profile.')"
+  confirmLabel="Reset" (confirmed)="resetMfa()" (cancelled)="mfaConfirmOpen.set(false)"></app-confirm-dialog>
 
 <!-- Confirmación (cancelar / desactivar) -->
 <app-confirm-dialog [isOpen]="confirm() !== null" [heading]="confirm()?.heading ?? ''" [message]="confirm()?.message ?? ''"
