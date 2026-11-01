@@ -375,7 +375,7 @@
         <!-- React (D-50): picker curado diferido, encima del botón -->
         @if (reactionsEnabled()) {
           <div class="relative shrink-0">
-            <button type="button" data-control="react" (click)="toggleReactionPicker()" [attr.aria-expanded]="reactionPickerOpen()" aria-haspopup="dialog"
+            <button #reactButton type="button" data-control="react" (click)="toggleReactionPicker()" [attr.aria-expanded]="reactionPickerOpen()" aria-haspopup="dialog"
               aria-label="React" appTooltip="React"
               class="flex h-11 w-11 items-center justify-center rounded-full transition-colors motion-reduce:transition-none"
               [ngClass]="reactionPickerOpen() ? 'bg-brand-bold text-white' : 'bg-white/10 text-white hover:bg-white/20'">
@@ -383,7 +383,7 @@
             </button>
             @defer (when reactionPickerOpen()) {
               @if (reactionPickerOpen()) {
-                <app-reaction-picker [catalog]="reactionCatalog()" (picked)="react($event)" (closed)="reactionPickerOpen.set(false)" />
+                <app-reaction-picker [catalog]="reactionCatalog()" [anchor]="reactButton" (picked)="react($event)" (closed)="reactionPickerOpen.set(false)" />
               }
             }
           </div>
