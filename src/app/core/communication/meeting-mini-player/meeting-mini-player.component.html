@@ -283,7 +283,7 @@
             @switch (phase()) {
               @case ('waiting') { You'll join automatically once you're admitted. }
               @case ('passcode') { Return to the meeting to enter the passcode. }
-              @case ('unsupported') { Meetings with more than 4 participants aren't supported yet. }
+              @case ('media-failed') { Open the meeting to try connecting again. }
               @default { {{ statusLabel() }} }
             }
           </p>

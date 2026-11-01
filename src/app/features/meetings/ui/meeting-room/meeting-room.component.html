@@ -63,22 +63,28 @@
     </form>
   </div>
 
-  <!-- Unsupported (SFU / >4 participants) -->
-  <div *ngIf="phase() === 'unsupported'" class="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+  <!-- Media failed: el SFU no arrancó (seguimos dentro de la reunión, sin audio ni video) -->
+  <div *ngIf="phase() === 'media-failed'" data-role="media-failed" class="flex flex-1 flex-col items-center justify-center gap-4 text-center">
     <span class="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-600">
-      <ion-icon name="people-outline" class="text-3xl"></ion-icon>
+      <ion-icon name="videocam-off-outline" class="text-3xl"></ion-icon>
     </span>
     <div class="max-w-md">
-      <p class="text-base font-bold text-gray-900">This meeting needs a video mode not available yet</p>
+      <p class="text-base font-bold text-gray-900">We couldn't connect your audio and video</p>
       <p class="mt-1 text-sm text-gray-500">
-        Meetings with more than 4 participants use a mode that isn't supported in this version.
-        Try the web app, or keep the meeting to 4 people or fewer.
+        You're still in the meeting, but your audio and video didn't start. Try again. If it keeps happening,
+        check your connection or reload the page.
       </p>
     </div>
-    <button type="button" (click)="leave()"
-      class="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-      Leave
-    </button>
+    <div class="flex items-center gap-2">
+      <button type="button" data-role="media-failed-retry" (click)="retryMedia()"
+        class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+        Try again
+      </button>
+      <button type="button" (click)="leave()"
+        class="rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+        Leave
+      </button>
+    </div>
   </div>
 
   <!-- Ended / denied / cancelled (F3: motivo del servidor; host/cohost pueden continuar en una reunión nueva, D-34) -->
