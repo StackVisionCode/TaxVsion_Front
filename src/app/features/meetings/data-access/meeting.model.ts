@@ -48,6 +48,8 @@ export interface MeetingListItemResponse {
   joinedParticipantsCount: number;
   /** FileId de CloudStorage del transcript (solo meetings pasadas que lo tengan). */
   transcriptFileId: string | null;
+  /** Idioma del transcript elegido para la reunión; null = automático (INV-T01 R-7). */
+  transcriptLanguage?: string | null;
   /** F7 — estado de la grabación (`Recording`/`Processing`/`Ready`/`Failed`…); null = no se grabó. */
   recordingState?: string | null;
 }
@@ -86,6 +88,8 @@ export interface CreateMeetingRequest {
   /** ISO UTC; si se omite el meeting queda "instantáneo" (sin agenda). */
   scheduledForUtc?: string;
   recordingRequested?: boolean;
+  /** null/ausente = automático: cada participante en su idioma o el de la oficina. */
+  transcriptLanguage?: string | null;
   /** F3 — informativa (≤ máximo de la oficina; 400 `Meeting.InvalidDuration` si lo supera). El corte real es `endsAtUtc`. */
   scheduledDurationMinutes?: number;
 }
@@ -244,6 +248,8 @@ export interface MeetingFormValue {
   passcode: string | null;
   /** Pide grabar la reunión (con consentimiento de los participantes). */
   recordingRequested: boolean;
+  /** Idioma del transcript; null = automático. */
+  transcriptLanguage: string | null;
   /** F3 — duración programada, informativa; null = que el backend aplique la de la oficina. */
   scheduledDurationMinutes: number | null;
 }
@@ -264,6 +270,8 @@ export interface MeetingItem {
   endReasonLabel: string | null;
   joinedCount: number;
   transcriptFileId: string | null;
+  /** Idioma del transcript de la reunión; null = automático. */
+  transcriptLanguage: string | null;
   /** F7 — estado de la grabación; null/ausente = no se grabó. */
   recordingState?: string | null;
   hostUserId: string;
@@ -307,6 +315,7 @@ export function toMeetingItem(response: MeetingListItemResponse, currentUserId: 
     endReasonLabel,
     joinedCount: response.joinedParticipantsCount,
     transcriptFileId: response.transcriptFileId,
+    transcriptLanguage: response.transcriptLanguage ?? null,
     recordingState: response.recordingState ?? null,
     hostUserId: response.hostUserId,
     isHost: currentUserId !== null && response.hostUserId === currentUserId,

@@ -46,6 +46,8 @@ export class CallsService {
 
   /** F7 — desfase servidor−cliente (ms) para el reloj de la grabación. */
   readonly serverOffsetMs = this.realtime.serverOffsetMs;
+  /** Reconexión del socket compartido: la llamada en curso vuelve a su room (`rejoin`). */
+  readonly reconnected$ = this.realtime.reconnected$;
 
   getIceServers(ttlSeconds = 300): Observable<IceResponse> {
     const params = new HttpParams().set('ttl', ttlSeconds);
@@ -78,6 +80,14 @@ export class CallsService {
 
   cancel(callId: string): Promise<unknown> {
     return this.emitOrThrow('call.cancel', { clientKey: this.realtime.newClientKey(), callId });
+  }
+
+  /**
+   * Vuelve a la room de la llamada tras reconectar el socket (el canal nuevo no hereda las rooms).
+   * Devuelve el estado actual: si ya terminó, el llamador la cierra con ese estado.
+   */
+  rejoin(callId: string): Promise<{ state: CallStateDto }> {
+    return this.emitOrThrow('call.rejoin', { callId });
   }
 
   end(callId: string): Promise<unknown> {

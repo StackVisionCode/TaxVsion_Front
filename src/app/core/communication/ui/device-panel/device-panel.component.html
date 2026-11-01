@@ -104,18 +104,5 @@
       }
     </section>
 
-    <!-- F5 (D-43): picture-in-picture automático (preferencia local) -->
-    @if (pipSupported()) {
-      <section class="flex flex-col gap-3" data-role="pip-section">
-        <h3 class="text-sm font-semibold text-gray-900">Picture-in-picture</h3>
-        <label class="flex items-start justify-between gap-4">
-          <span class="min-w-0">
-            <span class="block text-sm text-gray-800">Pop out when I switch tabs</span>
-            <span class="block text-xs text-gray-400">Keeps the meeting visible in a small window while you work elsewhere.</span>
-          </span>
-          <app-switch size="sm" [checked]="autoPip()" ariaLabel="Pop out when I switch tabs" (checkedChange)="setAutoPip($event)" />
-        </label>
-      </section>
-    }
   </div>
 </app-drawer>

@@ -63,14 +63,13 @@ import { CommNumberSettingComponent } from '../../ui/number-setting/number-setti
             </app-comm-setting-row>
           </app-comm-settings-section>
 
-          <app-comm-settings-section heading="Keeping messages" description="Old messages are deleted only when automatic cleanup is on.">
-            <app-comm-setting-row label="Automatic cleanup" hint="Delete messages and recordings older than their retention period.">
-              <app-switch [checked]="d.purgeEnabled" (checkedChange)="store.set('purgeEnabled', $event)" ariaLabel="Automatic cleanup"></app-switch>
+          <!-- La retención la fija la plataforma (obligaciones de conservación): aquí solo se muestra -->
+          <app-comm-settings-section heading="Keeping messages" description="Set by the platform to meet record-keeping requirements. Contact support to change it.">
+            <app-comm-setting-row label="Automatic cleanup" hint="Messages and recordings older than their retention period are deleted.">
+              <p class="text-sm font-medium text-gray-900" data-role="retention-cleanup">{{ e.retention.purgeEnabled ? 'On' : 'Off' }}</p>
             </app-comm-setting-row>
-            <app-comm-setting-row label="Keep messages for">
-              <app-comm-number-setting label="Message retention" unit="days" [value]="d.messageRetentionDays"
-                [min]="store.range('messageRetentionDays').min" [max]="store.range('messageRetentionDays').max"
-                (valueChange)="store.set('messageRetentionDays', $event ?? d.messageRetentionDays)"></app-comm-number-setting>
+            <app-comm-setting-row label="Messages are kept for">
+              <p class="text-sm font-medium text-gray-900" data-role="retention-messages">{{ e.retention.messageDays + ' days' }}</p>
             </app-comm-setting-row>
           </app-comm-settings-section>
         </div>

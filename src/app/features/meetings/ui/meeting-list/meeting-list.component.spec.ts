@@ -17,6 +17,7 @@ function meeting(overrides: Partial<MeetingItem>): MeetingItem {
     endReasonLabel: null,
     joinedCount: 2,
     transcriptFileId: null,
+    transcriptLanguage: null,
     recordingState: null,
     hostUserId: 'host',
     isHost: false,

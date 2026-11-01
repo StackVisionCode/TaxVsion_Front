@@ -1,6 +1,6 @@
 <!-- Audio remoto (micrófonos y pantallas): ÚNICO lugar del shell que lo reproduce y SIEMPRE montado
      mientras hay meeting (también con la sala completa abierta, cuyos <video> van muted). Fuera del
-     panel: al salir a PiP (Document PiP mueve el panel) se queda en la ventana principal. -->
+     panel. -->
 <app-meeting-remote-audio />
 
 <!-- Panel Devices (drawer): cambios de micrófono/cámara en caliente, altavoz y AEC/NS/AGC -->
@@ -9,11 +9,11 @@
 @if (visible()) {
   <section #panel role="region" [attr.aria-label]="'Meeting in progress: ' + (title() || 'Meeting')"
     class="fixed z-40 flex flex-col overflow-hidden bg-gray-900 text-white shadow-2xl ring-1 ring-white/10" [ngClass]="panelClass()"
-    [style.left.px]="isDesktop() && !pipActive() ? effectivePosition()?.x : null" [style.top.px]="isDesktop() && !pipActive() ? effectivePosition()?.y : null">
+    [style.left.px]="isDesktop() ? effectivePosition()?.x : null" [style.top.px]="isDesktop() ? effectivePosition()?.y : null">
 
     <!-- Encabezado = asa de arrastre (escritorio). Doble clic: volver a la esquina. -->
     <header class="flex items-center gap-2 px-3 py-2.5 select-none"
-      [ngClass]="isDesktop() && !pipActive() ? (dragging() ? 'cursor-grabbing' : 'cursor-grab') : ''"
+      [ngClass]="isDesktop() ? (dragging() ? 'cursor-grabbing' : 'cursor-grab') : ''"
       (pointerdown)="onDragStart($event)" (pointermove)="onDragMove($event)" (pointerup)="onDragEnd($event)"
       (pointercancel)="onDragEnd($event)" (dblclick)="resetPosition()">
       <ion-icon name="reorder-two-outline" class="hidden shrink-0 text-base text-white/40 sm:block" aria-hidden="true"></ion-icon>
@@ -55,35 +55,24 @@
         </button>
       }
 
-      <!-- F5 (D-43): Pop out / volver, solo si el navegador soporta PiP -->
-      @if (pipSupported() && isJoined()) {
-        <button type="button" (click)="popOut()" data-role="pip" [attr.aria-pressed]="pipActive()"
-          [attr.aria-label]="pipActive() ? 'Close pop out' : 'Pop out'" [appTooltip]="pipActive() ? 'Close pop out' : 'Pop out'"
-          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/15 hover:text-white motion-reduce:transition-none"
-          [ngClass]="pipActive() ? 'bg-white/15 text-white' : 'text-white/80'">
-          <ion-icon name="open-outline" class="text-base"></ion-icon>
-        </button>
-      }
       <button type="button" (click)="expand()" aria-label="Return to meeting" title="Return to meeting"
         class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/15 hover:text-white motion-reduce:transition-none">
         <ion-icon name="expand-outline" class="text-base"></ion-icon>
       </button>
-      @if (!pipActive()) {
-        <button type="button" (click)="toggleCollapsed()" [attr.aria-expanded]="!collapsed()"
-          [attr.aria-label]="collapsed() ? 'Show meeting controls' : 'Minimize to a bar'"
-          [title]="collapsed() ? 'Show meeting controls' : 'Minimize to a bar'"
-          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/15 hover:text-white motion-reduce:transition-none">
-          <ion-icon [name]="collapsed() ? 'chevron-up-outline' : 'chevron-down-outline'" class="text-base"></ion-icon>
-        </button>
-      }
+      <button type="button" (click)="toggleCollapsed()" [attr.aria-expanded]="!collapsed()"
+        [attr.aria-label]="collapsed() ? 'Show meeting controls' : 'Minimize to a bar'"
+        [title]="collapsed() ? 'Show meeting controls' : 'Minimize to a bar'"
+        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/15 hover:text-white motion-reduce:transition-none">
+        <ion-icon [name]="collapsed() ? 'chevron-up-outline' : 'chevron-down-outline'" class="text-base"></ion-icon>
+      </button>
     </header>
 
-    @if (!collapsed() || pipActive()) {
+    @if (!collapsed()) {
       @if (isJoined()) {
         <!-- Tile principal: pantalla compartida (con alternancia) → quien habla (→ fijado → primer remoto). Solo: mi cámara. -->
         <div class="relative mx-3 aspect-video overflow-hidden rounded-2xl bg-black" data-role="main-tile">
           @if (showScreenMain() && activeShare(); as share) {
-            <video [srcObject]="share.stream" autoplay playsinline muted class="h-full w-full object-contain" data-role="main-screen"></video>
+            <video [srcObject]="share.stream" autoplay playsinline [muted]="true" class="h-full w-full object-contain" data-role="main-screen"></video>
             <!-- Hablante (o yo) en PiP interno -->
             <div class="absolute bottom-2 right-2 aspect-video w-24 overflow-hidden rounded-xl border border-white/20 shadow-lg" data-role="inner-pip">
               @if (mainParticipant(); as main) {

@@ -4,7 +4,6 @@ import { RouterLink } from '@angular/router';
 import { toApiError } from '@core/models/api-error.model';
 import { MediaPolicyService } from '@core/communication/media/media-policy.service';
 import { MediaDevicesService, PreferredDevices } from '@core/communication/media/media-devices.service';
-import { MeetingPipService } from '@core/communication/meeting-pip.service';
 import type { MediaPreferencesPatch } from '@core/communication/media/media-policy.model';
 import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
 import { SETTINGS_CHANGED_EVENT, SettingsChangedEvent } from '@core/realtime/realtime.model';
@@ -41,7 +40,6 @@ export class CommunicationPreferencesPageComponent implements OnInit {
   private readonly mediaPolicy = inject(MediaPolicyService);
   private readonly toast = inject(ToastService);
   protected readonly devices = inject(MediaDevicesService);
-  protected readonly pip = inject(MeetingPipService);
 
   readonly view = signal<CommunicationPreferencesView | null>(null);
   readonly loading = signal(true);
@@ -115,10 +113,6 @@ export class CommunicationPreferencesPageComponent implements OnInit {
 
   setLanguage(value: string): void {
     void this.set('transcriptLanguage', value === '' ? null : value);
-  }
-
-  setAutoPip(enabled: boolean): void {
-    void this.set('autoPictureInPicture', enabled);
   }
 
   setDevice(key: keyof PreferredDevices, deviceId: string): void {

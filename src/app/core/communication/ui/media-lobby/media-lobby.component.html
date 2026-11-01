@@ -2,7 +2,7 @@
   <!-- Vista previa (espejo) + medidor -->
   <div class="flex flex-1 flex-col gap-3">
     <div class="relative aspect-video w-full overflow-hidden rounded-2xl bg-gray-900">
-      <video [srcObject]="previewStream()" autoplay playsinline muted class="h-full w-full -scale-x-100 object-cover" [class.hidden]="!hasCamera()"></video>
+      <video [srcObject]="previewStream()" autoplay playsinline [muted]="true" class="h-full w-full -scale-x-100 object-cover" [class.hidden]="!hasCamera()"></video>
       @if (!hasCamera()) {
         <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/70">
           <ion-icon name="videocam-off-outline" class="text-4xl"></ion-icon>

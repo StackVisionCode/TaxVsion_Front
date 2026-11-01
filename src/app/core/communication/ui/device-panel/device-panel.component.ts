@@ -4,7 +4,6 @@ import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { MediaDevicesService } from '../../media/media-devices.service';
 import { MediaPolicyService } from '../../media/media-policy.service';
-import { MeetingPipService } from '../../meeting-pip.service';
 import { AudioProcessing } from '../../media/media-policy.model';
 import { deviceLabel, permissionGuidance, permissionStatusLabel } from '../permission-guidance.util';
 
@@ -34,20 +33,6 @@ export class DevicePanelComponent {
   private readonly devices = inject(MediaDevicesService);
   private readonly mediaPolicy = inject(MediaPolicyService);
   private readonly toast = inject(ToastService);
-  private readonly pip = inject(MeetingPipService);
-
-  /** F5 (D-43) — "pop out" automático al ocultar la pestaña (solo si el navegador soporta PiP). */
-  readonly pipSupported = this.pip.supported;
-  readonly autoPip = this.pip.autoPipEnabled;
-
-  setAutoPip(enabled: boolean): void {
-    const previous = this.pip.autoPipEnabled();
-    this.pip.setAutoPip(enabled);
-    this.mediaPolicy.updatePreferences({ autoPictureInPicture: enabled }).catch(() => {
-      this.pip.setAutoPip(previous);
-      this.toast.error("Couldn't save your preference. Try again.");
-    });
-  }
 
   readonly isOpen = input(false);
   readonly showCamera = input(true);

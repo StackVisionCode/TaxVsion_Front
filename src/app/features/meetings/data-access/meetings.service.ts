@@ -106,6 +106,11 @@ export class MeetingsService {
     return this.http.post<void>(`${this.base}/meetings/${id}/reschedule`, { newScheduledForUtc });
   }
 
+  /** PUT /communication/meetings/{id}/transcript-language — host/cohost, antes de que termine. */
+  setTranscriptLanguage(id: string, transcriptLanguage: string | null): Observable<{ transcriptLanguage: string | null }> {
+    return this.http.put<{ transcriptLanguage: string | null }>(`${this.base}/meetings/${id}/transcript-language`, { transcriptLanguage });
+  }
+
   // ---------- Ficha del meeting ----------
 
   /** Ficha: resumen, asistencia por persona, invitados que no entraron y totales. */

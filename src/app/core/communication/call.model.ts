@@ -14,7 +14,7 @@ import type { RecordingLimitWarning, RecordingState, RecordingStateChange } from
 export type CallConnectionQuality = ConnectionQuality;
 
 /** F4 — por qué terminó la llamada; `MaxDurationReached` = tope de minutos de la oficina. */
-export type CallEndReason = 'Hangup' | 'Missed' | 'Rejected' | 'Cancelled' | 'IceFailed' | 'MaxDurationReached';
+export type CallEndReason = 'Hangup' | 'Missed' | 'Rejected' | 'Cancelled' | 'IceFailed' | 'MaxDurationReached' | 'Abandoned';
 
 export type CallStatus =
   | 'Ringing'
