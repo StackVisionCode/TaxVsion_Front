@@ -293,8 +293,8 @@ export class MeetingMiniPlayerComponent {
         return 'Waiting for the host to let you in';
       case 'passcode':
         return 'Passcode required';
-      case 'unsupported':
-        return 'Video mode not supported';
+      case 'media-failed':
+        return "Audio and video didn't start";
       case 'ended':
         return this.meeting.endedTitle();
       default:

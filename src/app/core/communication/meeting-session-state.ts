@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 
-export type ActiveMeetingPhase = 'idle' | 'joining' | 'waiting' | 'passcode' | 'joined' | 'unsupported' | 'ended';
+export type ActiveMeetingPhase = 'idle' | 'joining' | 'waiting' | 'passcode' | 'joined' | 'media-failed' | 'ended';
 
 /**
  * Estado MÍNIMO de la sesión de meeting (solo la fase), separado de `ActiveMeetingService` para que el

@@ -64,6 +64,7 @@ function fakeRtc(joinAck: MeetingJoinAck) {
     join: vi.fn().mockResolvedValue(joinAck),
     mediaStatus: vi.fn(), // F1: el estado inicial de mic/cámara se publica al entrar
     leaveNoAck: vi.fn(),
+    leave: vi.fn().mockResolvedValue(undefined),
     onSnapshot: noop,
     onParticipantChanged: noop,
     onParticipantQualityChanged: noop, // F4: calidad por participante
@@ -106,6 +107,7 @@ function configureWith(
   callPhase = 'idle',
   attachments: unknown = { getMeta: () => EMPTY },
   cloudStorage: unknown = { getFile: () => EMPTY },
+  sfu: unknown = { leave: vi.fn() },
 ) {
   const toast = { info: vi.fn(), error: vi.fn(), success: vi.fn() };
   // T-58: doble de la llamada 1:1 (idle por defecto; `endCall` la cuelga).
@@ -114,7 +116,7 @@ function configureWith(
     providers: [
       ActiveMeetingService,
       { provide: MeetingRtcService, useValue: rtc },
-      { provide: MeetingSfuService, useValue: { leave: vi.fn() } },
+      { provide: MeetingSfuService, useValue: sfu },
       { provide: CallsService, useValue: { getIceServers: () => of({ iceServers: [] }) } },
       { provide: ActiveCallService, useValue: activeCall },
       { provide: SoundsService, useValue: { play: vi.fn(), isAllowed: () => true } },
@@ -196,6 +198,35 @@ describe('ActiveMeetingService (F1 — media link and resume sharing)', () => {
     await service.join('m1', 'Consulta');
 
     expect(service.screenShareInterrupted()).toBe(false);
+  });
+});
+
+describe('ActiveMeetingService (SFU que no arranca)', () => {
+  it('si el SFU falla queda en media-failed dentro de la reunión, y "Try again" lo vuelve a intentar', async () => {
+    const sfu = {
+      join: vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true),
+      leave: vi.fn(),
+      isConnected: vi.fn(() => true),
+      collectStats: vi.fn(async () => null),
+    };
+    const { service } = configureWith(
+      fakeRtc({ requiresAdmission: false, snapshot: soloSnapshot({ strategy: 'Sfu' }) }),
+      undefined,
+      'idle',
+      undefined,
+      undefined,
+      sfu,
+    );
+
+    await service.join('m1', 'Consulta');
+    await vi.waitFor(() => expect(service.phase()).toBe('media-failed'));
+
+    await service.retryMedia();
+    expect(sfu.join).toHaveBeenCalledTimes(2);
+    expect(service.phase()).toBe('joined');
+    expect(service.mediaState()).toBe('ok');
+
+    await service.leave(); // apaga el monitor de calidad: su timer no debe seguir en otros specs
   });
 });
 

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -49,4 +49,24 @@ describe('media architecture — los orquestadores no contienen media', () => {
       expect(offenders, `${file} contiene: ${offenders.join(', ')}`).toEqual([]);
     });
   }
+});
+
+describe('media architecture — mediasoup-client solo por su puente ESM', () => {
+  // En producción el optimizador de chunks deja sin `export` el chunk de un `import()` directo a
+  // mediasoup-client (CommonJS) y `Device` llega undefined. Solo `mediasoup-device.ts` lo importa.
+  it('nadie hace import() de mediasoup-client fuera de media/mediasoup-device.ts', () => {
+    const root = join(process.cwd(), 'src', 'app');
+    const offenders = (readdirSync(root, { recursive: true }) as string[])
+      .filter(file => file.endsWith('.ts') && !file.endsWith('.spec.ts'))
+      .filter(file => /import\(\s*['"]mediasoup-client['"]\s*\)/.test(readFileSync(join(root, file), 'utf8')));
+    expect(offenders).toEqual([]);
+  });
+
+  it('el puente mediasoup-device.ts se carga siempre con import()', () => {
+    const root = join(process.cwd(), 'src', 'app');
+    const staticImporters = (readdirSync(root, { recursive: true }) as string[])
+      .filter(file => file.endsWith('.ts') && !file.endsWith('.spec.ts'))
+      .filter(file => /from\s+['"][./]*(media\/)?mediasoup-device['"]/.test(readFileSync(join(root, file), 'utf8')));
+    expect(staticImporters).toEqual([]);
+  });
 });
