@@ -240,6 +240,7 @@ export class MeetingsStore {
         requireWaitingRoom: form.requireWaitingRoom,
         ...(passcode ? { passcode } : {}),
         ...(form.recordingRequested ? { recordingRequested: true } : {}),
+        ...(form.transcriptLanguage ? { transcriptLanguage: form.transcriptLanguage } : {}),
         // F3: duración programada (informativa; el backend valida contra el máximo de la oficina).
         ...(form.scheduledDurationMinutes ? { scheduledDurationMinutes: form.scheduledDurationMinutes } : {}),
       })
@@ -297,6 +298,13 @@ export class MeetingsStore {
     return this.service
       .reschedule(id, newScheduledForUtc)
       .pipe(tap(() => this.patchUpcoming(id, item => ({ ...item, scheduledForUtc: newScheduledForUtc }))));
+  }
+
+  /** Idioma del transcript de la reunión (host/cohost); null = automático. */
+  setTranscriptLanguage(id: string, transcriptLanguage: string | null): Observable<{ transcriptLanguage: string | null }> {
+    return this.service
+      .setTranscriptLanguage(id, transcriptLanguage)
+      .pipe(tap(saved => this.patchUpcoming(id, item => ({ ...item, transcriptLanguage: saved.transcriptLanguage }))));
   }
 
   private patchUpcoming(id: string, mutate: (item: MeetingListItemResponse) => MeetingListItemResponse): void {

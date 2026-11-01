@@ -7,7 +7,6 @@ import { ToastService } from '@shared/ui/toast/toast.service';
 import { ActiveMeetingService, MeetingChatMessage } from '../active-meeting.service';
 import { ActiveCallService } from '../active-call.service';
 import { MeetingActiveSpeakerService, RemoteAudioSource } from '../meeting-active-speaker.service';
-import { AUTO_PIP_KEY, MeetingPipService } from '../meeting-pip.service';
 import { MeetingSessionState } from '../meeting-session-state';
 import { MediaPolicyService } from '../media/media-policy.service';
 import { fakeMediaPolicyService, mediaPolicyFixture } from '../media/testing/media-policy.fixture';
@@ -113,30 +112,14 @@ function fakeSpeaker(screenAudio: RemoteAudioSource[]) {
   };
 }
 
-function fakePip() {
-  return {
-    supported: signal(false),
-    active: signal(false),
-    requested: signal(false),
-    autoPipEnabled: signal(false),
-    setAutoPip: vi.fn(),
-    registerPanel: vi.fn(),
-    registerMainVideo: vi.fn(),
-    toggle: vi.fn(),
-    close: vi.fn(),
-  };
-}
-
 function configure(remotes: MeetingParticipantDto[], screenAudio: RemoteAudioSource[] = [], callPhase = 'idle', waiting: MeetingParticipantDto[] = []) {
   const meeting = fakeMeeting(remotes, waiting);
   const speaker = fakeSpeaker(screenAudio);
-  const pip = fakePip();
   TestBed.configureTestingModule({
     imports: [MeetingMiniPlayerComponent], // con `@defer` el metadata se resuelve en compileComponents
     providers: [
       { provide: ActiveMeetingService, useValue: meeting },
       { provide: MeetingActiveSpeakerService, useValue: speaker },
-      { provide: MeetingPipService, useValue: pip },
       { provide: ActiveCallService, useValue: { phase: signal(callPhase) } },
       { provide: MediaPolicyService, useValue: fakeMediaPolicyService() },
       { provide: PermissionService, useValue: { isActor: () => true, has: () => false } },
@@ -144,7 +127,7 @@ function configure(remotes: MeetingParticipantDto[], screenAudio: RemoteAudioSou
       { provide: ToastService, useValue: { info: vi.fn(), success: vi.fn(), error: vi.fn() } },
     ],
   });
-  return { meeting, speaker, pip };
+  return { meeting, speaker };
 }
 
 /** El mini-player tiene bloques `@defer` (picker de reacciones): hay que compilar antes de crear. */
@@ -158,15 +141,6 @@ async function render(remotes: MeetingParticipantDto[], screenAudio: RemoteAudio
 
 describe('MeetingMiniPlayerComponent — F4', () => {
   afterEach(() => TestBed.resetTestingModule());
-
-  // F9: "Pop out when I switch tabs" se toma de la cuenta; la vieja del localStorage (F5) se sube una vez.
-  it('toma la preferencia de ventana flotante de la política y migra la vieja del localStorage', async () => {
-    localStorage.setItem(AUTO_PIP_KEY, '1');
-    const { pip } = await render([]);
-    TestBed.flushEffects();
-    expect(pip.setAutoPip).toHaveBeenCalledWith(true);
-    expect(localStorage.getItem(AUTO_PIP_KEY)).toBeNull();
-  });
 
   it('reproduce el audio de cada pantalla compartida en su propio <audio> con volumen propio', async () => {
     const stream = { addEventListener() {}, removeEventListener() {}, getTracks: () => [] } as unknown as MediaStream;
@@ -259,29 +233,21 @@ describe('MeetingMiniPlayerComponent — F5 (T-54)', () => {
     expect(meeting.sendChatMessage).toHaveBeenCalledWith('hey');
   });
 
-  it('React aparece solo si la política lo permite; "Pop out" solo con soporte de PiP y se registra el panel', async () => {
-    const { el, fixture, meeting, pip } = await render([participant('u1')]);
+  it('React aparece solo si la política lo permite; ya no hay "Pop out" a una ventana del navegador', async () => {
+    const { el, fixture, meeting } = await render([participant('u1')]);
     expect(el.querySelector('[data-control="react"]')).not.toBeNull();
     expect(el.querySelector('[data-role="pip"]')).toBeNull();
-    expect(pip.registerPanel).toHaveBeenCalledWith(expect.any(HTMLElement));
-    expect(pip.registerMainVideo).toHaveBeenCalled();
 
     meeting.reactionsEnabled.set(false);
-    pip.supported.set(true);
     fixture.detectChanges();
     expect(el.querySelector('[data-control="react"]')).toBeNull();
-    (el.querySelector('[data-role="pip"]') as HTMLButtonElement).click();
-    expect(pip.toggle).toHaveBeenCalled();
   });
 
-  it('con la sala abierta solo se monta si se pidió "Pop out"', async () => {
-    const { el, fixture, meeting, pip } = await render([participant('u1')]);
+  it('con la sala abierta no se monta (no hay dos vistas de la misma reunión)', async () => {
+    const { el, fixture, meeting } = await render([participant('u1')]);
     meeting.roomViewAttached.set(true);
     fixture.detectChanges();
     expect(el.querySelector('section')).toBeNull();
-    pip.requested.set(true);
-    fixture.detectChanges();
-    expect(el.querySelector('section')).not.toBeNull();
   });
 });
 

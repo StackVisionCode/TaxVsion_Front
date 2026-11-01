@@ -26,9 +26,9 @@ import { FormsModule } from '@angular/forms';
 import { ActiveMeetingService, MeetingHostTileAction } from '@core/communication/active-meeting.service';
 import { SrcObjectDirective } from '@core/communication/src-object.directive';
 import { MeetingActiveSpeakerService, SELF_LEVEL_KEY } from '@core/communication/meeting-active-speaker.service';
-import { MeetingPipService } from '@core/communication/meeting-pip.service';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { TooltipDirective } from '@shared/ui/tooltip/tooltip.directive';
+import { FullscreenFrameDirective } from '@core/communication/ui/fullscreen-frame/fullscreen-frame.directive';
 import { MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
 import { MeetingParticipantDto } from '@core/communication/meeting.model';
 import { durationWarningLabel } from '@core/communication/meeting-clock.util';
@@ -65,8 +65,7 @@ const GALLERY_GAP_PX = 12;
  * F4: controles comunes (`app-media-controls`), banner de red, panel Devices y consentimiento común.
  * F5: tile único (`app-meeting-participant-tile`) en galería, escenario (pantalla o fijado) y filmstrip;
  * galería por espacio medido (ResizeObserver, 16:9, "+N"); panel Participants (manos) y picker de
- * reacciones diferidos; burbujas flotantes + `aria-live`; chat como sheet en `< lg`; "More" en `< sm`;
- * "Pop out" (PiP) cuando el navegador lo soporta.
+ * reacciones diferidos; burbujas flotantes + `aria-live`; chat como sheet en `< lg`; "More" en `< sm`.
  * F6: "Invite" (host/cohost; cabecera, "More" y panel Participants) emite `inviteRequested` — el panel
  * de invitaciones lo monta la página (la sala no conoce el store). `guestMode` (página pública
  * `/meet/:token`): sin Invite ni grabación, pantalla solo si la política lo permite a clientes/guests,
@@ -84,6 +83,7 @@ const GALLERY_GAP_PX = 12;
     SrcObjectDirective,
     ConfirmDialogComponent,
     TooltipDirective,
+    FullscreenFrameDirective,
     MenuItemDirective,
     MediaControlsComponent,
     DevicePanelComponent,
@@ -104,7 +104,6 @@ export class MeetingRoomComponent {
   private readonly speaker = inject(MeetingActiveSpeakerService);
   private readonly devices = inject(MediaDevicesService);
   private readonly mediaPolicy = inject(MediaPolicyService);
-  private readonly pip = inject(MeetingPipService);
 
   /** Con la fase en 'idle', muestra el lobby para esta reunión; null = sin lobby. */
   @Input() lobby: MeetingLobbyTarget | null = null;
@@ -241,8 +240,6 @@ export class MeetingRoomComponent {
   /** Reacciones vivas para la capa flotante del escenario. */
   readonly floatingReactions = this.meeting.reactions;
   readonly reactionAnnouncement = this.meeting.reactionAnnouncement;
-  readonly pipSupported = this.pip.supported;
-  readonly pipActive = this.pip.active;
 
   reactionFor(userId: string): MeetingReaction | null {
     return this.meeting.reactionByUser().get(userId) ?? null;
@@ -266,10 +263,6 @@ export class MeetingRoomComponent {
 
   react(emoji: string): void {
     void this.meeting.react(emoji);
-  }
-
-  popOut(): void {
-    void this.pip.toggle();
   }
 
   /** Reintento del gesto cuando el navegador dejó el AudioContext suspendido. */

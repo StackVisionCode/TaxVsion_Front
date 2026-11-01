@@ -27,10 +27,6 @@
       <app-comm-setting-row label="Audio only" hint="Don't receive video. Useful on a slow connection.">
         <app-switch [checked]="v.preferences.preferAudioOnly" (checkedChange)="set('preferAudioOnly', $event)" ariaLabel="Audio only"></app-switch>
       </app-comm-setting-row>
-      <app-comm-setting-row label="Pop out when I switch tabs" hint="The meeting moves to a small floating window when you leave its tab.">
-        <app-switch [checked]="v.preferences.autoPictureInPicture" [disabled]="!pip.supported()" (checkedChange)="setAutoPip($event)"
-          ariaLabel="Pop out when I switch tabs"></app-switch>
-      </app-comm-setting-row>
     </app-comm-settings-section>
 
     <app-comm-settings-section heading="Audio processing" description="By default you use your office's settings.">
@@ -93,8 +89,8 @@
     </app-comm-settings-section>
 
     <app-comm-settings-section heading="Transcript">
-      <app-comm-setting-row label="Language of my voice notes" hint="Used when your voice notes are turned into text.">
-        <select class="rounded-lg border border-gray-200 px-2 py-1.5 text-sm" aria-label="Language of my voice notes" data-role="my-transcript-language"
+      <app-comm-setting-row label="Language I speak" hint="Used to turn your voice notes and your voice in recorded meetings and calls into text.">
+        <select class="rounded-lg border border-gray-200 px-2 py-1.5 text-sm" aria-label="Language I speak" data-role="my-transcript-language"
           (change)="setLanguage($any($event.target).value)">
           <option value="" [selected]="v.preferences.transcriptLanguage === null">Office default</option>
           @for (option of languageOptions; track option.value) {

@@ -185,10 +185,44 @@
           <input type="checkbox" [ngModel]="recordingRequested()" (ngModelChange)="recordingRequested.set($event)"
             class="h-4 w-4 accent-brand-bold" />
         </label>
+
+        <!-- Idioma del transcript (INV-T01 R-7) -->
+        <label class="flex items-center justify-between gap-3">
+          <span class="flex flex-col">
+            <span class="text-sm font-medium text-gray-800">Transcript language</span>
+            <span class="text-xs text-gray-400">Automatic uses each participant's own language.</span>
+          </span>
+          <select data-role="meeting-transcript-language" aria-label="Transcript language"
+            class="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:border-gray-300"
+            (change)="onTranscriptLanguageChange($any($event.target).value)">
+            <option value="" [selected]="transcriptLanguage() === null">Automatic</option>
+            @for (option of languageOptions; track option.value) {
+              <option [value]="option.value" [selected]="transcriptLanguage() === option.value">{{ option.label }}</option>
+            }
+          </select>
+        </label>
       </div>
 
       <!-- Modo gestionar: enviar nuevas invitaciones + lista existente -->
       <ng-container *ngIf="isEditMode()">
+        <!-- Idioma del transcript: se guarda al cambiarlo -->
+        <div class="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-gray-50/60 p-3">
+          <span class="flex flex-col">
+            <span class="text-sm font-medium text-gray-800">Transcript language</span>
+            <span class="text-xs" [class.text-gray-400]="languageStatus() !== 'error'" [class.text-red-600]="languageStatus() === 'error'">
+              {{ languageStatus() === 'error' ? 'Could not save the language. Try again.' : languageStatus() === 'saved' ? 'Saved.' : "Automatic uses each participant's own language." }}
+            </span>
+          </span>
+          <select data-role="meeting-transcript-language" aria-label="Transcript language" [disabled]="languageSaving()"
+            class="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:border-gray-300 disabled:opacity-50"
+            (change)="onTranscriptLanguageChange($any($event.target).value)">
+            <option value="" [selected]="transcriptLanguage() === null">Automatic</option>
+            @for (option of languageOptions; track option.value) {
+              <option [value]="option.value" [selected]="transcriptLanguage() === option.value">{{ option.label }}</option>
+            }
+          </select>
+        </div>
+
         <button *ngIf="invitees().length > 0" type="button" (click)="sendInvitations()" [disabled]="invitationsBusy()"
           class="self-start rounded-full border border-brand-bold px-4 py-2 text-xs font-semibold text-gray-900 hover:bg-brand-bold hover:text-white disabled:opacity-50 transition-colors">
           {{ invitationsBusy() ? 'Sending…' : 'Send invitations' }}

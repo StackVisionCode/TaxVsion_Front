@@ -31,6 +31,7 @@ import {
   MeetingInviteeDraft,
   MeetingItem,
 } from '../../data-access/meeting.model';
+import { MEETING_TRANSCRIPT_LANGUAGE_OPTIONS } from '@core/communication/transcript-language';
 import {
   InvitationState,
   canRevokeInvitation,
@@ -98,6 +99,11 @@ export class MeetingSchedulePanelComponent implements OnChanges {
   readonly requireWaitingRoom = signal(false);
   readonly passcode = signal('');
   readonly recordingRequested = signal(false);
+  /** Idioma del transcript (INV-T01 R-7); null = automático. En gestionar se guarda al cambiarlo. */
+  readonly languageOptions = MEETING_TRANSCRIPT_LANGUAGE_OPTIONS;
+  readonly transcriptLanguage = signal<string | null>(null);
+  readonly languageSaving = signal(false);
+  readonly languageStatus = signal<'saved' | 'error' | null>(null);
   /**
    * "Duration": opciones y valor por defecto salen de los límites efectivos de la oficina
    * (GET /meetings/limits); sin límites cargados no se manda el campo y el backend aplica el suyo.
@@ -372,7 +378,33 @@ export class MeetingSchedulePanelComponent implements OnChanges {
       requireWaitingRoom: this.requireWaitingRoom(),
       passcode: this.passcode().trim() || null,
       recordingRequested: this.recordingRequested(),
+      transcriptLanguage: this.transcriptLanguage(),
       scheduledDurationMinutes: this.scheduledDurationMinutes(),
+    });
+  }
+
+  /** Crear: queda en el formulario. Gestionar: se guarda en el acto (no depende del botón Save). */
+  onTranscriptLanguageChange(value: string): void {
+    const language = value === '' ? null : value;
+    const previous = this.transcriptLanguage();
+    this.transcriptLanguage.set(language);
+    const meeting = this.meeting;
+    if (!this.isEditMode() || !meeting) {
+      return;
+    }
+    this.languageSaving.set(true);
+    this.languageStatus.set(null);
+    this.store.setTranscriptLanguage(meeting.id, language).subscribe({
+      next: saved => {
+        this.transcriptLanguage.set(saved.transcriptLanguage);
+        this.languageSaving.set(false);
+        this.languageStatus.set('saved');
+      },
+      error: () => {
+        this.transcriptLanguage.set(previous);
+        this.languageSaving.set(false);
+        this.languageStatus.set('error');
+      },
     });
   }
 
@@ -417,6 +449,9 @@ export class MeetingSchedulePanelComponent implements OnChanges {
     this.requireWaitingRoom.set(false);
     this.passcode.set('');
     this.recordingRequested.set(false);
+    this.transcriptLanguage.set(meeting?.transcriptLanguage ?? null);
+    this.languageSaving.set(false);
+    this.languageStatus.set(null);
     this.scheduledDurationMinutes.set(this.limits() ? this.durationOptions()[0] ?? null : null);
     this.invitees.set(meeting ? [] : [...this.initialInvitees]);
     this.inviteeSearch.set('');

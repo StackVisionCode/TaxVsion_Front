@@ -19,6 +19,7 @@ const MEETING: MeetingItem = {
   endReasonLabel: null,
   joinedCount: 2,
   transcriptFileId: null,
+  transcriptLanguage: null,
   recordingState: 'Ready',
   hostUserId: 'host',
   isHost: true,

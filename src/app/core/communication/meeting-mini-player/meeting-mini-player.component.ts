@@ -19,7 +19,6 @@ import { TooltipDirective } from '@shared/ui/tooltip/tooltip.directive';
 import { ActiveMeetingService, MeetingHostTileAction } from '../active-meeting.service';
 import { ActiveCallService } from '../active-call.service';
 import { MeetingActiveSpeakerService, SELF_LEVEL_KEY } from '../meeting-active-speaker.service';
-import { MeetingPipService, clearLegacyAutoPip, readLegacyAutoPip } from '../meeting-pip.service';
 import { SrcObjectDirective } from '../src-object.directive';
 import { MeetingParticipantDto } from '../meeting.model';
 import { pickMiniPlayerTiles } from '../active-speaker.util';
@@ -62,14 +61,13 @@ const WAITING_ROWS = 3;
  *
  * - Solo lee `ActiveMeetingService` (core no importa features) y `MeetingActiveSpeakerService`.
  * - Es el ÚNICO lugar del shell que reproduce el audio remoto (`app-meeting-remote-audio`, siempre
- *   montado), también con la sala completa abierta; por eso los `<video>` de la sala van muted. Vive FUERA
- *   del panel: al salir a PiP (Document PiP mueve el panel) se queda en la ventana principal.
+ *   montado), también con la sala completa abierta; por eso los `<video>` de la sala van muted.
  * - F6: "Invite" (host/cohost) pide abrir la sala con el panel de invitaciones (`MeetingSessionState`).
- * - El panel se oculta mientras la sala completa está montada (`roomViewAttached`), salvo que se haya
- *   pedido "Pop out" (`MeetingPipService.requested`).
+ * - El panel se oculta mientras la sala completa está montada (`roomViewAttached`).
  * - F5 (T-54): si alguien comparte, su pantalla es el principal (hablante en PiP interno) con "View
  *   camera / screen"; principal y miniaturas son el tile único; chat compacto con no leídos; "N waiting"
- *   con Admit directo (host); React (picker diferido); "Pop out" (PiP progresivo, D-43).
+ *   con Admit directo (host); React (picker diferido). Es el único "pop out": la ventana Document PiP
+ *   del navegador se retiró (2026-10-31, chocaba con este panel).
  * - Controles: micrófono, cámara, compartir pantalla, mano, volver a la sala, salir y terminar para
  *   todos (host/cohost). Arrastrable (posición en sessionStorage), colapsable a barra; en móvil, barra
  *   inferior a lo ancho; ancho `min(22rem, 100vw - 1rem)`.
@@ -105,7 +103,6 @@ export class MeetingMiniPlayerComponent {
   private readonly devices = inject(MediaDevicesService);
   private readonly mediaPolicy = inject(MediaPolicyService);
   private readonly perms = inject(PermissionService);
-  private readonly pip = inject(MeetingPipService);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
 
@@ -152,8 +149,8 @@ export class MeetingMiniPlayerComponent {
   readonly nowMs = this.meeting.nowMs;
   readonly myUserId = this.meeting.myUserId;
 
-  /** Visible minimizado; también con la sala abierta si se pidió "Pop out" (el panel se mueve a la ventana PiP). */
-  readonly visible = computed(() => this.phase() !== 'idle' && (!this.meeting.roomViewAttached() || this.pip.requested()));
+  /** Visible minimizado: fuera de la sala completa. */
+  readonly visible = computed(() => this.phase() !== 'idle' && !this.meeting.roomViewAttached());
   readonly isJoined = computed(() => this.phase() === 'joined');
   readonly participantCount = computed(() => this.meeting.joinedParticipants().length);
 
@@ -215,8 +212,6 @@ export class MeetingMiniPlayerComponent {
   readonly chatUnread = this.meeting.chatUnread;
   readonly chatDraft = signal('');
   readonly chatMessages = computed(() => this.meeting.chatMessages().slice(-COMPACT_CHAT_MESSAGES));
-  readonly pipSupported = this.pip.supported;
-  readonly pipActive = this.pip.active;
   /** Filas con Admit directo y cuántos más esperan. */
   readonly waitingRows = computed(() => this.waitingParticipants().slice(0, WAITING_ROWS));
   readonly waitingMore = computed(() => Math.max(0, this.waitingParticipants().length - WAITING_ROWS));
@@ -270,10 +265,6 @@ export class MeetingMiniPlayerComponent {
     this.meeting.performHostAction(event.action as MeetingHostTileAction, event.userId);
   }
 
-  popOut(): void {
-    void this.pip.toggle();
-  }
-
   readonly recordingRequesterName = computed(() => {
     const id = this.recordingConsentFrom();
     return this.meeting.participants().find(p => p.userId === id)?.displayName ?? 'A participant';
@@ -316,11 +307,8 @@ export class MeetingMiniPlayerComponent {
   readonly effectivePosition = computed(() =>
     avoidReservedCorner(this.position(), this.panelSize(), this.viewportSize(), this.callVisible() ? CALL_OVERLAY_SIZE : null),
   );
-  /** Clases de posición: en la ventana PiP el panel llena todo; si no, esquina/arrastre o barra inferior. */
+  /** Clases de posición: esquina/arrastre o barra inferior. */
   readonly panelClass = computed(() => {
-    if (this.pipActive()) {
-      return 'inset-0 rounded-none';
-    }
     const base = 'inset-x-2 rounded-3xl sm:left-auto sm:w-[min(22rem,calc(100vw-1rem))]';
     const corner = this.isDesktop() && this.effectivePosition() ? 'sm:right-auto sm:bottom-auto' : 'sm:right-4 sm:bottom-4';
     const bottom = this.callVisible() ? 'bottom-[11.5rem]' : 'bottom-2';
@@ -356,33 +344,6 @@ export class MeetingMiniPlayerComponent {
       if (this.visible()) {
         untracked(() => requestAnimationFrame(() => this.reclamp()));
       }
-    });
-
-    // F9 — "Pop out when I switch tabs" es de la cuenta: se toma de la política; la vieja del localStorage (F5)
-    // se sube una vez. Vive aquí porque el mini-player existe durante toda reunión y ya carga en diferido.
-    effect(() => {
-      const preferences = this.mediaPolicy.policy()?.preferences;
-      if (!preferences) return;
-      untracked(() => {
-        if (!preferences.autoPictureInPicture && readLegacyAutoPip()) {
-          clearLegacyAutoPip();
-          this.pip.setAutoPip(true);
-          void this.mediaPolicy.updatePreferences({ autoPictureInPicture: true }).catch(() => undefined);
-          return;
-        }
-        this.pip.setAutoPip(preferences.autoPictureInPicture ?? false);
-      });
-    });
-
-    // F5 — el panel se registra en el servicio de PiP (Document PiP lo mueve de ventana).
-    effect(() => {
-      const panel = this.panelRef()?.nativeElement ?? null;
-      untracked(() => this.pip.registerPanel(panel));
-    });
-    this.pip.registerMainVideo(() => this.panelRef()?.nativeElement.querySelector('video') ?? null, {
-      toggleMicrophone: () => this.toggleAudio(),
-      toggleCamera: () => this.toggleVideo(),
-      hangup: () => this.leave(),
     });
 
     // Al empezar/terminar una pantalla, el principal vuelve a ser la pantalla.
@@ -439,7 +400,6 @@ export class MeetingMiniPlayerComponent {
 
   /** Vuelve a la sala completa: /meetings la muestra sola si hay meeting activo (sin re-unirse). */
   expand(): void {
-    this.pip.close();
     void this.router.navigateByUrl('/meetings');
   }
 
@@ -451,7 +411,6 @@ export class MeetingMiniPlayerComponent {
 
   leave(): void {
     // leave() resetea a 'idle' (no pasa por 'ended'), así que no hay toast de "terminó" que evitar.
-    this.pip.close();
     void this.meeting.leave();
     this.toast.info('You left the meeting.');
   }
@@ -467,7 +426,6 @@ export class MeetingMiniPlayerComponent {
     this.endConfirmOpen.set(false);
     this.endedByMe = false;
     if (ended) {
-      this.pip.close();
       this.toast.success('Meeting ended for everyone.');
     }
   }
@@ -494,8 +452,8 @@ export class MeetingMiniPlayerComponent {
 
   onDragStart(event: PointerEvent): void {
     const panel = this.panelRef()?.nativeElement;
-    // Los botones del encabezado no inician arrastre; en móvil el panel es una barra fija; en PiP no se mueve.
-    if (!panel || !this.isDesktop() || this.pipActive() || event.button !== 0 || (event.target as HTMLElement).closest('button')) {
+    // Los botones del encabezado no inician arrastre; en móvil el panel es una barra fija.
+    if (!panel || !this.isDesktop() || event.button !== 0 || (event.target as HTMLElement).closest('button')) {
       return;
     }
     const rect = panel.getBoundingClientRect();

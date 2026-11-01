@@ -35,14 +35,15 @@
   <div class="relative overflow-hidden rounded-3xl bg-gray-900 text-white shadow-2xl">
     <!-- Escenario: PANTALLA si alguien comparte (object-contain para que quepa completa), si no la CÁMARA
          del par (object-cover). El audio va por los <audio> de arriba, así que el video va muted. -->
-    <div class="relative aspect-video w-full bg-black">
-      <video [srcObject]="stageStream()" autoplay playsinline muted
+    <!-- Pantalla completa del escenario (doble clic o botón); Esc la cierra -->
+    <div appFullscreenFrame #fs="fullscreenFrame" data-role="call-stage" class="group relative aspect-video w-full bg-black">
+      <video [srcObject]="stageStream()" autoplay playsinline [muted]="true"
         class="h-full w-full" [class.object-contain]="isScreenStage()" [class.object-cover]="!isScreenStage()"
         [class.opacity-0]="showRemotePlaceholder()"></video>
 
       <!-- PiP de la CÁMARA del par (abajo-izquierda) cuando en el escenario hay una pantalla -->
       <div *ngIf="showPeerCameraPip()" class="absolute bottom-3 left-3 h-20 w-28 overflow-hidden rounded-xl border border-white/20 bg-gray-800">
-        <video [srcObject]="remoteCameraStream()" autoplay playsinline muted class="h-full w-full object-cover"></video>
+        <video [srcObject]="remoteCameraStream()" autoplay playsinline [muted]="true" class="h-full w-full object-cover"></video>
         <div class="absolute bottom-0.5 left-1 rounded-full bg-black/50 px-1.5 py-0.5 text-[0.5625rem]">{{ peerDisplayName() || 'Contact' }}</div>
       </div>
 
@@ -54,7 +55,7 @@
       </div>
 
       <!-- Nombre + calidad del PAR + badges (arriba, sobre el video) -->
-      <div class="absolute left-3 top-3 flex flex-wrap items-center gap-2">
+      <div class="absolute left-3 top-3 flex flex-wrap items-center gap-2 transition-opacity duration-200" [class.opacity-0]="fs.idle()">
         <span class="flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1 text-xs font-medium backdrop-blur-sm">
           {{ peerDisplayName() || 'Contact' }}
           <app-quality-badge *ngIf="isActive()" [quality]="peerQuality()" data-role="peer-quality" />
@@ -70,9 +71,18 @@
         </span>
       </div>
 
+      @if (fs.supported && !showRemotePlaceholder()) {
+        <button type="button" data-control="fullscreen" (click)="fs.toggle()" [attr.aria-pressed]="fs.active()"
+          [attr.aria-label]="fs.active() ? 'Exit full screen' : 'Full screen'" [title]="fs.active() ? 'Exit full screen (Esc)' : 'Full screen'"
+          class="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white opacity-0 backdrop-blur-sm transition-opacity duration-200 hover:bg-black/75 focus-visible:opacity-100 group-hover:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
+          [class.!opacity-100]="fs.active() && !fs.idle()" [class.!opacity-0]="fs.idle()">
+          <ion-icon [name]="fs.active() ? 'contract-outline' : 'expand-outline'" class="text-base" aria-hidden="true"></ion-icon>
+        </button>
+      }
+
       <!-- Local PiP (abajo-derecha) = MI cámara con MI calidad. Espejo siempre; avatar/off cuando la apago. -->
       <div class="absolute bottom-3 right-3 h-20 w-28 overflow-hidden rounded-xl border border-white/20 bg-gray-800">
-        <video [srcObject]="localStream()" autoplay playsinline muted
+        <video [srcObject]="localStream()" autoplay playsinline [muted]="true"
           class="h-full w-full object-cover -scale-x-100" [class.opacity-0]="!videoEnabled() || videoPausedByNetwork()"></video>
         <div *ngIf="!videoEnabled() || videoPausedByNetwork()" class="absolute inset-0 flex items-center justify-center">
           <ion-icon name="videocam-off-outline" class="text-lg text-white/60"></ion-icon>

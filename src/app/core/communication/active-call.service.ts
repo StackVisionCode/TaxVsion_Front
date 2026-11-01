@@ -40,6 +40,9 @@ import { MeetingSessionState } from './meeting-session-state';
 
 export type ActiveCallPhase = 'idle' | 'outgoing' | 'incoming' | 'connecting' | 'active' | 'ended';
 
+/** Estados del servidor en los que la llamada sigue viva. */
+const OPEN_CALL_STATUSES: ReadonlySet<string> = new Set(['Ringing', 'Accepted', 'Active']);
+
 /** Cada cuánto avanza el cronómetro "REC 0:12". */
 const RECORDING_TICK_MS = 250;
 /** Copy del aviso de eco (D-51). */
@@ -205,6 +208,11 @@ export class ActiveCallService {
       }
       void this.handleStateChanged(dto);
     });
+
+    // El socket se reconectó (p. ej. reinicio del servidor en un deploy): la media P2P sigue, pero el canal
+    // nuevo no está en la room de la llamada. Sin `rejoin` no llegan señales ni el fin, y el servidor la
+    // cerraría como abandonada.
+    this.calls.reconnected$.subscribe(() => void this.rejoinAfterReconnect());
 
     this.calls.onPeerJoined().subscribe(dto => {
       if (dto.callId !== this.callId()) {
@@ -715,8 +723,28 @@ export class ActiveCallService {
         this.toast.info(`Could not reach ${this.peerDisplayName() || 'the contact'}.`);
       } else if (status === 'Ended' && dto.endReason === 'MaxDurationReached') {
         this.toast.info('Call ended: time limit reached');
+      } else if (status === 'Ended' && dto.endReason === 'Abandoned') {
+        this.toast.info('Call ended: the connection was lost.');
       }
       this.reset();
+    }
+  }
+
+  private async rejoinAfterReconnect(): Promise<void> {
+    const callId = this.callId();
+    const phase = this.phase();
+    // El que recibe la llamada todavía no está en la room hasta aceptar.
+    if (!callId || (phase !== 'outgoing' && phase !== 'connecting' && phase !== 'active')) {
+      return;
+    }
+    try {
+      const { state } = await this.calls.rejoin(callId);
+      // Abierta: nada que hacer (no se retrocede la pantalla). Terminada mientras no estábamos: se cierra.
+      if (state.callId === this.callId() && !OPEN_CALL_STATUSES.has(state.status)) {
+        await this.handleStateChanged(state);
+      }
+    } catch {
+      // Sin respuesta: la llamada sigue en pantalla; si de verdad se perdió, llega el fin o el usuario cuelga.
     }
   }
 
