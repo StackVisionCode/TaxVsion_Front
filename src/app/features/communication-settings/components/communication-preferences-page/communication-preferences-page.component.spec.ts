@@ -5,7 +5,6 @@ import { Subject, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { MediaPolicyService } from '@core/communication/media/media-policy.service';
 import { MediaDevicesService } from '@core/communication/media/media-devices.service';
-import { MeetingPipService } from '@core/communication/meeting-pip.service';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
 import { CommunicationPreferencesService, CommunicationPreferencesView } from '../../data-access/communication-preferences.service';
@@ -53,7 +52,6 @@ function setup(prefs = view(), update = vi.fn(() => Promise.resolve({}))) {
           setPreferred: vi.fn(),
         },
       },
-      { provide: MeetingPipService, useValue: { supported: signal(true) } },
       { provide: ToastService, useValue: toast },
     ],
   });

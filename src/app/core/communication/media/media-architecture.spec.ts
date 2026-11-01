@@ -70,3 +70,18 @@ describe('media architecture — mediasoup-client solo por su puente ESM', () =>
     expect(staticImporters).toEqual([]);
   });
 });
+
+describe('media architecture — <video>/<audio> silenciados con la propiedad', () => {
+  // Chrome solo aplica el atributo `muted` cuando el elemento lo crea el parser del HTML; Angular crea los
+  // elementos por código, así que `<video muted>` sonaba: el tile propio reproducía tu micrófono (te
+  // escuchabas a ti mismo) y los remotos sonaban dos veces. Hay que usar `[muted]="true"`.
+  it('ninguna plantilla usa el atributo muted suelto en <video> o <audio>', () => {
+    const root = join(process.cwd(), 'src', 'app');
+    const offenders = (readdirSync(root, { recursive: true }) as string[])
+      .filter(file => file.endsWith('.html'))
+      .filter(file =>
+        (readFileSync(join(root, file), 'utf8').match(/<(video|audio)\b[^>]*>/g) ?? []).some(tag => /\smuted(?=[\s>/])/.test(tag)),
+      );
+    expect(offenders).toEqual([]);
+  });
+});

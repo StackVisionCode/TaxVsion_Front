@@ -21,9 +21,6 @@ export interface CommunicationOfficeSettings {
   defaultCameraOff: boolean;
   defaultMicrophoneOff: boolean;
   persistChatOnEnd: boolean;
-  messageRetentionDays: number;
-  recordingRetentionDays: number;
-  purgeEnabled: boolean;
   recordingConsentPolicy: RecordingConsentPolicy;
   defaultMeetingDurationMinutes: number | null;
   maxMeetingDurationMinutes: number | null;
@@ -95,6 +92,8 @@ export interface CommunicationEffective {
     chatAttachmentsPerMinute: number;
     chatAttachmentsPerMeeting: number;
   };
+  /** Retención: la fija la plataforma (global o excepción por oficina); la oficina solo la ve. */
+  retention: { messageDays: number; recordingDays: number; purgeEnabled: boolean };
   calls: {
     ringingTimeoutSeconds: number;
     maxCallMinutes: number | null;
@@ -135,9 +134,7 @@ export type CommunicationNumericKey =
   | 'chatEditWindowMinutesGroup'
   | 'chatEditWindowMinutesSupport'
   | 'chatEditWindowMinutesMeeting'
-  | 'chatMaxEditsPerMessage'
-  | 'messageRetentionDays'
-  | 'recordingRetentionDays';
+  | 'chatMaxEditsPerMessage';
 
 export interface CommunicationSettingsOverview {
   settings: CommunicationOfficeSettings;
@@ -147,12 +144,7 @@ export interface CommunicationSettingsOverview {
   transcriptPromptMaxLength: number;
 }
 
-/** Idiomas del transcript que ofrece la pantalla; el backend acepta "auto" o cualquier código válido. */
-export const TRANSCRIPT_LANGUAGE_OPTIONS: readonly { value: string; label: string }[] = [
-  { value: 'auto', label: 'Detect automatically' },
-  { value: 'en', label: 'English' },
-  { value: 'es', label: 'Spanish' },
-];
+export { TRANSCRIPT_LANGUAGE_OPTIONS } from '@core/communication/transcript-language';
 
 export const RECORDING_CONSENT_OPTIONS: readonly { value: RecordingConsentPolicy; label: string; hint: string }[] = [
   { value: 'NoRejections', label: 'Record unless someone declines', hint: 'Recording starts unless a participant declines.' },

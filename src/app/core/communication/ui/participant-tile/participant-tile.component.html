@@ -2,7 +2,7 @@
 <div class="relative h-full w-full overflow-hidden bg-gray-900 ring-2 transition-shadow motion-reduce:transition-none"
   [ngClass]="[radiusClass(), ringClass(), clickable() ? 'cursor-pointer' : '']" [attr.data-user]="participant().userId"
   [attr.data-size]="size()" [attr.title]="isSm() ? displayName() : null" (click)="onTileClick()">
-  <video [srcObject]="stream()" autoplay playsinline muted class="h-full w-full object-cover"
+  <video [srcObject]="stream()" autoplay playsinline [muted]="true" class="h-full w-full object-cover"
     [class.-scale-x-100]="mirrored()" [class.invisible]="!showVideo()"></video>
 
   <!-- Cámara apagada / sin stream: avatar con la foto -->

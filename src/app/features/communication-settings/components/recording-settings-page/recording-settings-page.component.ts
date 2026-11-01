@@ -58,10 +58,8 @@ import { CommInheritSwitchComponent } from '../../ui/inherit-switch/inherit-swit
                 [disabled]="!e.ceilings.recordingVideoAllowed"
                 (valueChange)="store.set('maxRecordingMinutesVideoCall', $event)"></app-comm-number-setting>
             </app-comm-setting-row>
-            <app-comm-setting-row label="Keep recordings for" hint="Deleted after this long when automatic cleanup is on (Chat settings).">
-              <app-comm-number-setting label="Recording retention" unit="days" [value]="d.recordingRetentionDays"
-                [min]="store.range('recordingRetentionDays').min" [max]="store.range('recordingRetentionDays').max"
-                (valueChange)="store.set('recordingRetentionDays', $event ?? d.recordingRetentionDays)"></app-comm-number-setting>
+            <app-comm-setting-row label="Recordings are kept for" hint="Set by the platform. Deleted after this long only when automatic cleanup is on.">
+              <p class="text-sm font-medium text-gray-900" data-role="retention-recordings">{{ e.retention.recordingDays + ' days' }}</p>
             </app-comm-setting-row>
             <app-comm-setting-row label="Clients see their recordings" hint="Recordings of a client's meetings show up in their portal.">
               <app-switch [checked]="d.recordingVisibleInPortal" (checkedChange)="store.set('recordingVisibleInPortal', $event)" ariaLabel="Clients see their recordings"></app-switch>

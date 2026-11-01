@@ -255,19 +255,30 @@
       @if (stageMode()) {
         <div class="relative min-h-0 flex-1">
           @if (activeShare(); as share) {
-            <div class="relative mx-auto h-full w-full overflow-hidden rounded-2xl bg-black">
-              <video [srcObject]="share.stream" autoplay playsinline muted class="h-full w-full object-contain"></video>
-              <span class="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+            <!-- Pantalla completa del contenedor (no del <video>): siguen el nombre y el botón de salir -->
+            <div appFullscreenFrame #fs="fullscreenFrame" data-role="share-stage"
+              class="group relative mx-auto h-full w-full overflow-hidden rounded-2xl bg-black [&[data-fullscreen]]:rounded-none">
+              <video [srcObject]="share.stream" autoplay playsinline [muted]="true" class="h-full w-full object-contain"></video>
+              <span class="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm transition-opacity duration-200"
+                [class.opacity-0]="fs.idle()">
                 <ion-icon name="desktop-outline" class="text-xs"></ion-icon>
                 {{ share.isMine ? 'Your screen' : share.displayName + "'s screen" }}
               </span>
               <!-- D-41: el audio de la pantalla lo reproduce el mini-player; aquí solo su volumen -->
-              <label *ngIf="activeShareHasAudio()"
-                class="absolute right-3 top-3 flex items-center gap-2 rounded-full bg-black/50 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+              <label *ngIf="activeShareHasAudio()" [class.opacity-0]="fs.idle()"
+                class="absolute right-3 top-3 flex items-center gap-2 rounded-full bg-black/50 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm transition-opacity duration-200">
                 <ion-icon name="volume-high-outline" class="text-sm" aria-hidden="true"></ion-icon>
                 <input type="range" min="0" max="1" step="0.05" [value]="screenAudioVolume(share.userId)"
                   (input)="setScreenAudioVolume(share.userId, $any($event.target).value)" class="h-1 w-24 accent-emerald-400" aria-label="Screen audio volume" />
               </label>
+              @if (fs.supported) {
+                <button type="button" data-control="fullscreen" (click)="fs.toggle()" [attr.aria-pressed]="fs.active()"
+                  [attr.aria-label]="fs.active() ? 'Exit full screen' : 'Full screen'" [appTooltip]="fs.active() ? 'Exit full screen (Esc)' : 'Full screen'"
+                  class="absolute bottom-3 right-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white opacity-0 backdrop-blur-sm transition-opacity duration-200 hover:bg-black/75 focus-visible:opacity-100 group-hover:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
+                  [class.!opacity-100]="fs.active() && !fs.idle()" [class.!opacity-0]="fs.idle()">
+                  <ion-icon [name]="fs.active() ? 'contract-outline' : 'expand-outline'" class="text-lg" aria-hidden="true"></ion-icon>
+                </button>
+              }
             </div>
           } @else if (spotlightParticipant(); as pinned) {
             <!-- Fijado: tile xl en grande; click lo suelta -->
@@ -394,13 +405,6 @@
           [ngClass]="isRecording() ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-white/10 text-white hover:bg-white/20'">
           <ion-icon [name]="isRecording() ? 'stop-circle-outline' : 'radio-button-on-outline'" class="text-xl"></ion-icon>
         </button>
-        @if (pipSupported()) {
-          <button type="button" data-control="pip" (click)="popOut()" [attr.aria-pressed]="pipActive()" aria-label="Pop out" appTooltip="Pop out"
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors motion-reduce:transition-none"
-            [ngClass]="pipActive() ? 'bg-brand-bold text-white' : 'bg-white/10 text-white hover:bg-white/20'">
-            <ion-icon name="open-outline" class="text-xl"></ion-icon>
-          </button>
-        }
         <!-- Equivalentes para el menú "More" (< sm) -->
         @if (reactionsEnabled()) {
           <button moreItem appMenuItem type="button" (click)="toggleReactionPicker()">
@@ -419,11 +423,6 @@
           <button moreItem appMenuItem type="button" (click)="toggleRecording()">
             <ion-icon [name]="isRecording() ? 'stop-circle-outline' : 'radio-button-on-outline'" class="text-base text-gray-400"></ion-icon>
             {{ isRecording() ? 'Stop recording' : 'Record meeting' }}
-          </button>
-        }
-        @if (pipSupported()) {
-          <button moreItem appMenuItem type="button" (click)="popOut()">
-            <ion-icon name="open-outline" class="text-base text-gray-400"></ion-icon> {{ pipActive() ? 'Close pop out' : 'Pop out' }}
           </button>
         }
       </app-media-controls>

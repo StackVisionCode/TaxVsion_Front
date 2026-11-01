@@ -41,9 +41,12 @@ function fakeCalls() {
   const limitWarning = new Subject<unknown>();
   const captureRequested = new Subject<unknown>();
   const captureStopped = new Subject<unknown>();
+  const reconnected$ = new Subject<void>();
   const noop = () => new Subject();
   return {
     incoming,
+    reconnected$,
+    rejoin: vi.fn().mockResolvedValue({ state: { callId: 'c1', status: 'Active', endReason: null, durationSeconds: null, updatedAtUtc: '' } }),
     consentRequested,
     recordingState,
     limitWarning,
@@ -105,6 +108,43 @@ function configure() {
   service.bindGlobalListeners();
   return { calls, toast, service, meeting: TestBed.inject(MeetingSessionState) };
 }
+
+describe('ActiveCallService (reconexión del socket)', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('con una llamada en curso vuelve a su room; si sigue abierta no toca la pantalla', async () => {
+    const { calls, service } = configure();
+    service.callId.set('c1');
+    service.phase.set('active');
+
+    calls.reconnected$.next();
+    await vi.waitFor(() => expect(calls.rejoin).toHaveBeenCalledWith('c1'));
+    expect(service.phase()).toBe('active');
+  });
+
+  it('si la llamada terminó mientras estaba desconectado (abandonada), la cierra y lo dice', async () => {
+    const { calls, service, toast } = configure();
+    service.callId.set('c1');
+    service.phase.set('active');
+    calls.rejoin.mockResolvedValueOnce({
+      state: { callId: 'c1', status: 'Ended', endReason: 'Abandoned', durationSeconds: 60, updatedAtUtc: '' },
+    });
+
+    calls.reconnected$.next();
+    await vi.waitFor(() => expect(service.phase()).toBe('idle'));
+    expect(toast.info).toHaveBeenCalledWith('Call ended: the connection was lost.');
+  });
+
+  it('sin llamada, o con una entrante sin aceptar, no hace nada', async () => {
+    const { calls, service } = configure();
+    calls.reconnected$.next();
+    service.callId.set('c1');
+    service.phase.set('incoming');
+    calls.reconnected$.next();
+    await Promise.resolve();
+    expect(calls.rejoin).not.toHaveBeenCalled();
+  });
+});
 
 describe('ActiveCallService (T-58 — exclusión llamada↔reunión)', () => {
   afterEach(() => TestBed.resetTestingModule());

@@ -178,6 +178,13 @@ describe('MeetingParticipantTileComponent — overlays por estado', () => {
 });
 
 describe('ParticipantTile — regresión', () => {
+  it('el <video> queda silenciado de verdad (propiedad muted): el tile propio no reproduce tu micrófono', () => {
+    const { fixture } = setup();
+    fixture.detectChanges();
+    const video = (fixture.nativeElement as HTMLElement).querySelector('video') as HTMLVideoElement;
+    expect(video.muted).toBe(true);
+  });
+
   it('no deja menús portados colgando al destruirse', () => {
     const { fixture, host, q } = setup();
     host.canHostAct.set(true);

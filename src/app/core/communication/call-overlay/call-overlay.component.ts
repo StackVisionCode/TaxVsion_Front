@@ -1,3 +1,4 @@
+import { FullscreenFrameDirective } from '../ui/fullscreen-frame/fullscreen-frame.directive';
 import { Component, CUSTOM_ELEMENTS_SCHEMA, ElementRef, OnDestroy, computed, effect, inject, signal, viewChildren } from '@angular/core';
 import { PermissionService } from '@core/auth/permission.service';
 import { CommonModule } from '@angular/common';
@@ -44,6 +45,7 @@ const STAFF_ACTORS = ['TenantEmployee', 'TenantAdmin', 'PlatformAdmin'] as const
     DevicePanelComponent,
     RecordingConsentComponent,
     RecordingBadgeComponent,
+    FullscreenFrameDirective,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './call-overlay.component.html',
