@@ -763,7 +763,7 @@ export class ActiveMeetingService {
     this.startQualityMonitor();
 
     if (snap.strategy === 'Sfu') {
-      void this.startSfu(); // >4: media por mediasoup (no mesh)
+      void this.startSfu(); // el servidor eligió SFU: media por mediasoup (no mesh)
       return;
     }
     // Mesh: conectar con cada participante presente y depurar los ausentes (idempotente).
@@ -999,7 +999,7 @@ export class ActiveMeetingService {
         this.iceServers = ack.iceServers.iceServers;
       }
       if (ack.requiresAdmission) {
-        // Al admitirnos, el backend emite `meeting.snapshot` → applySnapshot pone 'joined'/'unsupported'.
+        // Al admitirnos, el backend emite `meeting.snapshot` → applySnapshot pone 'joined'.
         this.phase.set('waiting');
       } else {
         // Join directo: el snapshot NO llega por evento, viene inline en el ack.
@@ -1161,7 +1161,9 @@ export class ActiveMeetingService {
    * publicar la pantalla si se estaba compartiendo); en mesh recrea solo los peers caídos.
    */
   async retryMedia(): Promise<void> {
-    if (this.phase() !== 'joined') {
+    if (this.phase() === 'media-failed') {
+      this.phase.set('joined');
+    } else if (this.phase() !== 'joined') {
       return;
     }
     this.mediaState.set('reconnecting');
@@ -1205,7 +1207,7 @@ export class ActiveMeetingService {
     });
   }
 
-  // ---------- SFU (>4 participantes) ----------
+  // ---------- SFU ----------
 
   private async startSfu(): Promise<void> {
     const meetingId = this.meetingId();
@@ -1230,8 +1232,8 @@ export class ActiveMeetingService {
       policy,
     );
     if (!ok) {
-      // El SFU no pudo arrancar (device/transport): degradar con mensaje claro.
-      this.phase.set('unsupported');
+      // El SFU no pudo arrancar (device/transport): se sigue dentro de la reunión, sin media; "Try again" lo reintenta.
+      this.phase.set('media-failed');
       return;
     }
     this.mediaState.set('ok');

@@ -217,6 +217,6 @@ export class SfuCapturePublisher {
 }
 
 async function defaultDevice(): Promise<DeviceLike> {
-  const { Device } = await import('mediasoup-client');
-  return new Device();
+  const { createMediasoupDevice } = await import('./mediasoup-device');
+  return createMediasoupDevice();
 }

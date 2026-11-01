@@ -129,8 +129,8 @@ export class MeetingSfuService {
     this.policy = policy;
     try {
       const routerRtpCapabilities = await this.rtc.sfuGetRouterCapabilities(meetingId);
-      const { Device: MediasoupDevice } = await import('mediasoup-client');
-      this.device = new MediasoupDevice();
+      const { createMediasoupDevice } = await import('./media/mediasoup-device');
+      this.device = createMediasoupDevice();
       await this.device.load({ routerRtpCapabilities });
 
       await this.createSendTransport();
