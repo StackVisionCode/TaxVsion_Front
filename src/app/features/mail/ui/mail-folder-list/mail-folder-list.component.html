@@ -5,7 +5,7 @@
     Compose
   </button>
 
-  <nav #folderNav class="relative flex flex-col gap-1">
+  <nav #folderNav class="relative flex flex-col gap-1" aria-label="Mail folders">
     <!-- Pill deslizante del ítem activo -->
     <div *ngIf="indicatorReady()"
       class="folder-active-indicator absolute rounded-2xl bg-brand-bold pointer-events-none"
@@ -13,9 +13,11 @@
       [style.height.px]="indicatorHeight()"></div>
 
     <button #folderButton *ngFor="let folder of folders; trackBy: trackByFolderId" type="button" (click)="select(folder.id)"
+      [attr.aria-current]="folder.id === activeFolderId ? 'page' : null"
+      [attr.aria-label]="folder.count > 0 ? folder.label + ', ' + folder.count + ' ' + (folder.countLabel || '') : folder.label"
       class="relative z-10 flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-medium transition-colors"
       [ngClass]="folder.id === activeFolderId ? 'text-white' : 'text-gray-600 hover:bg-gray-50'">
-      <ion-icon [name]="folder.icon" class="text-base" [ngClass]="folder.id === activeFolderId ? 'text-white' : 'text-gray-400'"></ion-icon>
+      <ion-icon aria-hidden="true" [name]="folder.icon" class="text-base" [ngClass]="folder.id === activeFolderId ? 'text-white' : 'text-gray-400'"></ion-icon>
       <span class="flex-1 truncate">{{ folder.label }}</span>
       <span *ngIf="folder.count > 0"
         class="flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full px-1.5 text-[0.625rem] font-semibold"

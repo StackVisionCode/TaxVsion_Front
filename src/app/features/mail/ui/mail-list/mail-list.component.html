@@ -1,6 +1,6 @@
 <div class="flex flex-col h-full">
-  <!-- Search pill (filtra client-side lo ya cargado: el listado del backend no acepta término) -->
-  <app-search-input class="mb-3 shrink-0" widthClass="w-full" placeholder="Search loaded mail" [value]="search()"
+  <!-- Search pill: en el servidor (Inbox/Archived) o sobre lo ya cargado (resto de carpetas) -->
+  <app-search-input class="mb-3 shrink-0" widthClass="w-full" [placeholder]="searchPlaceholder" [value]="search()"
     (valueChange)="onSearchChange($event)"></app-search-input>
 
   <!-- Carga inicial / error del listado con reintento -->
@@ -11,16 +11,18 @@
 
   <!-- Listado -->
   <div *ngIf="!error && !(loading && filteredRows().length === 0)" #listScroll
-    class="relative flex flex-1 min-h-0 flex-col gap-1 overflow-y-auto">
+    class="relative flex flex-1 min-h-0 flex-col gap-1 overflow-y-auto" role="list">
     <!-- Pill deslizante de la fila seleccionada -->
     <div *ngIf="indicatorReady()"
       class="mail-list-indicator absolute rounded-2xl bg-brand-bold pointer-events-none"
       [style.top.px]="indicatorTop()" [style.left.px]="indicatorLeft()" [style.width.px]="indicatorWidth()"
       [style.height.px]="indicatorHeight()"></div>
 
-    <button #rowButton *ngFor="let row of filteredRows(); trackBy: trackByRowId" type="button" (click)="select(row.id)"
-      class="relative z-10 flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition-colors"
-      [ngClass]="row.id === selectedId ? 'text-white' : 'hover:bg-gray-50 text-gray-700'">
+    <div *ngFor="let row of filteredRows(); trackBy: trackByRowId" class="relative z-10" role="listitem">
+    <button #rowButton type="button" (click)="select(row.id)"
+      [attr.aria-current]="row.id === selectedId ? 'true' : null" [attr.aria-label]="rowLabel(row)"
+      class="relative flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition-colors"
+      [ngClass]="[row.id === selectedId ? 'text-white' : 'hover:bg-gray-50 text-gray-700', showTrashActions && canManage ? 'pb-9' : '']">
       <app-avatar [name]="row.avatarName" size="md" [colorClass]="row.avatarColor"></app-avatar>
 
       <div class="min-w-0 flex-1">
@@ -39,13 +41,14 @@
         </div>
 
         <div class="mt-0.5 flex items-center justify-between gap-2">
-          <span class="truncate text-xs" [ngClass]="row.id === selectedId ? 'text-gray-300' : 'text-gray-500'">{{ row.subtitle }}</span>
+          <span class="truncate text-xs"
+            [ngClass]="row.id === selectedId ? 'text-gray-200' : (row.unreadCount > 0 ? 'font-semibold text-gray-800' : 'text-gray-600')">{{ row.subtitle }}</span>
           <span class="flex shrink-0 items-center gap-1.5">
-            <!-- Clip de adjuntos (carpeta Sent): icono + número -->
-            <span *ngIf="(row.attachmentCount ?? 0) > 0"
+            <!-- Clip de adjuntos: icono + número (o solo el icono en un hilo) -->
+            <span *ngIf="(row.attachmentCount ?? 0) > 0 || row.hasAttachments"
               class="flex items-center gap-0.5 text-[0.625rem] font-medium leading-none"
-              [ngClass]="row.id === selectedId ? 'text-gray-300' : 'text-gray-400'">
-              <ion-icon name="attach-outline" class="text-xs"></ion-icon>{{ row.attachmentCount }}
+              [ngClass]="row.id === selectedId ? 'text-gray-300' : 'text-gray-400'" aria-label="Has attachments">
+              <ion-icon name="attach-outline" class="text-xs"></ion-icon>{{ (row.attachmentCount ?? 0) > 0 ? row.attachmentCount : '' }}
             </span>
             <!-- Globo con el número de no-leídos -->
             <span *ngIf="row.unreadCount > 0"
@@ -54,22 +57,35 @@
             <span *ngIf="row.badge"
               class="rounded-full px-2 py-0.5 text-[0.625rem] font-semibold"
               [ngClass]="row.id === selectedId ? 'bg-white/15 text-white' : 'bg-gray-100 text-gray-500'">{{ row.badge }}</span>
-
-            <!-- Papelera: restaurar / borrar permanente -->
-            <ng-container *ngIf="showTrashActions && canManage">
-              <span (click)="$event.stopPropagation(); restoreRequested.emit(row.id)" title="Restore"
-                class="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 cursor-pointer">
-                <ion-icon name="arrow-undo-outline" class="text-sm"></ion-icon>
-              </span>
-              <span (click)="$event.stopPropagation(); purgeRequested.emit(row.id)" title="Delete forever"
-                class="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 cursor-pointer">
-                <ion-icon name="trash-outline" class="text-sm"></ion-icon>
-              </span>
-            </ng-container>
           </span>
+        </div>
+
+        <!-- Cliente del correo + vista previa del último entrante -->
+        <div *ngIf="row.tag || row.preview" class="mt-1 flex min-w-0 items-center gap-1.5">
+          <span *ngIf="row.tag as tag"
+            class="max-w-[50%] shrink-0 truncate rounded-full px-2 py-0.5 text-[0.625rem] font-semibold"
+            [ngClass]="row.id === selectedId
+              ? 'bg-white/15 text-white'
+              : (tag.muted ? 'bg-gray-100 text-gray-500' : 'bg-brand-bold/10 text-brand-bold')">{{ tag.label }}</span>
+          <span *ngIf="row.preview" class="truncate text-xs"
+            [ngClass]="row.id === selectedId ? 'text-gray-300' : 'text-gray-400'">{{ row.preview }}</span>
         </div>
       </div>
     </button>
+    <!-- Papelera: botones propios (no dentro de la fila) para que el teclado y los lectores lleguen a ellos -->
+    <div *ngIf="showTrashActions && canManage" class="absolute bottom-2 right-3 flex items-center gap-1">
+      <button type="button" (click)="restoreRequested.emit(row.id)" title="Restore" aria-label="Restore"
+        class="flex h-7 items-center gap-1 rounded-full px-2 text-xs font-medium transition-colors"
+        [ngClass]="row.id === selectedId ? 'text-white/80 hover:bg-white/15' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'">
+        <ion-icon aria-hidden="true" name="arrow-undo-outline" class="text-sm"></ion-icon> Restore
+      </button>
+      <button type="button" (click)="purgeRequested.emit(row.id)" title="Delete forever" aria-label="Delete forever"
+        class="flex h-7 items-center gap-1 rounded-full px-2 text-xs font-medium transition-colors"
+        [ngClass]="row.id === selectedId ? 'text-white/80 hover:bg-white/15' : 'text-gray-500 hover:bg-red-50 hover:text-red-600'">
+        <ion-icon aria-hidden="true" name="trash-outline" class="text-sm"></ion-icon> Delete forever
+      </button>
+    </div>
+    </div>
 
     <app-state-block *ngIf="filteredRows().length === 0" [empty]="true" variant="inline" icon="mail-outline"
       [emptyTitle]="emptyText"></app-state-block>

@@ -70,12 +70,26 @@ const ANSWERS_PAGE_SIZE = 50;
             />
           </label>
           <label class="block text-sm font-semibold text-gray-700">
-            Value contains
-            <app-form-text-control
-              class="mt-1 block"
-              [value]="value()"
-              (valueChange)="value.set($event)"
-            />
+            @if (valueOptions().length > 0) {
+              Value
+              <app-form-select-control
+                class="mt-1 block"
+                data-role="report-value-option"
+                [value]="value()"
+                [options]="valueOptions()"
+                placeholder="Any value"
+                (valueChange)="value.set($event)"
+              />
+            } @else {
+              Value contains
+              <app-form-text-control
+                class="mt-1 block"
+                data-role="report-value-contains"
+                [value]="value()"
+                [disabled]="!key()"
+                (valueChange)="value.set($event)"
+              />
+            }
           </label>
           <div class="grid grid-cols-2 gap-2">
             <label class="block text-sm font-semibold text-gray-700">
@@ -144,7 +158,7 @@ const ANSWERS_PAGE_SIZE = 50;
                 @for (bucket of buckets(); track bucket.value) {
                   <li>
                     <div class="flex items-center justify-between gap-3 text-sm">
-                      <span class="truncate text-gray-700">{{ bucket.value }}</span>
+                      <span class="truncate text-gray-700">{{ bucket.label || bucket.value }}</span>
                       <span class="shrink-0 text-xs font-semibold text-gray-500">
                         {{ bucket.count }} · {{ share(bucket.count) }}%
                       </span>
@@ -184,7 +198,7 @@ const ANSWERS_PAGE_SIZE = 50;
                       <tr class="transition-colors hover:bg-gray-50/80">
                         <td class="px-5 py-3 font-medium text-gray-900">{{ row.displayName }}</td>
                         <td class="px-5 py-3 text-gray-700">{{ row.title }}</td>
-                        <td class="px-5 py-3 text-gray-700">{{ row.valueText }}</td>
+                        <td class="px-5 py-3 text-gray-700">{{ row.valueLabel || row.valueText }}</td>
                         <td class="px-5 py-3 text-gray-500">{{ row.completedAtUtc | date: 'mediumDate' }}</td>
                       </tr>
                     }
@@ -249,6 +263,14 @@ export class FormReportsComponent implements OnInit {
     return this.keys().map((item) => ({ value: item.key, label: item.label }));
   }
 
+  /** Campos de opciones se filtran eligiendo una (valor exacto); los de texto, escribiendo parte del valor. */
+  readonly valueOptions = computed<FormControlOption[]>(
+    () =>
+      this.keys()
+        .find((item) => item.key === this.key())
+        ?.options?.map((option) => ({ value: option.value, label: option.label })) ?? [],
+  );
+
   canRun(): boolean {
     return this.templateId().length > 0 && this.key().length > 0;
   }
@@ -261,6 +283,7 @@ export class FormReportsComponent implements OnInit {
   selectTemplate(templateId: string): void {
     this.templateId.set(templateId);
     this.key.set('');
+    this.value.set('');
     this.keys.set([]);
     this.keysLoaded.set(false);
     this.hasRun.set(false);
@@ -277,6 +300,8 @@ export class FormReportsComponent implements OnInit {
 
   selectKey(key: string): void {
     this.key.set(key);
+    // El filtro de un campo no sirve para otro (option1 de una pregunta no es el de otra).
+    this.value.set('');
   }
 
   run(): void {
@@ -302,7 +327,7 @@ export class FormReportsComponent implements OnInit {
       .answers({
         templateId: this.templateId(),
         key: this.key(),
-        value: this.value().trim() || null,
+        ...this.valueFilter(),
         from: this.from() || null,
         to: this.to() || null,
         page,
@@ -320,6 +345,11 @@ export class FormReportsComponent implements OnInit {
           this.loading.set(false);
         },
       });
+  }
+
+  private valueFilter(): { value: string | null; contains: string | null } {
+    const value = this.value().trim() || null;
+    return this.valueOptions().length > 0 ? { value, contains: null } : { value: null, contains: value };
   }
 
   exportCsv(): void {

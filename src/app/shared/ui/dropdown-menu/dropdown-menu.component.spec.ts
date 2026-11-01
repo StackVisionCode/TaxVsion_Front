@@ -137,6 +137,18 @@ describe('DropdownMenuComponent', () => {
     fixture.destroy();
     expect(menu()).toBeNull();
   });
+
+  it('un ítem que navega (el host muere en el mismo clic) no deja el panel en la pantalla siguiente', () => {
+    const { fixture, trigger } = setup();
+    trigger.click();
+    fixture.detectChanges();
+
+    // "Edit" cierra el menú y la ruta destruye la lista antes de otra detección de cambios.
+    (document.querySelector('#edit') as HTMLButtonElement).click();
+    fixture.destroy();
+
+    expect(menu()).toBeNull();
+  });
 });
 
 describe('computeMenuPosition', () => {

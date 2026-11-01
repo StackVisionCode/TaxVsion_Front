@@ -23,6 +23,18 @@ export const SETTINGS_ROUTES: Routes = [
     title: 'Billing settings',
   },
   {
+    // Segundo factor de la oficina (empleados / portal de clientes) y dispositivos de confianza. Auth.Api,
+    // gateada por settings.manage como el endpoint.
+    path: 'security',
+    canMatch: [accessCanMatch],
+    data: { feature: 'security-settings' },
+    loadComponent: () =>
+      import('./components/security-settings-page/security-settings-page.component').then(
+        m => m.SecuritySettingsPageComponent,
+      ),
+    title: 'Security',
+  },
+  {
     // Conexiones de terceros para la IA (proveedores, cuentas OAuth, servidores MCP). Solo front:
     // el store guarda en memoria hasta que exista la API — ver connections.store.ts.
     path: 'connections',

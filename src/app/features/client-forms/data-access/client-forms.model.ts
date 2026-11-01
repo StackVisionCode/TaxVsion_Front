@@ -462,11 +462,19 @@ export type FormIntakeLinkAction = 'pause' | 'resume' | 'revoke' | 'regenerate-t
 // --- P-12 Reporting ---
 
 /** `FormReportableKey`: una clave reportable del template, para el filtro y las columnas del CSV. */
+/** Opción de un campo reportable: el valor guardado y la etiqueta que vio el cliente. */
+export interface FormReportOption {
+  value: string;
+  label: string;
+}
+
 export interface FormReportableKey {
   key: string;
   label: string;
   type: string;
   repeatable: boolean;
+  /** Vacío = texto libre (se filtra por parte del valor). */
+  options?: FormReportOption[];
 }
 
 export interface FormReportKeysResponse {
@@ -488,11 +496,15 @@ export interface FormReportAnswerRow {
   valueText: string;
   valueNumber: number | null;
   valueDate: string | null;
+  versionNumber?: number;
+  /** Lo que vio el cliente (etiqueta de la opción); en texto libre, el mismo valor. */
+  valueLabel?: string;
 }
 
 export interface FormReportSummaryBucket {
   value: string;
   count: number;
+  label?: string;
 }
 
 export interface FormReportSummaryResponse {
@@ -505,7 +517,10 @@ export interface FormReportSummaryResponse {
 export interface FormReportAnswersFilters {
   templateId: string;
   key: string;
+  /** Igualdad exacta con el valor de una opción. */
   value?: string | null;
+  /** Texto libre: parte del valor. */
+  contains?: string | null;
   from?: string | null;
   to?: string | null;
   page?: number;

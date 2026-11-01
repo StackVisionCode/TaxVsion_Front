@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, computed, inject, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, computed, effect, inject, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Observable } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
@@ -7,6 +7,8 @@ import { ToastService } from '@shared/ui/toast/toast.service';
 import { ConfirmDialogComponent } from '@shared/ui/confirm-dialog/confirm-dialog.component';
 import { ClientPermissions } from '../../data-access/client-permissions';
 import { ClientPortalStore } from '../../data-access/client-portal.store';
+import { ClientPortalService } from '../../data-access/client-portal.service';
+import { PortalMfaStatus } from '../../data-access/client-portal.model';
 import { ClientPortalPermissionsComponent } from '../client-portal-permissions/client-portal-permissions.component';
 import { portalStatusChipClass, portalStatusLabel } from '../../data-access/client-portal.model';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
@@ -28,6 +30,8 @@ const USERS_MANAGE = 'users.manage';
  *    Auth (perm `users.manage`).
  *  - Qué puede hacer dentro del portal: sección aparte, gateada por `roles.manage`. Un cliente no es
  *    compañero de oficina, así que su acceso no se toca desde la pantalla de equipo.
+ *  - Segundo factor del portal: estado y "Reset" para el cliente que perdió el teléfono (Customer.Api,
+ *    perm `customers.manage` y cliente visible; Auth lo audita y le avisa al cliente).
  */
 @Component({
   selector: 'app-client-profile-portal',
@@ -52,6 +56,7 @@ export class ClientProfilePortalComponent implements OnChanges {
   private readonly clientPerms = inject(ClientPermissions);
   private readonly toast = inject(ToastService);
   private readonly customerAccessPerms = inject(CustomerDocumentAccessPermissions);
+  private readonly portalService = inject(ClientPortalService);
 
   readonly canInvite = this.clientPerms.canInvitePortal;
   readonly canManageInvites = computed(() => this.perms.has(USERS_INVITE) && this.perms.isAdmin());
@@ -73,6 +78,55 @@ export class ClientProfilePortalComponent implements OnChanges {
   readonly statusChipClass = portalStatusChipClass;
 
   readonly busy = signal(false);
+
+  // ---------- Segundo factor del portal ----------
+
+  readonly mfa = signal<PortalMfaStatus | null>(null);
+  readonly mfaError = signal(false);
+  readonly mfaResetting = signal(false);
+  readonly mfaConfirmOpen = signal(false);
+  readonly canResetMfa = this.clientPerms.canManage;
+
+  /** Con acceso activo, se pide el estado del segundo factor (sin acceso no hay nada que mostrar). */
+  private readonly loadMfaWhenActive = effect(() => {
+    const active = this.access().status === 'active';
+    const clientId = this.clientId;
+    untracked(() => {
+      if (active && clientId) this.loadMfa();
+      else this.mfa.set(null);
+    });
+  });
+
+  loadMfa(): void {
+    this.mfaError.set(false);
+    this.portalService.getPortalMfa(this.clientId).subscribe({
+      next: status => this.mfa.set(status),
+      error: () => this.mfaError.set(true),
+    });
+  }
+
+  resetMfa(): void {
+    this.mfaConfirmOpen.set(false);
+    if (this.mfaResetting()) {
+      return;
+    }
+    this.mfaResetting.set(true);
+    this.portalService.resetPortalMfa(this.clientId).subscribe({
+      next: res => {
+        this.mfaResetting.set(false);
+        this.toast.success(
+          res.outcome === 'Reset'
+            ? `Two-step verification was reset for ${this.clientName || 'this client'}.`
+            : 'Two-step verification was already off.',
+        );
+        this.loadMfa();
+      },
+      error: err => {
+        this.mfaResetting.set(false);
+        this.toast.error(toApiError(err).message);
+      },
+    });
+  }
 
   /** Diálogo de confirmación genérico (cancelar invitación / desactivar). */
   readonly confirm = signal<{ kind: 'cancel' | 'deactivate'; heading: string; message: string; confirmLabel: string } | null>(

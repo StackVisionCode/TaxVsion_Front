@@ -37,6 +37,11 @@ export interface DiscoverLoginResponse {
 export interface HandoffTicketView {
   subdomain: string;
   ticket: string;
+  /**
+   * Dispositivo de confianza recién marcado al resolver el código. Lo guarda ESTE origen (el del login
+   * central), que es el que lo reenvía en el próximo discover; el canje en la oficina devuelve el mismo.
+   */
+  deviceToken?: string | null;
 }
 
 /**

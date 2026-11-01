@@ -81,6 +81,16 @@ describe('CentralLoginService', () => {
     req.flush({ subdomain: 'acme', ticket: 't' });
   });
 
+  it('el login central guarda el dispositivo al resolver el código, antes de saltar a la oficina', () => {
+    // La oficina es otro origen: si solo lo guardara el canje, el próximo login central no lo tendría.
+    service.handoff('ref', 'tenant-1', '123456', 'Staff', true).subscribe();
+
+    http.expectOne(`${systemBase}/auth/session/handoff`).flush({ subdomain: 'acme', ticket: 't', deviceToken: 'central-device' });
+
+    expect(localStorage.getItem('tvf.auth.deviceToken')).toBe('central-device');
+    localStorage.removeItem('tvf.auth.deviceToken');
+  });
+
   it('el canje guarda el dispositivo que devuelve el backend', () => {
     // Es lo que hace que el PRÓXIMO login no pida código. Sobrevive al logout a propósito: el
     // dispositivo es del navegador, no de la sesión.

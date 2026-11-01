@@ -39,3 +39,33 @@ describe('StructureInspectorComponent repeater mapping', () => {
     expect((regular.nativeElement as HTMLElement).querySelector('[data-testid="structure-mapping"]')).toBeNull();
   });
 });
+
+describe('StructureInspectorComponent delete', () => {
+  async function render(canRemove: boolean) {
+    await TestBed.configureTestingModule({ imports: [StructureInspectorComponent] }).compileComponents();
+    const fixture = TestBed.createComponent(StructureInspectorComponent);
+    fixture.componentInstance.section = onboardingDefinition().pages[0].sections[0];
+    fixture.componentInstance.canRemove = canRemove;
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('asks the builder to delete the section', async () => {
+    const fixture = await render(true);
+    let removed = 0;
+    fixture.componentInstance.removed.subscribe(() => removed++);
+    const button = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-role="delete-structure"]')!;
+
+    expect(button.getAttribute('aria-label')).toBe('Delete section');
+    button.click();
+    expect(removed).toBe(1);
+  });
+
+  it('disables it for the last section and says why', async () => {
+    const fixture = await render(false);
+    const button = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[data-role="delete-structure"]')!;
+
+    expect(button.disabled).toBe(true);
+    expect(button.title).toBe('A page needs at least one section');
+  });
+});

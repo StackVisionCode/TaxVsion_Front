@@ -13,6 +13,7 @@ const state = (initialTo: string | null): ComposeState => ({
   error: null,
   initialTo,
   customerId: 'c1',
+  autoFile: true,
 });
 
 /** "Don't file under this client" no debe dejar el correo dirigido al cliente que se precargó. */

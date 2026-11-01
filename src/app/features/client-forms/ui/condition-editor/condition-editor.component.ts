@@ -22,9 +22,24 @@ import type { FormComponent } from '@shared/utils/data-collection/form-definitio
   template: `
     <fieldset class="space-y-3 border-t border-gray-100 pt-4">
       <legend class="text-sm font-bold text-gray-900">Visibility</legend>
-      <app-form-checkbox-control [checked]="condition != null" (checkedChange)="toggle($event)">
+      <p class="text-xs text-gray-500">
+        Show this item only when an earlier answer matches your rules, for example a Yes / No question above it.
+      </p>
+      <!-- Solo se puede depender de preguntas anteriores: sin ninguna, se explica en vez de dar una lista vacía. -->
+      <app-form-checkbox-control
+        data-role="condition-toggle"
+        [checked]="condition != null"
+        [disabled]="condition == null && fields.length === 0"
+        (checkedChange)="toggle($event)"
+      >
         Show this item conditionally
       </app-form-checkbox-control>
+      @if (fields.length === 0) {
+        <p class="rounded-2xl bg-gray-50 px-3 py-2 text-xs text-gray-600" data-role="condition-empty" role="note">
+          There are no questions above this item yet. Add a question before it (headings and dividers don't count),
+          then come back to set a rule.
+        </p>
+      }
       @if (condition) {
         <div>
           <span class="text-xs font-semibold text-gray-600">Match</span>

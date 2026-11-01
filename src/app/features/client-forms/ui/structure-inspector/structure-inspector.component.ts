@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output } from '@angular/core';
 import {
   FormSelectControlComponent,
   type FormControlOption,
@@ -31,6 +31,7 @@ import type { MappingCatalog } from '../../data-access/mapping-catalog.model';
     RepeaterMappingEditorComponent,
     RichTextEditorComponent,
   ],
+  schemas: [CUSTOM_ELEMENTS_SCHEMA],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <aside
@@ -51,12 +52,27 @@ import type { MappingCatalog } from '../../data-access/mapping-catalog.model';
         data-builder-inspector
       >
       @if (page || section) {
-        <p class="text-xs font-semibold uppercase text-brand-bold">
-          {{ section ? 'Section' : 'Page' }}
-        </p>
-        <h2 class="mt-1 text-base font-bold text-gray-900">
-          {{ section ? 'Section settings' : 'Page settings' }}
-        </h2>
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs font-semibold uppercase text-brand-bold">
+              {{ section ? 'Section' : 'Page' }}
+            </p>
+            <h2 class="mt-1 text-base font-bold text-gray-900">
+              {{ section ? 'Section settings' : 'Page settings' }}
+            </h2>
+          </div>
+          <button
+            type="button"
+            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gray-400"
+            data-role="delete-structure"
+            [attr.aria-label]="section ? 'Delete section' : 'Delete page'"
+            [title]="canRemove ? (section ? 'Delete section' : 'Delete page') : (section ? 'A page needs at least one section' : 'A template needs at least one page')"
+            [disabled]="disabled || !canRemove"
+            (click)="removed.emit()"
+          >
+            <ion-icon name="trash-outline"></ion-icon>
+          </button>
+        </div>
         <div class="mt-5 space-y-4">
           <label class="block text-xs font-semibold text-gray-600"
             >Title<app-form-text-control
@@ -174,6 +190,9 @@ export class StructureInspectorComponent {
   @Input() mappingError = '';
   @Output() readonly mappingChange = new EventEmitter<FormMapping | null>();
   @Output() readonly mappingRetry = new EventEmitter<void>();
+  /** Falso en la última sección de su página o la última página de la plantilla. */
+  @Input() canRemove = true;
+  @Output() readonly removed = new EventEmitter<void>();
   readonly String = String;
   readonly Number = Number;
   readonly widthOptions = options(['full', 'half', 'third', 'twoThirds']);

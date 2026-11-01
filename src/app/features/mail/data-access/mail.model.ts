@@ -62,6 +62,19 @@ export interface InitiateOAuthConnectResult {
  * ConnectManualAccountRequest. El backend valida conectividad real contra ambos servidores antes
  * de persistir, y exige que `emailAddress` sea el email de login del usuario (guard de identidad).
  */
+/** Una prueba del alta manual (IMAP o SMTP): bien, o el código y el mensaje del fallo. */
+export interface ManualConnectionCheck {
+  ok: boolean;
+  errorCode: string | null;
+  message: string | null;
+}
+
+/** POST /connectors/accounts/manual/test: las dos pruebas, siempre ambas (sin guardar nada). */
+export interface TestManualConnectionResult {
+  imap: ManualConnectionCheck;
+  smtp: ManualConnectionCheck;
+}
+
 export interface ConnectManualAccountRequest {
   emailAddress: string;
   displayName: string | null;
@@ -99,7 +112,7 @@ export function isUsableAccount(account: MailAccount): boolean {
 /** Espejo de EmailThreadStatus. */
 export type ThreadStatus = 'Active' | 'Archived';
 
-/** Fila de GET /correspondence/customers/{customerId}/threads. */
+/** Fila de GET /correspondence/threads (inbox de la oficina, también filtrado a un cliente). */
 export interface ThreadSummary {
   threadId: string;
   subject: string;
@@ -109,6 +122,19 @@ export interface ThreadSummary {
   lastMessageAtUtc: string;
   /** Correos inbound no leídos del hilo (estado compartido por el tenant). 0 = todo leído. */
   unreadCount: number;
+  /** Cliente del hilo. Ausente solo en el hilo sintético de un enviado suelto. */
+  customerId?: string;
+  /** Último remitente entrante y su vista previa; null si el hilo solo tiene enviados. */
+  lastSenderAddress?: string | null;
+  lastSenderName?: string | null;
+  snippet?: string | null;
+  hasAttachments?: boolean;
+}
+
+/** GET /correspondence/unread-count: hilos con algo sin leer y mensajes sin leer (badges). */
+export interface UnreadMailCount {
+  threads: number;
+  messages: number;
 }
 
 /** Espejo de MessageDirection: Inbound = recibido por el tenant, Outbound = draft ya enviado. */
@@ -190,7 +216,11 @@ export type DraftStatus = 'Draft' | 'Sending' | 'Sent' | 'Failed' | 'Discarded';
  * explícito y no un `customerId | null`: un id que falta por error no debe leerse como "sin cliente"
  * y mostrar otro correo. El backend exige lo mismo (`customerId` o `unlinked=true`).
  */
-export type MailCustomerScope = { readonly kind: 'customer'; readonly customerId: string } | { readonly kind: 'unlinked' };
+export type MailCustomerScope =
+  | { readonly kind: 'customer'; readonly customerId: string }
+  | { readonly kind: 'unlinked' }
+  // Todo el correo saliente: a clientes visibles y a quien no es cliente (cada fila dice cuál).
+  | { readonly kind: 'all' };
 
 /**
  * Fila de la carpeta "Sent" (GET /correspondence/sent?customerId=): un mensaje ya enviado.
@@ -206,6 +236,8 @@ export interface SentMessageListItem {
   sentAtUtc: string;
   hasAttachments: boolean;
   attachmentCount: number;
+  /** Cliente en el que se archivó; null = enviado a alguien que no es cliente. */
+  customerId?: string | null;
 }
 
 /** Fila lean de GET /correspondence/drafts?customerId= ("retomar un autoguardado"). */
@@ -216,6 +248,8 @@ export interface DraftListItem {
   isReply: boolean;
   updatedAtUtc: string;
   lastAutoSavedAtUtc: string | null;
+  /** Cliente del borrador; null = para alguien que no es cliente. */
+  customerId?: string | null;
 }
 
 /** Destinatario dentro de DraftDetail — `type` serializa como string To/Cc/Bcc. */
@@ -235,6 +269,8 @@ export interface TrashItem {
   deletedAtUtc: string;
   hasAttachments: boolean;
   attachmentCount: number;
+  /** Cliente del correo; null = enviado a alguien que no es cliente. */
+  customerId?: string | null;
 }
 
 /** Adjunto ya referenciado en el draft (el binario vive en CloudStorage). */

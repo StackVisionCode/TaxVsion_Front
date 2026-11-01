@@ -22,7 +22,26 @@ describe('FormReportsComponent', () => {
     keys.mockReturnValue(
       of<FormReportKeysResponse>({
         templateId: 't1',
-        keys: [{ key: 'crypto', label: 'Owned crypto', type: 'yesNo', repeatable: false }],
+        keys: [
+          {
+            key: 'crypto',
+            label: 'Owned crypto',
+            type: 'yesNo',
+            repeatable: false,
+            options: [
+              { value: 'Yes', label: 'Yes' },
+              { value: 'No', label: 'No' },
+            ],
+          },
+          {
+            key: 'monthly_income',
+            label: 'Cuanto ganas mensualmente?',
+            type: 'radio',
+            repeatable: false,
+            options: [{ value: 'option1', label: '> 25K' }],
+          },
+          { key: 'note', label: 'Note', type: 'text', repeatable: false, options: [] },
+        ],
       }),
     );
     answers.mockReturnValue(
@@ -78,7 +97,7 @@ describe('FormReportsComponent', () => {
     component.selectTemplate('t1');
 
     expect(keys).toHaveBeenCalledWith('t1');
-    expect(component.keyOptions()).toEqual([{ value: 'crypto', label: 'Owned crypto' }]);
+    expect(component.keyOptions()[0]).toEqual({ value: 'crypto', label: 'Owned crypto' });
     expect(component.canRun()).toBe(false);
   });
 
@@ -98,6 +117,91 @@ describe('FormReportsComponent', () => {
     expect(component.summaryTotal()).toBe(3);
     expect(component.buckets()[0]).toEqual({ value: 'Yes', count: 2 });
     expect(component.hasRun()).toBe(true);
+  });
+
+  it('a choice field filters by the chosen option, showing its label', () => {
+    const component = build();
+    component.selectTemplate('t1');
+    component.selectKey('monthly_income');
+
+    expect(component.valueOptions()).toEqual([{ value: 'option1', label: '> 25K' }]);
+    component.value.set('option1');
+    component.run();
+
+    const filters = answers.mock.calls.at(-1)![0] as FormReportAnswersFilters;
+    expect(filters).toMatchObject({ key: 'monthly_income', value: 'option1', contains: null });
+  });
+
+  it('a free-text field filters by part of the value', () => {
+    const component = build();
+    component.selectTemplate('t1');
+    component.selectKey('note');
+
+    expect(component.valueOptions()).toEqual([]);
+    component.value.set('urgent');
+    component.run();
+
+    const filters = answers.mock.calls.at(-1)![0] as FormReportAnswersFilters;
+    expect(filters).toMatchObject({ key: 'note', value: null, contains: 'urgent' });
+  });
+
+  it('changing the field clears the previous value filter', () => {
+    const component = build();
+    component.selectTemplate('t1');
+    component.selectKey('monthly_income');
+    component.value.set('option1');
+
+    component.selectKey('crypto');
+
+    expect(component.value()).toBe('');
+  });
+
+  it('shows what the client saw, not the stored option value', async () => {
+    build();
+    answers.mockReturnValue(
+      of<PagedResult<FormReportAnswerRow>>({
+        items: [
+          {
+            formRequestId: 'r1',
+            customerId: 'c1',
+            participantId: null,
+            displayName: 'Manuel D Mena',
+            title: 'Information Request',
+            revisionNumber: 1,
+            completedAtUtc: '2026-10-29T10:00:00Z',
+            key: 'monthly_income',
+            rowIndex: null,
+            valueText: 'option1',
+            valueNumber: null,
+            valueDate: null,
+            versionNumber: 2,
+            valueLabel: '> 25K',
+          },
+        ],
+        page: 1,
+        size: 50,
+        totalCount: 1,
+      }),
+    );
+    summary.mockReturnValue(
+      of<FormReportSummaryResponse>({
+        templateId: 't1',
+        key: 'monthly_income',
+        total: 1,
+        buckets: [{ value: 'option1', count: 1, label: '> 25K' }],
+      }),
+    );
+    const fixture = TestBed.createComponent(FormReportsComponent);
+    const component = fixture.componentInstance;
+    component.selectTemplate('t1');
+    component.selectKey('monthly_income');
+    component.run();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('> 25K');
+    expect(text).not.toContain('option1');
   });
 
   it('pages through results without re-running the summary', () => {

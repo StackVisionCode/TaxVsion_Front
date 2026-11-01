@@ -56,6 +56,19 @@ export interface PortalUserResponse {
  */
 export type PortalInvitationStatus = 'Invited' | 'Resent' | 'AlreadyActive';
 
+/** `GET /customers/{id}/portal-mfa`: segundo factor del portal del cliente. */
+export interface PortalMfaStatus {
+  hasPortalAccount: boolean;
+  mfaEnabled: boolean;
+  /** La oficina lo exige a todos sus clientes. */
+  requiredByPolicy: boolean;
+}
+
+/** `POST /customers/{id}/portal-mfa/reset`: `Reset` o `NotEnabled` (no tenía nada que quitar). */
+export interface PortalMfaResetResponse {
+  outcome: 'Reset' | 'NotEnabled';
+}
+
 /** Respuesta de `POST /customers/{id}/portal-invitations` (200). Los rechazos llegan como error con motivo. */
 export interface RequestPortalInvitationResponse {
   customerId: string;

@@ -10,6 +10,8 @@ import {
   earlierInputComponents,
   moveComponent,
   removeComponent,
+  removePage,
+  removeSection,
   updateComponent,
 } from './definition-mutations';
 
@@ -114,6 +116,63 @@ describe('definition mutations', () => {
     expect(removeComponent(definition, field.id).blockedBy).toEqual([
       { ownerId: 'create_customer', ownerLabel: 'Action create_customer', property: 'condition' },
     ]);
+  });
+});
+
+describe('removing sections and pages', () => {
+  const engine = new FormEngine();
+
+  function twoSections(): FormDefinition {
+    let definition = addSection(emptyDefinition(), 'pg_abcdefghij');
+    const second = definition.pages[0].sections[1].id;
+    definition = addComponent(definition, 'sc_abcdefghij', 'yesNo');
+    definition = addComponent(definition, second, 'text');
+    return definition;
+  }
+
+  it('removes a section with its components and keeps the definition valid', () => {
+    const definition = twoSections();
+    const second = definition.pages[0].sections[1];
+
+    const result = removeSection(definition, second.id);
+
+    expect(result.blockedBy).toEqual([]);
+    expect(result.removedComponentIds).toEqual([second.components[0].id]);
+    expect(result.definition.pages[0].sections.map((section) => section.id)).toEqual(['sc_abcdefghij']);
+    expect(engine.validateForDraft(result.definition).issues).toEqual([]);
+  });
+
+  it('never removes the last section of a page or the last page', () => {
+    const definition = emptyDefinition();
+
+    expect(removeSection(definition, 'sc_abcdefghij').lastOne).toBe(true);
+    expect(removePage(definition, 'pg_abcdefghij').lastOne).toBe(true);
+  });
+
+  it('blocks when a field inside is used by a condition outside', () => {
+    let definition = twoSections();
+    const question = definition.pages[0].sections[0].components[0];
+    const later = definition.pages[0].sections[1].components[0];
+    definition = updateComponent(definition, later.id, { visibleWhen: { field: question.id, op: 'isAnswered' } });
+
+    const result = removeSection(definition, 'sc_abcdefghij');
+
+    expect(result.definition).toBe(definition);
+    expect(result.blockedBy.map((item) => item.ownerId)).toEqual([later.id]);
+  });
+
+  it('does not block on conditions that leave together with it', () => {
+    let definition = addPage(twoSections());
+    const page = definition.pages[0];
+    const question = page.sections[0].components[0];
+    const later = page.sections[1].components[0];
+    definition = updateComponent(definition, later.id, { visibleWhen: { field: question.id, op: 'isAnswered' } });
+
+    const result = removePage(definition, page.id);
+
+    expect(result.blockedBy).toEqual([]);
+    expect(result.definition.pages).toHaveLength(1);
+    expect(result.removedComponentIds).toEqual([question.id, later.id]);
   });
 });
 

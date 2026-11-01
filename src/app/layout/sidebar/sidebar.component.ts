@@ -29,6 +29,7 @@ import { AccessStore } from '@core/access/access.store';
 import { PacedPreloadStrategy } from '@core/performance/paced-preload.strategy';
 import type { ChatStore } from '@features/chat/data-access/chat.store';
 import type { NotificationsStore } from '@features/notifications/data-access/notifications.store';
+import type { MailUnreadStore } from '@features/mail/data-access/mail-unread.store';
 import { SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_FALLBACK_WIDTH, sidebarExpandedWidth } from './sidebar-width.util';
 import { platformBrand } from '@core/config/platform-config';
 
@@ -70,6 +71,8 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
   private readonly chatStore = signal<ChatStore | null>(null);
   /** Mismo patrón para el badge de Notifications (reuso del singleton del navbar). */
   private readonly notificationsStore = signal<NotificationsStore | null>(null);
+  /** Mismo patrón para el badge de Mail (conversaciones sin leer de los clientes visibles). */
+  private readonly mailUnreadStore = signal<MailUnreadStore | null>(null);
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
   private readonly preloadStrategy = inject(PacedPreloadStrategy);
@@ -100,6 +103,13 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
       items.map(item =>
         item.route === '/notifications' ? { ...item, badge: unread > 0 ? unread : undefined } : item,
       ),
+    );
+  });
+
+  private readonly mailBadgeEffect = effect(() => {
+    const unread = this.mailUnreadStore()?.threads() ?? 0;
+    this.menuItems.update(items =>
+      items.map(item => (item.route === '/email' ? { ...item, badge: unread > 0 ? unread : undefined } : item)),
     );
   });
 
@@ -242,6 +252,15 @@ export class SidebarComponent implements OnInit, OnDestroy, AfterViewInit {
             this.notificationsStore.set(this.injector.get(m.NotificationsStore));
           }
         });
+        // Sin el módulo de correo no se pide el conteo (el backend respondería 403).
+        if (this.access.canUseId('email')) {
+          void import('@features/mail/data-access/mail-unread.store').then(m => {
+            if (this.destroyRef.destroyed) return;
+            const store = this.injector.get(m.MailUnreadStore);
+            store.start();
+            this.mailUnreadStore.set(store);
+          });
+        }
         this.measureWidth();
         this.syncIndicator();
         this.observeListSize();

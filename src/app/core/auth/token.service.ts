@@ -75,6 +75,11 @@ export class TokenService {
   getDeviceToken(): string | null {
     return read(DEVICE_KEY);
   }
+
+  /** Guarda el dispositivo de confianza sin sesión (el login central lo recibe antes de saltar a la oficina). */
+  setDeviceToken(deviceToken: string): void {
+    write(DEVICE_KEY, deviceToken);
+  }
 }
 
 function read(key: string): string | null {

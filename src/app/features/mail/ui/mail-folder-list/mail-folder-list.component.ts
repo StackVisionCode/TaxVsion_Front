@@ -19,12 +19,10 @@ export interface MailFolder {
   id: string;
   label: string;
   icon: string;
-  /**
-   * Correspondence NO expone estado leído/no leído (no hay `isRead` en ningún DTO), así que
-   * el badge dejó de ser "no leídos" y ahora muestra cuántos elementos hay cargados en esa
-   * carpeta: hilos activos, hilos archivados o el totalCount real de drafts.
-   */
+  /** Badge de la carpeta (0 = sin badge): conversaciones sin leer en el Inbox, total en Drafts. */
   count: number;
+  /** Qué cuenta el badge, para lectores de pantalla ("unread", "drafts"). */
+  countLabel?: string;
 }
 
 /**
@@ -47,7 +45,7 @@ export interface MailFolder {
 })
 export class MailFolderListComponent implements OnChanges, AfterViewInit {
   @Input() folders: MailFolder[] = [];
-  @Input() activeFolderId = 'conversations';
+  @Input() activeFolderId = 'inbox';
   /** Sin cliente seleccionado o sin cuenta activa no hay a quién/desde dónde escribir. */
   @Input() composeDisabled = false;
   @Output() folderSelected = new EventEmitter<string>();
