@@ -199,6 +199,8 @@ export class SignPageComponent implements OnInit, OnDestroy {
   // los campos — así los canvas del preparador se ven en su posición real sobre el documento.
   readonly pageImages = signal<Record<number, string> | null>(null);
   readonly pageAspectRatios = signal<Record<number, number> | null>(null);
+  /** Ancho de cada página en pt del PDF: con él la vista escribe el texto al tamaño en que se estampará. */
+  readonly pageWidthsPt = signal<Record<number, number> | null>(null);
   readonly loadingDocument = signal(false);
   readonly documentError = signal<string | null>(null);
   readonly documentZoom = signal(100);
@@ -207,6 +209,7 @@ export class SignPageComponent implements OnInit, OnDestroy {
   readonly highestReviewedDocumentIndex = signal(0);
   private readonly pageImagesByDocument = new Map<string, Record<number, string>>();
   private readonly pageAspectRatiosByDocument = new Map<string, Record<number, number>>();
+  private readonly pageWidthsPtByDocument = new Map<string, Record<number, number>>();
   private documentLoadSequence = 0;
 
   private async loadDocument(): Promise<void> {
@@ -215,6 +218,7 @@ export class SignPageComponent implements OnInit, OnDestroy {
     if (!document) {
       this.pageImages.set(null);
       this.pageAspectRatios.set(null);
+      this.pageWidthsPt.set(null);
       this.loadingDocument.set(false);
       return;
     }
@@ -222,6 +226,7 @@ export class SignPageComponent implements OnInit, OnDestroy {
     if (cached) {
       this.pageImages.set(cached);
       this.pageAspectRatios.set(this.pageAspectRatiosByDocument.get(document.documentId) ?? null);
+      this.pageWidthsPt.set(this.pageWidthsPtByDocument.get(document.documentId) ?? null);
       this.documentError.set(null);
       this.loadingDocument.set(false);
       return;
@@ -230,6 +235,7 @@ export class SignPageComponent implements OnInit, OnDestroy {
     this.documentError.set(null);
     this.pageImages.set(null);
     this.pageAspectRatios.set(null);
+    this.pageWidthsPt.set(null);
     try {
       const bytes = await firstValueFrom(
         this.api.getDocumentBytes(this.token, document.documentId),
@@ -237,10 +243,12 @@ export class SignPageComponent implements OnInit, OnDestroy {
       const pages = await renderPdfPages({ data: bytes });
       const map: Record<number, string> = {};
       const ratios: Record<number, number> = {};
+      const widthsPt: Record<number, number> = {};
       for (const p of pages) {
         if (p.src) {
           map[p.page] = p.src;
           ratios[p.page] = p.width / p.height;
+          widthsPt[p.page] = p.width / p.scale;
         }
       }
       if (
@@ -251,8 +259,10 @@ export class SignPageComponent implements OnInit, OnDestroy {
       }
       this.pageImagesByDocument.set(document.documentId, map);
       this.pageAspectRatiosByDocument.set(document.documentId, ratios);
+      this.pageWidthsPtByDocument.set(document.documentId, widthsPt);
       this.pageImages.set(map);
       this.pageAspectRatios.set(ratios);
+      this.pageWidthsPt.set(widthsPt);
     } catch (err) {
       if (sequence !== this.documentLoadSequence) {
         return;
@@ -1005,6 +1015,7 @@ export class SignPageComponent implements OnInit, OnDestroy {
     if (documentId) {
       this.pageImagesByDocument.delete(documentId);
       this.pageAspectRatiosByDocument.delete(documentId);
+      this.pageWidthsPtByDocument.delete(documentId);
     }
     void this.loadDocument();
   }

@@ -1,4 +1,4 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, inject, linkedSignal, signal } from '@angular/core';
+import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, linkedSignal, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { SwitchComponent } from '@shared/ui/switch/switch.component';
@@ -6,14 +6,9 @@ import { ToastService } from '@shared/ui/toast/toast.service';
 import { SignatureStore } from '../../data-access/signature.store';
 import { SignatureCapabilities } from '../../data-access/signature-permissions';
 import { SignatureProfileListComponent } from '../../ui/signature-profile-list/signature-profile-list.component';
-import {
-  SignatureSettings,
-  SignatureSettingsUpdate,
-  TOKEN_EXPIRATION_MAX_HOURS,
-  TOKEN_EXPIRATION_MIN_HOURS,
-} from '../../data-access/signature.model';
+import { DateStampFormat, DeliveryPolicy, SignatureSettings, SignatureSettingsUpdate } from '../../data-access/signature.model';
 
-const ALL_CHANNELS = ['Email', 'Sms', 'WhatsApp'] as const;
+const MB = 1024 * 1024;
 
 /**
  * Settings → Signature: los defaults GLOBALES del despacho que heredan las solicitudes nuevas.
@@ -33,9 +28,10 @@ export class SignatureSettingsPageComponent {
   private readonly toast = inject(ToastService);
   readonly caps = inject(SignatureCapabilities);
 
-  readonly minHours = TOKEN_EXPIRATION_MIN_HOURS;
-  readonly maxHours = TOKEN_EXPIRATION_MAX_HOURS;
-  readonly channels = ALL_CHANNELS;
+  /** Rangos vigentes (techos del plan + invariantes del dominio); null mientras cargan. */
+  readonly limits = this.store.limits;
+  /** Canales que el plan permite: la oficina elige dentro de ellos. */
+  readonly channels = computed(() => this.draft()?.planConstraints.allowedChannels ?? []);
 
   private readonly settings = this.store.signatureSettings;
   /** Copia editable que se rehace cuando el servidor emite (carga inicial y post-guardado). */
@@ -45,8 +41,16 @@ export class SignatureSettingsPageComponent {
   });
   readonly saving = signal(false);
 
+  /** Formatos de fecha del estampado (los mismos que acepta el backend). */
+  readonly dateFormats: ReadonlyArray<{ value: DateStampFormat; label: string }> = [
+    { value: 'MonthDayYear', label: 'MM/DD/YYYY' },
+    { value: 'DayMonthYear', label: 'DD/MM/YYYY' },
+    { value: 'IsoDate', label: 'YYYY-MM-DD' },
+  ];
+
   constructor() {
     this.store.loadSignatureSettings();
+    this.store.loadLimits();
     // Refresca los perfiles al abrir; la lista de firma de oficina (hija) solo carga en frío.
     if (this.caps.canManagePreparerProfiles()) {
       this.store.loadSignatureProfiles(true);
@@ -61,12 +65,89 @@ export class SignatureSettingsPageComponent {
     this.draft.set({ ...d, [key]: value });
   }
 
+  /** Rango de cada campo de horas: vida del enlace hasta el techo del plan; recordatorios, el del dominio. */
+  hoursRange(key: 'defaultTokenExpirationHours' | 'defaultReminderIntervalHours'): { min: number; max: number } | null {
+    const limits = this.limits();
+    const d = this.draft();
+    if (!limits || !d) {
+      return null;
+    }
+    return key === 'defaultTokenExpirationHours'
+      ? { min: limits.minTokenHours, max: d.planConstraints.maxTokenExpirationHours }
+      : { min: limits.minReminderIntervalHours, max: limits.maxReminderIntervalHours };
+  }
+
   setHours(key: 'defaultTokenExpirationHours' | 'defaultReminderIntervalHours', raw: number | string): void {
     const n = Math.round(Number(raw));
-    if (!Number.isFinite(n)) {
+    const range = this.hoursRange(key);
+    if (!Number.isFinite(n) || !range) {
       return;
     }
-    this.patch(key, Math.min(this.maxHours, Math.max(this.minHours, n)));
+    this.patch(key, Math.min(range.max, Math.max(range.min, n)));
+  }
+
+  readonly minLinkDays = computed(() => this.limits()?.minDeliveryLinkDays ?? null);
+  readonly maxLinkDays = computed(() => this.limits()?.maxDeliveryLinkDays ?? null);
+  readonly minAttachmentMb = computed(() => this.toMb(this.limits()?.minDeliveryAttachmentBytes));
+  readonly maxAttachmentMb = computed(() => this.toMb(this.limits()?.maxDeliveryAttachmentBytes));
+
+  /** Tamaño de PDF y páginas: la oficina elige hasta el techo del plan. */
+  readonly maxPdfMb = computed(() => this.toMb(this.draft()?.planConstraints.maxAllowedPdfBytes));
+
+  private toMb(bytes: number | undefined): number | null {
+    return bytes === undefined ? null : Math.floor(bytes / MB);
+  }
+
+  setPdfMb(raw: number | string): void {
+    const n = Math.round(Number(raw));
+    const max = this.maxPdfMb();
+    if (Number.isFinite(n) && max !== null) {
+      this.patch('maxPdfBytes', Math.min(max, Math.max(1, n)) * MB);
+    }
+  }
+
+  setPages(raw: number | string): void {
+    const n = Math.round(Number(raw));
+    const d = this.draft();
+    if (Number.isFinite(n) && d) {
+      this.patch('maxPagesPerDocument', Math.min(d.planConstraints.maxAllowedPages, Math.max(1, n)));
+    }
+  }
+
+  setRetentionYears(raw: number | string): void {
+    const n = Math.round(Number(raw));
+    const d = this.draft();
+    const limits = this.limits();
+    if (Number.isFinite(n) && d && limits) {
+      this.patch('retentionYears', Math.min(limits.maxRetentionYears, Math.max(d.planConstraints.minRetentionYears, n)));
+    }
+  }
+
+  patchDelivery<K extends keyof DeliveryPolicy>(key: K, value: DeliveryPolicy[K]): void {
+    const d = this.draft();
+    if (d) this.draft.set({ ...d, delivery: { ...d.delivery, [key]: value } });
+  }
+
+  setLinkDays(raw: number | string): void {
+    const n = Math.round(Number(raw));
+    const min = this.minLinkDays();
+    const max = this.maxLinkDays();
+    if (Number.isFinite(n) && min !== null && max !== null) {
+      this.patchDelivery('linkLifetimeDays', Math.min(max, Math.max(min, n)));
+    }
+  }
+
+  attachmentMb(bytes: number): number {
+    return Math.round(bytes / MB);
+  }
+
+  setAttachmentMb(raw: number | string): void {
+    const n = Math.round(Number(raw));
+    const min = this.minAttachmentMb();
+    const max = this.maxAttachmentMb();
+    if (Number.isFinite(n) && min !== null && max !== null) {
+      this.patchDelivery('maxAttachmentBytes', Math.min(max, Math.max(min, n)) * MB);
+    }
   }
 
   isChannelOn(channel: string): boolean {
@@ -88,7 +169,7 @@ export class SignatureSettingsPageComponent {
     if (set.size === 0) {
       return;
     }
-    const channels = this.channels.filter(c => set.has(c));
+    const channels = this.channels().filter(c => set.has(c));
     const defaultChannel = set.has(d.defaultVerificationChannel) ? d.defaultVerificationChannel : channels[0];
     this.draft.set({ ...d, allowedVerificationChannels: channels, defaultVerificationChannel: defaultChannel });
   }
@@ -107,7 +188,6 @@ export class SignatureSettingsPageComponent {
       generateCertificateByDefault: d.generateCertificateByDefault,
       documentLimits: {
         maxPdfBytes: d.maxPdfBytes,
-        maxImageBytes: d.maxImageBytes,
         maxPagesPerDocument: d.maxPagesPerDocument,
       },
       retentionPolicy: { retentionYears: d.retentionYears, allowPurge: d.allowPurge },
@@ -119,6 +199,9 @@ export class SignatureSettingsPageComponent {
       expirationEnabledByDefault: d.expirationEnabledByDefault,
       sendCertificateToSignersDefault: d.sendCertificateToSignersDefault,
       requiresConsentByDefault: d.requiresConsentByDefault,
+      delivery: d.delivery,
+      showSignatureFrame: d.showSignatureFrame,
+      dateStampFormat: d.dateStampFormat,
     };
     this.store.saveSignatureSettings(body).subscribe({
       next: () => {
@@ -133,7 +216,7 @@ export class SignatureSettingsPageComponent {
   }
 
   formatBytes(bytes: number): string {
-    const mb = bytes / (1024 * 1024);
+    const mb = bytes / MB;
     return `${Number.isInteger(mb) ? mb : mb.toFixed(1)} MB`;
   }
 }

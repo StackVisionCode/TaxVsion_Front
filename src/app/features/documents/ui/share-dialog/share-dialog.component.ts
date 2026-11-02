@@ -8,6 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { SharingPolicy } from '@core/cloud-storage/cloud-storage.model';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import {
   CreateShareLinkRequest,
@@ -25,8 +26,11 @@ interface AccessOption {
   description: string;
 }
 
-/** Vida máxima (días) de un Secure link — espejo de TenantStorageLimit.MaxShareLifetimeDays (default). */
-const SECURE_LINK_MAX_DAYS = 30;
+/** Enlaces que salen de la oficina: a ellos aplican vida máxima y tope de descargas de la política. */
+const EXTERNAL_VISIBILITIES: ReadonlySet<ShareVisibility> = new Set(['Public', 'ExternalLink', 'ExternalRecipients']);
+
+/** Enlaces que abren sin sesión ni email: a ellos aplica la contraseña obligatoria de la oficina. */
+const LINK_ONLY_VISIBILITIES: ReadonlySet<ShareVisibility> = new Set(['Public', 'ExternalLink']);
 
 /**
  * Diálogo de compartir un archivo. Access = quién puede abrirlo (miembros del tenant, el
@@ -50,6 +54,11 @@ export class ShareDialogComponent implements OnChanges {
    * cuando en realidad no había podido preguntarlo. Ahora "no lo sé" se dice.
    */
   @Input() publicSharing: 'enabled' | 'disabled' | 'unknown' = 'unknown';
+  /**
+   * Reglas de compartir de la oficina (`GET /storage/shares/policy`). Sin ellas el diálogo no inventa
+   * topes: deja que el backend responda.
+   */
+  @Input() policy: SharingPolicy | null = null;
   @Input() shares: ShareLinkResponse[] = [];
   @Output() created = new EventEmitter<CreateShareLinkRequest>();
   @Output() createdFolder = new EventEmitter<CreateFolderShareLinkRequest>();
@@ -132,12 +141,15 @@ export class ShareDialogComponent implements OnChanges {
       { id: 'TenantOnly', title: 'Office team', description: 'Anyone signed in to your firm can open it.' },
       { id: 'TenantCustomers', title: 'Client', description: 'The client sees it in their portal.' },
       { id: 'ExternalRecipients', title: 'External recipient', description: 'Only the email you enter can open it.' },
-      {
+    ];
+    // La oficina puede apagar el enlace sin email desde Settings → Documents.
+    if (this.policy?.allowLinkOnlyExternalShares !== false) {
+      options.push({
         id: 'ExternalLink',
         title: 'Secure link',
         description: 'Anyone with the link can open it — no email needed. Always expires and can be revoked.',
-      },
-    ];
+      });
+    }
     // Con 'unknown' no se ofrece: proponer un enlace público que el backend va a rechazar es peor
     // que no proponerlo. El aviso de abajo explica por qué no está.
     if (this.publicSharing === 'enabled') {
@@ -183,14 +195,65 @@ export class ShareDialogComponent implements OnChanges {
     return ShareDialogComponent.toDateInput(d);
   }
 
-  /** Máximo del date-picker: solo el Secure link tiene tope de vida (30 días); el resto, sin tope. */
+  /** true si el acceso elegido sale de la oficina (público, solo-link o destinatario externo). */
+  get isExternal(): boolean {
+    return EXTERNAL_VISIBILITIES.has(this.access());
+  }
+
+  /** Máximo del date-picker: los enlaces externos no pasan la vida máxima de la oficina. */
   get maxExpiry(): string | null {
-    if (this.access() !== 'ExternalLink') {
+    if (!this.isExternal || !this.policy) {
       return null;
     }
     const d = new Date();
-    d.setDate(d.getDate() + SECURE_LINK_MAX_DAYS);
+    d.setDate(d.getDate() + this.policy.maxLifetimeDays);
     return ShareDialogComponent.toDateInput(d);
+  }
+
+  /** Texto bajo la fecha: lo que pasa si no se elige y hasta cuándo se puede. */
+  get expiryHint(): string {
+    if (!this.policy) {
+      return 'Leave empty for your office default.';
+    }
+    const base = `Leave empty for the default ${this.policy.defaultLifetimeDays} days.`;
+    return this.isExternal ? `${base} Up to ${this.policy.maxLifetimeDays} days.` : base;
+  }
+
+  /** La oficina exige contraseña en los enlaces que abren sin sesión ni email. */
+  get passwordRequired(): boolean {
+    return !!this.policy?.requirePasswordOnLinkShares && LINK_ONLY_VISIBILITIES.has(this.access());
+  }
+
+  /** Motivo por el que la contraseña no sirve todavía (vacía si está bien). */
+  get passwordError(): string {
+    const value = this.password().trim();
+    if (!value) {
+      return this.passwordRequired ? 'Your office requires a password for this kind of link.' : '';
+    }
+    const min = this.policy?.minPasswordLength ?? 0;
+    return value.length < min ? `Use at least ${min} characters.` : '';
+  }
+
+  /** Tope de descargas de la oficina para enlaces externos (null = sin tope). */
+  get maxDownloads(): number | null {
+    return this.isExternal ? (this.policy?.maxDownloads ?? null) : null;
+  }
+
+  get maxAccessError(): string {
+    const raw = this.maxAccess().trim();
+    if (!raw) {
+      return '';
+    }
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < 1) {
+      return 'Enter a whole number.';
+    }
+    const cap = this.maxDownloads;
+    return cap !== null && value > cap ? `Your office allows up to ${cap} opens.` : '';
+  }
+
+  get canSubmit(): boolean {
+    return !this.passwordError && !this.maxAccessError;
   }
 
   /** yyyy-mm-dd en hora LOCAL (el <input type="date"> trabaja en local, no UTC). */
@@ -201,6 +264,9 @@ export class ShareDialogComponent implements OnChanges {
   }
 
   submit(): void {
+    if (!this.canSubmit) {
+      return;
+    }
     const emailList = this.emails()
       .split(/[,\s]+/)
       .map(e => e.trim())

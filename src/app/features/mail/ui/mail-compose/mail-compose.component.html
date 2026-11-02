@@ -146,7 +146,7 @@
           [class.opacity-40]="state.sending" title="Attach files">
           <ion-icon name="attach-outline" class="text-lg"></ion-icon>
           Attach files
-          <input type="file" multiple class="hidden" [disabled]="state.sending" (change)="onFilesSelected($event)" />
+          <input type="file" multiple class="hidden" [disabled]="state.sending" [attr.accept]="attachmentPolicy()?.accept ?? null" (change)="onFilesSelected($event)" />
         </label>
       </div>
 

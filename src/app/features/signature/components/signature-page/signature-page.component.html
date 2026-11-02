@@ -128,10 +128,10 @@
       Extend <span class="font-semibold text-gray-900">{{ target.documentName }}</span> by:
     </p>
     <div class="flex items-center gap-3">
-      <input type="number" [min]="minExtendHours" [max]="maxExtendHours" [ngModel]="extendHours()"
+      <input type="number" [min]="minExtendHours()" [max]="maxExtendHours()" [ngModel]="extendHours()"
         (ngModelChange)="extendHours.set($event)" name="extendHours"
         class="w-28 rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-gray-300 focus:outline-none" />
-      <span class="text-sm text-gray-500">hours ({{ minExtendHours }}–{{ maxExtendHours }})</span>
+      <span class="text-sm text-gray-500">hours ({{ minExtendHours() }}–{{ maxExtendHours() }})</span>
     </div>
     <p *ngIf="actionError()" class="text-sm text-red-600">{{ actionError() }}</p>
   </div>

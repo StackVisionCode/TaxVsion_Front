@@ -80,13 +80,21 @@
             [ngClass]="
               document.hashPost
                 ? 'text-emerald-600'
-                : document.hashPre
-                  ? 'text-blue-600'
-                  : 'text-amber-600'
+                : document.verificationStatus === 'Rejected'
+                  ? 'text-red-600'
+                  : document.hashPre
+                    ? 'text-blue-600'
+                    : 'text-amber-600'
             "
           >
             <ion-icon
-              [name]="document.hashPre ? 'shield-checkmark-outline' : 'time-outline'"
+              [name]="
+                document.verificationStatus === 'Rejected'
+                  ? 'alert-circle-outline'
+                  : document.hashPre
+                    ? 'shield-checkmark-outline'
+                    : 'time-outline'
+              "
             ></ion-icon>
             {{ documentHashLabel(document) }}
           </p>
@@ -140,6 +148,10 @@
       </article>
     </div>
   </section>
+
+  <!-- Entregas de los documentos firmados (enlace propio de Signature): reenviar o apagar el enlace. -->
+  <app-signature-deliveries-panel [request]="req.status === 'completed' || req.status === 'in-progress' ? req.id : null"
+    [canIssue]="req.status === 'completed' && !!req.deliversToSigners" />
 
   <!-- F3 — Banner cuando la solicitud está programada para enviarse en el futuro -->
   <div

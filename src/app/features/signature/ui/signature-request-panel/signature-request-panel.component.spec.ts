@@ -6,7 +6,7 @@ import { CustomerDirectoryStore } from '@core/customers/customer-directory.store
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { PREPARER_PARTY_ID, WizardDocument } from './signature-wizard.model';
 import { defaultRules } from './signature-wizard.presenter';
-import { TOKEN_EXPIRATION_DEFAULT_HOURS } from '../../data-access/signature.model';
+import { TEST_EFFECTIVE_LIMITS } from '../../testing/effective-limits.fixture';
 
 /**
  * El panel se prueba SIN su plantilla (el editor tiene su propio spec): aquí interesan el payload
@@ -19,7 +19,10 @@ describe('SignatureRequestPanelComponent', () => {
     TestBed.configureTestingModule({
       imports: [SignatureRequestPanelComponent],
       providers: [
-        { provide: SignatureStore, useValue: { customers: signal([]), queryCustomers: vi.fn() } },
+        {
+          provide: SignatureStore,
+          useValue: { customers: signal([]), queryCustomers: vi.fn(), limits: signal(TEST_EFFECTIVE_LIMITS), loadLimits: vi.fn() },
+        },
         { provide: CustomerDirectoryStore, useValue: { recent: signal([]), addRecent: vi.fn() } },
         { provide: ToastService, useValue: toast },
       ],
@@ -41,7 +44,7 @@ describe('SignatureRequestPanelComponent', () => {
 
   it('paridad del payload de envío/borrador: misma forma y valores para campos normalizados fijos', () => {
     const { c } = setup();
-    c.selectedClient.set({
+    c.selectedClients.set([{
       id: '1',
       displayName: 'Ana',
       email: 'a@x.com',
@@ -49,7 +52,7 @@ describe('SignatureRequestPanelComponent', () => {
       type: 'individual',
       isActive: true,
       createdAt: '',
-    });
+    }]);
     c.onDocumentSelected(doc);
     c.title.set('  Engagement 2026 ');
     c.notes.set('');
@@ -87,6 +90,7 @@ describe('SignatureRequestPanelComponent', () => {
         width: 0.0463,
         height: 0.0526,
         label: 'SSN',
+        fontSizePt: 9,
       },
     ]);
     c.preparerFieldsSnapshot.set([
@@ -124,7 +128,7 @@ describe('SignatureRequestPanelComponent', () => {
           note: null,
         },
       ],
-      tokenExpirationHours: TOKEN_EXPIRATION_DEFAULT_HOURS,
+      tokenExpirationHours: TEST_EFFECTIVE_LIMITS.defaultTokenHours,
       requiresSequentialSigning: true,
       requiresConsent: true,
       generateCertificate: true,
@@ -161,6 +165,7 @@ describe('SignatureRequestPanelComponent', () => {
           height: 0.0758,
           isRequired: true,
           label: null,
+          fontSizePt: null,
         },
         {
           localId: 'field-1',
@@ -174,6 +179,7 @@ describe('SignatureRequestPanelComponent', () => {
           height: 0.0526,
           isRequired: true,
           label: 'SSN',
+          fontSizePt: 9,
         },
       ],
       preparerFields: [
@@ -198,7 +204,7 @@ describe('SignatureRequestPanelComponent', () => {
 
   it('generateCertificate va siempre en true (el switch de certificado ya no existe)', () => {
     const { c } = setup();
-    c.selectedClient.set({
+    c.selectedClients.set([{
       id: '1',
       displayName: 'Ana',
       email: 'a@x.com',
@@ -206,7 +212,7 @@ describe('SignatureRequestPanelComponent', () => {
       type: 'individual',
       isActive: true,
       createdAt: '',
-    });
+    }]);
     c.onDocumentSelected(doc);
     c.rulesSnapshot.set({ ...defaultRules(), certificate: false });
     const draft = (c as unknown as { buildDraft(): Record<string, unknown> }).buildDraft();
@@ -218,7 +224,7 @@ describe('SignatureRequestPanelComponent', () => {
 
   it('las reglas editadas en Review van al mismo snapshot que usa el payload', () => {
     const { c } = setup();
-    c.selectedClient.set({
+    c.selectedClients.set([{
       id: '1',
       displayName: 'Ana',
       email: 'a@x.com',
@@ -226,7 +232,7 @@ describe('SignatureRequestPanelComponent', () => {
       type: 'individual',
       isActive: true,
       createdAt: '',
-    });
+    }]);
     c.onDocumentSelected(doc);
     c.onRulesChange({
       ...defaultRules(),
@@ -402,7 +408,10 @@ describe('multi-document field coverage', () => {
     TestBed.configureTestingModule({
       imports: [SignatureRequestPanelComponent],
       providers: [
-        { provide: SignatureStore, useValue: { customers: signal([]), queryCustomers: vi.fn() } },
+        {
+          provide: SignatureStore,
+          useValue: { customers: signal([]), queryCustomers: vi.fn(), limits: signal(TEST_EFFECTIVE_LIMITS), loadLimits: vi.fn() },
+        },
         { provide: CustomerDirectoryStore, useValue: { recent: signal([]), addRecent: vi.fn() } },
         { provide: ToastService, useValue: { success: vi.fn(), error: vi.fn(), info: vi.fn() } },
       ],
@@ -456,5 +465,64 @@ describe('multi-document field coverage', () => {
       { ...fields[0], id: 'field-2', documentLocalId: 'file-2', type: 'initials' },
     ]);
     expect(c.documentsMissingSigningField()).toEqual([]);
+  });
+});
+
+describe('documents and clients of the request', () => {
+  function setup() {
+    TestBed.configureTestingModule({
+      imports: [SignatureRequestPanelComponent],
+      providers: [
+        {
+          provide: SignatureStore,
+          useValue: { customers: signal([]), queryCustomers: vi.fn(), limits: signal(TEST_EFFECTIVE_LIMITS), loadLimits: vi.fn() },
+        },
+        { provide: CustomerDirectoryStore, useValue: { recent: signal([]), addRecent: vi.fn() } },
+        { provide: ToastService, useValue: { success: vi.fn(), error: vi.fn(), info: vi.fn() } },
+      ],
+    });
+    TestBed.overrideComponent(SignatureRequestPanelComponent, { set: { template: '' } });
+    return TestBed.createComponent(SignatureRequestPanelComponent).componentInstance;
+  }
+
+  const first: WizardDocument = { id: 'file-1', name: 'Federal.pdf', kind: 'pdf', size: '', date: '', blob: null, fileId: 'file-1' };
+  const second: WizardDocument = { ...first, id: 'file-2', fileId: 'file-2', name: 'State.pdf' };
+  const customer = (id: string, displayName: string) =>
+    ({ id, kind: 'Individual', status: 'Active', displayName, primaryEmail: `${id}@x.com`, primaryPhone: null, createdAtUtc: '2026-01-01T00:00:00Z' }) as never;
+
+  it('removes a document without fields right away and asks first when it has fields', () => {
+    const c = setup();
+    c.selectedDocuments.set([first, second]);
+    c.selectedDocument.set(first);
+    c.fieldsSnapshot.set([
+      { id: 'field-1', documentLocalId: 'file-1', type: 'signature', page: 1, x: 0, y: 0, width: 10, height: 10, signerId: 'client:1' },
+    ]);
+
+    c.requestRemoveDocument('file-2');
+    expect(c.selectedDocuments().map((d) => d.id)).toEqual(['file-1']);
+
+    c.selectedDocuments.set([first, second]);
+    c.requestRemoveDocument('file-1');
+    expect(c.pendingDocumentRemoval()).toEqual({ id: 'file-1', name: 'Federal.pdf', fieldCount: 1 });
+    expect(c.selectedDocuments()).toHaveLength(2);
+
+    c.confirmDocumentRemoval();
+    expect(c.selectedDocuments().map((d) => d.id)).toEqual(['file-2']);
+    expect(c.selectedDocument()?.id).toBe('file-2');
+  });
+
+  it('adds several clients, replaces one in place and removes another', () => {
+    const c = setup();
+    c.onClientPicked(customer('a', 'Ana'));
+    c.onClientPicked(customer('b', 'Bob'));
+    c.onClientPicked(customer('a', 'Ana'));
+    expect(c.selectedClients().map((x) => x.id)).toEqual(['a', 'b']);
+
+    c.onClientReplaced({ previousId: 'a', customer: customer('z', 'Zoe') });
+    expect(c.selectedClients().map((x) => x.id)).toEqual(['z', 'b']);
+
+    c.removeClient('b');
+    expect(c.selectedClients().map((x) => x.id)).toEqual(['z']);
+    expect(c.canProceed()).toBe(true);
   });
 });

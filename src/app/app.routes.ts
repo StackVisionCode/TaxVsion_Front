@@ -158,6 +158,17 @@ export const routes: Routes = [
     title: 'Download document',
   },
   {
+    // Entrega de documentos firmados (correo de firma completada / copia en curso): sin sesión, la autoriza
+    // el secreto del enlace. No es un share de Documents: cada descarga pide una URL firmada de pocos minutos.
+    path: 'd/:token',
+    data: { preload: false },
+    loadComponent: () =>
+      import('./features/signature-delivery/signature-delivery-page.component').then(
+        m => m.SignatureDeliveryPageComponent,
+      ),
+    title: 'Your signed documents',
+  },
+  {
     // Página pública de un enlace compartido de Documents: el cliente externo llega por
     // `https://<oficina>.taxoffix.io/s/<token>`, sin sesión (fuera del authGuard). Muestra el
     // documento con la marca de la oficina y dispara la descarga contra el resolver del backend.

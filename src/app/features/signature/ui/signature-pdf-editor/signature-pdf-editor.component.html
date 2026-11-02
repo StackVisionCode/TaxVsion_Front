@@ -92,7 +92,7 @@
         [attr.data-testid]="'toolbar-signer-' + s.id" [title]="s.name + ' · ' + (fieldCountBySigner()[s.id] || 0) + ' fields'"
         class="flex min-h-[2.25rem] max-w-[11rem] items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-xs font-medium transition-colors"
         [ngClass]="s.id === activeSignerId() ? 'border-brand-bold bg-brand-white text-gray-900' : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
-        <app-avatar [name]="s.name" size="xs" [colorClass]="s.color" />
+        <app-avatar [name]="s.name" size="xs" [colorClass]="s.color" [imageUrl]="s.avatarFileId | avatarUrl" />
         <span class="truncate">{{ s.name }}</span>
         <ion-icon *ngIf="signerHasIssue(s.id)" name="alert-circle-outline" class="shrink-0 text-sm text-amber-500"
           title="Needs attention — see the checklist"></ion-icon>
@@ -104,7 +104,7 @@
           [attr.data-testid]="'toolbar-signer-dot-' + s.id"
           class="relative flex h-9 w-9 items-center justify-center rounded-full border transition-colors"
           [ngClass]="s.id === activeSignerId() ? 'border-brand-bold bg-brand-white' : 'border-transparent hover:bg-gray-50'">
-          <app-avatar [name]="s.name" size="xs" [colorClass]="s.color" />
+          <app-avatar [name]="s.name" size="xs" [colorClass]="s.color" [imageUrl]="s.avatarFileId | avatarUrl" />
           <span *ngIf="signerHasIssue(s.id)" class="absolute right-0.5 top-0.5 h-2 w-2 rounded-full border border-white bg-amber-400"
             aria-hidden="true"></span>
         </button>
@@ -449,12 +449,22 @@
               </div>
 
               <ng-template #signerField>
-                <!-- Todo el campo se arrastra (también el de texto: su etiqueta se edita en el inspector). -->
-                <div class="pointer-events-none flex h-full w-full items-center justify-center gap-1 overflow-hidden px-1 text-[0.6875rem] font-medium"
-                  [ngClass]="textClass(f.signerId)">
-                  <ion-icon [name]="fieldIcon[f.type]" class="shrink-0 text-xs"></ion-icon>
-                  <span class="truncate">{{ f.type === 'text' && f.label?.trim() ? displayLabel(f.label) : fieldLabel[f.type] }}</span>
+                <!-- Iniciales, fecha y texto: lo que se estampará (sin caja), a la misma letra que el PDF sellado. -->
+                <div *ngIf="stampPreviews().get(f.id) as preview; else fieldChip" data-testid="field-stamp-preview"
+                  class="field-stamp-preview pointer-events-none flex h-full w-full items-center overflow-hidden"
+                  [class.justify-center]="preview.align === 'center'"
+                  [class.text-gray-400]="preview.sample" [class.text-gray-900]="!preview.sample">
+                  <span [class.truncate]="!preview.wrap" [class.whitespace-nowrap]="!preview.wrap"
+                    [style.font]="preview.font" [style.line-height.px]="preview.lineHeightPx">{{ preview.text }}</span>
                 </div>
+                <!-- Firma (o sin límites cargados todavía): ficha con icono. Todo el campo se arrastra. -->
+                <ng-template #fieldChip>
+                  <div class="pointer-events-none flex h-full w-full items-center justify-center gap-1 overflow-hidden px-1 text-[0.6875rem] font-medium"
+                    [ngClass]="textClass(f.signerId)">
+                    <ion-icon [name]="fieldIcon[f.type]" class="shrink-0 text-xs"></ion-icon>
+                    <span class="truncate">{{ f.type === 'text' && f.label?.trim() ? displayLabel(f.label) : fieldLabel[f.type] }}</span>
+                  </div>
+                </ng-template>
               </ng-template>
 
               <!-- Eliminar: siempre visible (no depende del hover), con área táctil ampliada en CSS -->
@@ -467,16 +477,16 @@
               <span (pointerdown)="startResize($event, f)" aria-hidden="true"
                 class="field-resize absolute -bottom-1 -right-1 h-3 w-3 cursor-se-resize rounded-sm border border-gray-400 bg-white"></span>
 
-              <!-- F6 — tamaño de letra que estampará el sellador (número en vivo mientras se redimensiona). -->
+              <!-- Letra que estampará el sellador (número en vivo mientras se redimensiona). -->
               <ng-container *ngIf="f.id === selectedFieldId() && selectedFieldFontBadge() as badge">
-                <span class="field-font-badge pointer-events-none absolute -top-2.5 right-6 rounded-full bg-brand-bold px-1.5 py-0.5 text-[0.625rem] font-semibold text-white shadow-sm"
+                <span class="field-font-badge pointer-events-none absolute bottom-full right-4 mb-1 whitespace-nowrap rounded-full bg-brand-bold px-1.5 py-0.5 text-[0.625rem] font-semibold text-white shadow-sm"
                   data-testid="field-font-badge">
-                  {{ badge.pt }} pt{{ badge.mayShrink ? ' max' : '' }}
+                  {{ badge.pt }} pt{{ badge.auto ? ' · Auto' : '' }}
                 </span>
-                <span *ngIf="badge.mayShrink"
+                <span *ngIf="badge.shrunk || badge.wrap"
                   class="pointer-events-none absolute left-0 top-full mt-1 whitespace-nowrap rounded bg-brand-ink/90 px-1.5 py-0.5 text-[0.625rem] font-medium text-white shadow-sm"
                   data-testid="field-font-badge-hint">
-                  May shrink if the signer types a long value.
+                  {{ badge.shrunk ? 'Shrunk to fit the box. Make the box bigger to keep the size.' : 'May shrink if the signer types a long value.' }}
                 </span>
               </ng-container>
             </div>
@@ -612,12 +622,18 @@
         <button type="button" (click)="setActiveSigner(s.id)" [attr.aria-pressed]="s.id === activeSignerId()"
           class="flex min-h-[2.75rem] min-w-0 flex-1 items-center gap-2 text-left lg:min-h-[2.25rem]">
           <span class="relative shrink-0">
-            <app-avatar [name]="s.name" size="xs" [colorClass]="s.color" />
+            <app-avatar [name]="s.name" size="xs" [colorClass]="s.color" [imageUrl]="s.avatarFileId | avatarUrl" />
             <span *ngIf="rules().sequential"
               class="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-gray-900 text-[0.5rem] font-bold text-white">{{ i + 1 }}</span>
           </span>
           <span class="min-w-0 flex-1">
-            <span class="block truncate text-xs font-medium text-gray-800">{{ s.name }}</span>
+            <span class="flex items-center gap-1">
+              <span class="min-w-0 truncate text-xs font-medium text-gray-800">{{ s.name }}</span>
+              <span class="shrink-0 rounded-full px-1.5 py-px text-[0.5625rem] font-semibold uppercase tracking-wide"
+                [ngClass]="isClientSigner(s) ? 'bg-blue-50 text-brand-bold' : 'bg-gray-100 text-gray-500'">
+                {{ isClientSigner(s) ? 'Client' : 'External' }}
+              </span>
+            </span>
             <span class="flex items-center gap-1 truncate text-[0.625rem] text-gray-400">
               {{ fieldCountBySigner()[s.id] || 0 }} {{ (fieldCountBySigner()[s.id] || 0) === 1 ? 'field' : 'fields' }}
               · {{ channelMeta[s.channel].label }}
@@ -646,7 +662,7 @@
               <ion-icon name="arrow-down-outline" class="text-base"></ion-icon> Move down
             </button>
           </ng-container>
-          <button *ngIf="!isClientSigner(s)" appMenuItem [danger]="true" type="button" (click)="removeSigner(s.id)">
+          <button *ngIf="canRemoveSigner(s)" appMenuItem [danger]="true" type="button" (click)="removeSigner(s.id)">
             <ion-icon name="trash-outline" class="text-base"></ion-icon> Remove signer
           </button>
         </app-dropdown-menu>
@@ -843,6 +859,18 @@
       <p class="mt-1 text-[0.625rem] text-gray-400">The signer sees it as the field's instruction.</p>
     </div>
 
+    <!-- Letra del estampado (iniciales, fecha y texto): automática según la caja o un tamaño fijo. -->
+    <div *ngIf="!isPreparerField(f) && hasFontSize(asField(f).type) && fontSizeOptions().length > 0" data-testid="field-font-size">
+      <label class="mb-1 block text-[0.6875rem] font-medium text-gray-600" [attr.for]="'font-size-' + f.id">Text size</label>
+      <select [id]="'font-size-' + f.id" [ngModel]="asField(f).fontSizePt ?? null" (ngModelChange)="setFieldFontSize(f.id, $event)"
+        [disabled]="interactionLocked()" data-testid="field-font-size-select"
+        class="min-h-[2.5rem] w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:border-brand-bold focus:outline-none">
+        <option [ngValue]="null">Auto{{ selectedFieldFontBadge()?.auto ? ' (' + selectedFieldFontBadge()?.pt + ' pt)' : '' }}</option>
+        <option *ngFor="let size of fontSizeOptions()" [ngValue]="size">{{ size }} pt</option>
+      </select>
+      <p class="mt-1 text-[0.625rem] leading-snug text-gray-400">Auto follows the box height. The text never grows past the size you pick; it only shrinks if it doesn't fit.</p>
+    </div>
+
     <!-- Herramientas del campo (igual para firma, iniciales, fecha, texto y la firma del preparador) -->
     <div class="space-y-2.5" data-testid="field-tools">
       <div>
@@ -1016,7 +1044,7 @@
         <input type="text" name="signerClientSearch" autocomplete="off" placeholder="Search name, email or phone"
           [ngModel]="signerClientSearch()" (ngModelChange)="signerClientSearch.set($event)" (focus)="clientListOpen.set(true)"
           class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
-        <button *ngIf="draftClientId()" type="button" (click)="clearRegisteredClient()"
+        <button *ngIf="draftClient()" type="button" (click)="clearRegisteredClient()"
           class="shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium text-gray-400 hover:text-gray-700 transition-colors">
           Type manually
         </button>
@@ -1045,7 +1073,7 @@
         <ng-container *ngIf="!customersLoading() && !customersError()">
           <button *ngFor="let c of signerClientResults()" type="button" (click)="pickRegisteredClient(c)"
             class="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left hover:bg-gray-50 transition-colors"
-            [class.bg-gray-50]="draftClientId() === c.id">
+            [class.bg-gray-50]="draftClient()?.id === c.id">
             <app-avatar [name]="c.displayName" [seed]="c.id" [imageUrl]="c.avatarFileId | avatarUrl" sizeClass="h-9 w-9 text-xs" />
             <span class="min-w-0 flex-1">
               <span class="flex items-center gap-1.5">
@@ -1057,7 +1085,7 @@
               </span>
               <span class="block truncate text-[0.6875rem] text-gray-400">{{ c.email }}{{ c.phone ? ' · ' + c.phone : '' }}</span>
             </span>
-            <ion-icon *ngIf="draftClientId() === c.id" name="checkmark-circle" class="shrink-0 text-base text-brand-bold"></ion-icon>
+            <ion-icon *ngIf="draftClient()?.id === c.id" name="checkmark-circle" class="shrink-0 text-base text-brand-bold"></ion-icon>
           </button>
 
           <p *ngIf="signerClientResults().length === 0" class="px-3 py-4 text-center text-xs text-gray-400">
@@ -1079,16 +1107,19 @@
     <div>
       <label class="mb-1 block text-xs font-medium text-gray-600">Email</label>
       <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
-        <input type="email" name="draftEmail" placeholder="ana@email.com"
+        <input type="email" name="draftEmail" placeholder="ana@email.com" [readonly]="!!draftClient()"
           [ngModel]="draftEmail()" (ngModelChange)="draftEmail.set($event)" (keydown.enter)="confirmAddSigner()"
-          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+          class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none read-only:text-gray-500" />
       </div>
+      <p *ngIf="draftClient()" class="mt-1 text-[0.6875rem] text-gray-400">
+        Added as a client: this request will also show in their profile. Use “Type manually” to add someone else.
+      </p>
     </div>
 
     <div>
       <label class="mb-1 block text-xs font-medium text-gray-600">Verification channel</label>
       <div class="flex flex-wrap gap-1.5">
-        <button *ngFor="let ch of deliveryChannels" type="button" (click)="draftChannel.set(ch)"
+        <button *ngFor="let ch of deliveryChannels()" type="button" (click)="draftChannel.set(ch)"
           class="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
           [ngClass]="draftChannel() === ch ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-100'">
           <ion-icon [name]="channelMeta[ch].icon" class="text-xs"></ion-icon>

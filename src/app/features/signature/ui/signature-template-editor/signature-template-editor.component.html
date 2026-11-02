@@ -122,7 +122,7 @@
           </label>
           <ng-container *ngIf="expirationEnabled(); else noExpirationHint">
             <label class="mb-1 block text-xs font-medium text-gray-600" for="tpl-exp">Link valid for (hours)</label>
-            <input id="tpl-exp" type="number" min="1" max="720" [ngModel]="expirationHours()" (ngModelChange)="expirationHours.set(+$event)"
+            <input id="tpl-exp" type="number" [min]="limits()?.minTokenHours ?? null" [max]="limits()?.plan?.maxTokenHours ?? null" [ngModel]="expirationHours()" (ngModelChange)="expirationHours.set(+$event)"
               [disabled]="!isDraft()"
               class="tap mb-3 w-full rounded-full border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:border-brand-bold focus:outline-none disabled:bg-gray-50" />
           </ng-container>
@@ -496,15 +496,24 @@
                     (ngModelChange)="setFieldLabel(field.localId, $event)" [name]="'tpl-label-' + field.localId"
                     [readonly]="!canEdit()" aria-label="Field label"
                     placeholder="Field label" (pointerdown)="$event.stopPropagation(); selectField(field.localId)"
-                    class="h-full w-full bg-transparent px-1 text-[0.625rem] font-medium text-gray-700 placeholder-gray-400 focus:outline-none" />
+                    [style.font]="stampPreviews().get(field.localId)?.font"
+                    class="h-full w-full bg-transparent text-[0.625rem] font-medium text-gray-700 placeholder-gray-400 focus:outline-none" />
                   <span *ngIf="canEdit()" (pointerdown)="startMove($event, field, pageEl)" aria-hidden="true" title="Drag to move"
                     class="tpl-handle tpl-move-handle absolute -left-2 -top-2 flex h-5 w-5 cursor-move items-center justify-center rounded-full bg-gray-700 text-white shadow">
                     <ion-icon name="move-outline" class="text-[0.6875rem]"></ion-icon>
                   </span>
                 </ng-container>
                 <ng-template #fieldBadge>
-                  <ion-icon [name]="fieldIcon[field.type]" class="mr-1 text-xs"></ion-icon>
-                  <span class="truncate">{{ fieldLabel[field.type] }}</span>
+                  <!-- Iniciales y fecha: lo que se estampará (sin caja), a la letra del PDF sellado. -->
+                  <div *ngIf="stampPreviews().get(field.localId) as preview; else fieldChip" data-testid="tpl-stamp-preview"
+                    class="pointer-events-none flex h-full w-full items-center overflow-hidden text-gray-900"
+                    [class.justify-center]="preview.align === 'center'">
+                    <span class="truncate whitespace-nowrap" [style.font]="preview.font" [style.line-height.px]="preview.lineHeightPx">{{ preview.text }}</span>
+                  </div>
+                  <ng-template #fieldChip>
+                    <ion-icon [name]="fieldIcon[field.type]" class="mr-1 text-xs"></ion-icon>
+                    <span class="truncate">{{ fieldLabel[field.type] }}</span>
+                  </ng-template>
                 </ng-template>
                 </ng-template>
 
@@ -572,6 +581,20 @@
             <input id="insp-label" type="text" [ngModel]="field.label || ''" (ngModelChange)="setFieldLabel(field.localId, $event)"
               [disabled]="!canEdit()" placeholder="What should the signer type?"
               class="tap h-8 w-full rounded-full border border-gray-200 px-3 text-xs text-gray-700 placeholder-gray-400 focus:border-brand-bold focus:outline-none disabled:bg-gray-50" />
+          </div>
+
+          <!-- Letra del estampado (iniciales, fecha y texto): automática según la caja o un tamaño fijo. -->
+          <div *ngIf="!isPreparerField(field) && hasFontSize(field.type) && fontSizeOptions().length > 0" data-testid="tpl-font-size">
+            <label class="mb-1 block text-[0.6875rem] font-medium text-gray-500" for="insp-font-size">Text size</label>
+            <select id="insp-font-size" [ngModel]="field.fontSizePt ?? null" (ngModelChange)="setFieldFontSize(field.localId, $event)"
+              [disabled]="!canEdit()"
+              class="tap h-8 w-full rounded-full border border-gray-200 px-2 text-xs text-gray-700 focus:border-brand-bold focus:outline-none disabled:bg-gray-50">
+              <option [ngValue]="null">Auto{{ stampPreviews().get(field.localId)?.auto ? ' (' + stampPreviews().get(field.localId)?.pt + ' pt)' : '' }}</option>
+              <option *ngFor="let size of fontSizeOptions()" [ngValue]="size">{{ size }} pt</option>
+            </select>
+            <p *ngIf="stampPreviews().get(field.localId)?.shrunk" class="mt-1 text-[0.625rem] leading-snug text-amber-600">
+              Shrunk to fit the box. Make the box bigger to keep the size.
+            </p>
           </div>
 
           <div>

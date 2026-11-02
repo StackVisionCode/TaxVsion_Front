@@ -51,9 +51,7 @@ import {
   SIGNATURE_CATEGORIES,
   SIGNATURE_CATEGORY_LABEL,
   SignatureCategory,
-  TOKEN_EXPIRATION_DEFAULT_HOURS,
-  TOKEN_EXPIRATION_MAX_HOURS,
-  TOKEN_EXPIRATION_MIN_HOURS,
+  tokenHoursForDueDate,
 } from '../../data-access/signature.model';
 import { SignatureCapabilities } from '../../data-access/signature-permissions';
 import { notificationResourceError } from '../../../notifications/data-access/notification-resource-error';
@@ -201,14 +199,16 @@ export class SignaturePageComponent implements OnInit {
   // ---------- Borrar borrador ----------
   readonly deleteTarget = signal<SignatureRequest | null>(null);
 
-  readonly minExtendHours = TOKEN_EXPIRATION_MIN_HOURS;
-  readonly maxExtendHours = TOKEN_EXPIRATION_MAX_HOURS;
+  /** Rango para extender: el de los límites vigentes (null mientras cargan). */
+  readonly minExtendHours = computed(() => this.store.limits()?.minTokenHours ?? null);
+  readonly maxExtendHours = computed(() => this.store.limits()?.plan.maxTokenHours ?? null);
 
   categoryLabel(category: SignatureCategory): string {
     return SIGNATURE_CATEGORY_LABEL[category];
   }
 
   constructor() {
+    this.store.loadLimits();
     if (!this.hosted) {
       this.store.refresh();
     }
@@ -452,7 +452,8 @@ export class SignaturePageComponent implements OnInit {
 
   confirmEdit(): void {
     const target = this.editTarget();
-    if (!target || this.actionBusy() || !this.isEditValid()) {
+    const limits = this.store.limits();
+    if (!target || !limits || this.actionBusy() || !this.isEditValid()) {
       return;
     }
     this.actionBusy.set(true);
@@ -462,7 +463,7 @@ export class SignaturePageComponent implements OnInit {
         title: this.editTitle().trim(),
         description: this.editNotes().trim() || null,
         category: this.editCategory(),
-        tokenExpirationHours: this.dueDateToHours(this.editDueDate()),
+        tokenExpirationHours: tokenHoursForDueDate(this.editDueDate() || null, limits),
       })
       .subscribe({
         next: () => {
@@ -475,16 +476,6 @@ export class SignaturePageComponent implements OnInit {
           this.actionError.set(toApiError(err).message);
         },
       });
-  }
-
-  /** Fecha de expiración → horas desde ahora (rango del dominio); sin fecha = default. */
-  private dueDateToHours(due: string): number {
-    if (!due) {
-      return TOKEN_EXPIRATION_DEFAULT_HOURS;
-    }
-    const endOfDay = new Date(`${due}T23:59:59`);
-    const hours = Math.ceil((endOfDay.getTime() - Date.now()) / 3_600_000);
-    return Math.min(Math.max(hours, TOKEN_EXPIRATION_MIN_HOURS), TOKEN_EXPIRATION_MAX_HOURS);
   }
 
   // ---------- Borrar borrador ----------
@@ -808,17 +799,13 @@ export class SignaturePageComponent implements OnInit {
   confirmExtend(): void {
     const target = this.extendTarget();
     const hours = Math.round(Number(this.extendHours()));
-    if (!target || this.actionBusy()) {
+    const min = this.minExtendHours();
+    const max = this.maxExtendHours();
+    if (!target || this.actionBusy() || min === null || max === null) {
       return;
     }
-    if (
-      !Number.isFinite(hours) ||
-      hours < TOKEN_EXPIRATION_MIN_HOURS ||
-      hours > TOKEN_EXPIRATION_MAX_HOURS
-    ) {
-      this.actionError.set(
-        `Hours must be between ${TOKEN_EXPIRATION_MIN_HOURS} and ${TOKEN_EXPIRATION_MAX_HOURS}.`,
-      );
+    if (!Number.isFinite(hours) || hours < min || hours > max) {
+      this.actionError.set(`Hours must be between ${min} and ${max}.`);
       return;
     }
     this.actionBusy.set(true);

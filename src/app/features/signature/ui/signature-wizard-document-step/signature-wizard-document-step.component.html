@@ -63,14 +63,14 @@
 
     <!-- Modo subir: dropzone -->
     <app-dropzone *ngIf="docSource() === 'upload'" accept=".pdf,application/pdf" [multiple]="false"
-      [maxBytes]="maxUploadBytes" [disabled]="isBusy() || documents.length >= 20" label="Click to add a PDF or drag and drop"
-      hint="PDF only, up to 25MB · validated before sending"
+      [maxBytes]="maxUploadBytes()" [disabled]="isBusy() || (maxDocuments() !== null && documents.length >= maxDocuments()!)"
+      label="Click to add a PDF or drag and drop" [hint]="uploadHint()"
       (files)="onFiles($event)" (rejected)="onRejected($event)"></app-dropzone>
 
     <!-- Modo librería: PDFs de la oficina -->
     <div *ngIf="docSource() === 'library'">
       <app-signature-document-library
-        [ownerFilterId]="clientId"
+        [ownerFilterIds]="clientIds"
         [selectedFileId]="uploaded()?.fileId ?? null"
         (picked)="onLibraryPicked($event)">
       </app-signature-document-library>

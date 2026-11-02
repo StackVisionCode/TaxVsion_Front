@@ -65,6 +65,8 @@ export type SignatureStatus =
   | 'canceled'
   | 'expired';
 
+export type DocumentVerificationStatus = 'Pending' | 'Verified' | 'Rejected';
+
 export interface SignatureRequestDocumentItem {
   id: string;
   order: number;
@@ -75,6 +77,10 @@ export interface SignatureRequestDocumentItem {
   certificateFileId?: string | null;
   hashPost: string | null;
   sealedAtUtc: string | null;
+  /** Revisión del PDF original en el servidor; solo `Verified` se puede enviar. */
+  verificationStatus?: DocumentVerificationStatus;
+  /** Motivo legible cuando el servidor rechazó el archivo (hay que reemplazarlo). */
+  rejectionReason?: string | null;
 }
 
 export interface SignatureRequest {
@@ -128,6 +134,8 @@ export interface SignatureRequest {
   isOwnedByActor?: boolean;
   /** F3: hora UTC programada; sólo cuando status === 'scheduled'. */
   scheduledSendAtUtc?: string | null;
+  /** La solicitud manda a los firmantes el sellado y/o el certificado al completarse. */
+  deliversToSigners?: boolean;
 }
 
 /** Deriva el estado global de una solicitud a partir del estado de sus firmantes: todos firmados = completed, algún rechazo = rejected, alguno firmado = in-progress, ninguno = pending. (Solo lo usa el flujo demo del sign-page; el estado real viene del backend.) */

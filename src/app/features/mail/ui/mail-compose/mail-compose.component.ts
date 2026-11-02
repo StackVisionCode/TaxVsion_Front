@@ -25,6 +25,9 @@ import {
 } from '../../data-access/mail.model';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { formatBytes } from '@shared/utils/format.util';
+import { StoragePolicyService, uploadRejection } from '@core/cloud-storage/storage-policy.service';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { catchError, of } from 'rxjs';
 import { BytesPipe } from '@shared/pipes/bytes.pipe';
 import { ComposeState } from '../../data-access/mail.store';
 
@@ -121,6 +124,11 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
   @Output() recipientCustomerPicked = new EventEmitter<CustomerSummary>();
 
   private readonly sanitizer = inject(DomSanitizer);
+  /** Qué se puede adjuntar (carpeta de salientes): tipos y tamaño vigentes; null mientras carga. */
+  readonly attachmentPolicy = toSignal(
+    inject(StoragePolicyService).uploadPolicy('EmailOutgoing').pipe(catchError(() => of(null))),
+    { initialValue: null },
+  );
 
   @ViewChild('bodyEditor') private bodyEditor?: ElementRef<HTMLDivElement>;
   @ViewChild('linkInput') private linkInput?: ElementRef<HTMLInputElement>;
@@ -617,7 +625,15 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
     if (!picked || picked.length === 0) {
       return;
     }
-    this.files.update(list => [...list, ...Array.from(picked)]);
+    // Lo que la carpeta de salientes no admite (tipo o tamaño vigente) se avisa y no se adjunta.
+    const policy = this.attachmentPolicy();
+    const files = Array.from(picked);
+    const rejections = files.map(file => uploadRejection(file, policy));
+    const firstRejection = rejections.find(reason => reason !== null);
+    if (firstRejection) {
+      this.bodyNotice.set(firstRejection);
+    }
+    this.files.update(list => [...list, ...files.filter((_, index) => rejections[index] === null)]);
     // Limpiar el input para permitir volver a elegir el mismo archivo.
     input.value = '';
   }

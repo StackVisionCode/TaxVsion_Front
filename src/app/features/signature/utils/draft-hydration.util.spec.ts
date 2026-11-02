@@ -112,12 +112,31 @@ describe('kindToFieldType', () => {
 });
 
 describe('buildDraftHydration', () => {
+  it('cada firmante vinculado a un cliente distinto es un cliente de la solicitud', () => {
+    const base = detail();
+    const h = buildDraftHydration({
+      ...base,
+      signers: base.signers.map(s => (s.id === 'signer-extra' ? { ...s, mappedCustomerId: 'cust-2' } : s)),
+    });
+
+    expect(h.clients.map(c => c.id)).toEqual(['cust-1', 'cust-2']);
+    expect(h.seed.signers.map(s => s.id)).toEqual(['client:cust-1', 'client:cust-2']);
+    expect(h.seed.fields.find(f => f.localId === 'seed-field-b')!.signerLocalId).toBe('client:cust-2');
+  });
+
+  it('sin firmantes vinculados, el primero hace de cliente (borradores viejos)', () => {
+    const base = detail();
+    const h = buildDraftHydration({ ...base, signers: base.signers.map(s => ({ ...s, mappedCustomerId: null })) });
+
+    expect(h.clients.map(c => c.id)).toEqual(['draft:req-1']);
+    expect(h.seed.signers.map(s => s.id)).toEqual(['client:draft:req-1', 'seed-signer-extra']);
+  });
+
   it('reconstruye cliente, seed, sendState y original desde el detalle', () => {
     const h = buildDraftHydration(detail());
 
-    // Cliente = el firmante con mappedCustomerId.
-    expect(h.client.id).toBe('cust-1');
-    expect(h.client.displayName).toBe('Jane Client');
+    // Clientes = los firmantes con mappedCustomerId.
+    expect(h.clients.map(c => [c.id, c.displayName])).toEqual([['cust-1', 'Jane Client']]);
 
     // Seed: firmante cliente con localId client:<id>, extra con seed-<id>.
     expect(h.seed.signers.map(s => s.id)).toEqual(['client:cust-1', 'seed-signer-extra']);
@@ -147,9 +166,8 @@ describe('buildDraftHydration', () => {
     expect(h.sendState.postedFieldLocalIds).toEqual(['seed-field-a', 'seed-field-b']);
     expect(h.sendState.pinSet).toBe(true);
 
-    // Original para el diff.
-    expect(h.original.signerBackendIds).toEqual(['signer-client', 'signer-extra']);
-    expect(h.original.fields).toHaveLength(2);
+    // Original: solo lo que el upsert no cubre (campos del preparador).
+    expect(h.original).toEqual({ preparerFields: [] });
 
     // Metadata.
     expect(h.metadata.title).toBe('Consent 2026');

@@ -25,6 +25,7 @@ import { SegmentedComponent, SegmentedOption } from '@shared/ui/segmented/segmen
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
 import { SignatureService } from '../../data-access/signature.service';
+import { SignatureStore } from '../../data-access/signature.store';
 import { SignatureCategoryPickerComponent } from '../signature-category-picker/signature-category-picker.component';
 import {
   PartialCopyAudienceKind,
@@ -39,9 +40,10 @@ import {
   fieldTypeToKind,
 } from '../../data-access/signature.model';
 import { FieldType } from '../signature-request-panel/signature-wizard.model';
-import { FIELD_TYPE_ICON, FIELD_TYPE_LABEL } from '../signature-request-panel/signature-wizard.presenter';
+import { FIELD_MIN_SIZE, FIELD_TYPE_ICON, FIELD_TYPE_LABEL } from '../signature-request-panel/signature-wizard.presenter';
 import { RenderedPage, blankPages, renderPdfPages } from '../../utils/pdf-render.util';
 import { denormalizeFieldRect } from '../../utils/field-normalize.util';
+import { StampPreview, fontSizeOptions, formatStampDate, hasFontSize, stampPreview } from '../../utils/stamp-font-size.util';
 import {
   TEMPLATE_EDITOR_INSPECTOR_COLLAPSED_KEY,
   readPanelCollapsed,
@@ -59,8 +61,6 @@ import {
   startPaletteDrag,
 } from '@shared/utils/palette-drag.util';
 import {
-  MIN_FIELD_H,
-  MIN_FIELD_W,
   PREPARER_SLOT,
   TemplateFieldLocal,
   buildNormalizedPreparerFields,
@@ -175,6 +175,8 @@ interface LayoutSnapshot {
 export class SignatureTemplateEditorComponent implements OnChanges, AfterViewInit, OnDestroy {
   private readonly service = inject(SignatureService);
   private readonly toast = inject(ToastService);
+  /** Rango de horas del enlace: el vigente de la oficina (null mientras carga). */
+  readonly limits = inject(SignatureStore).limits;
 
   @Input() templateId: string | null = null;
   @Output() closed = new EventEmitter<void>();
@@ -375,6 +377,39 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
     const id = this.selectedId();
     return id ? (this.fields().find(f => f.localId === id) ?? null) : null;
   });
+
+  /**
+   * Vista previa WYSIWYG de iniciales, fecha y texto con la misma regla del sellador. En plantillas
+   * aún no hay firmante: las iniciales salen del rol. Sin límites cargados no hay vista previa.
+   */
+  readonly stampPreviews = computed<ReadonlyMap<string, StampPreview>>(() => {
+    const limits = this.limits();
+    const previews = new Map<string, StampPreview>();
+    if (!limits) {
+      return previews;
+    }
+    const today = formatStampDate(new Date(), limits.datePattern);
+    for (const field of this.fields()) {
+      const page = this.pages().find(p => p.page === field.page);
+      if (!page || isPreparerSlot(field.slotOrder)) {
+        continue;
+      }
+      const content =
+        field.type === 'initials' ? this.slotRole(field.slotOrder) : field.type === 'date' ? today : (field.label?.trim() ?? '');
+      const preview = stampPreview({ ...field, content }, page.scale, limits);
+      if (preview) {
+        previews.set(field.localId, preview);
+      }
+    }
+    return previews;
+  });
+
+  readonly fontSizeOptions = computed<number[]>(() => {
+    const limits = this.limits();
+    return limits ? fontSizeOptions(limits) : [];
+  });
+
+  readonly hasFontSize = hasFontSize;
 
   readonly hasPdfSurface = computed(() => this.pages().length > 0 && !!this.pages()[0].src);
 
@@ -1248,6 +1283,15 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
     this.layoutDirty.set(true);
   }
 
+  /** Letra del estampado del campo: null = automática según la caja. */
+  setFieldFontSize(localId: string, fontSizePt: number | null): void {
+    if (!this.canEdit()) {
+      return;
+    }
+    this.fields.update(list => list.map(f => (f.localId === localId ? { ...f, fontSizePt } : f)));
+    this.layoutDirty.set(true);
+  }
+
   removeField(localId: string): void {
     if (!this.canEdit()) {
       return;
@@ -1437,8 +1481,9 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
         y: Math.min(Math.max(event.clientY - rect.top - d.offsetY, 0), Math.max(0, pageH - d.startH)),
       };
     } else {
-      const minW = MIN_FIELD_W * this.zoom();
-      const minH = MIN_FIELD_H * this.zoom();
+      const type = this.fields().find(f => f.localId === d.id)?.type ?? 'signature';
+      const minW = FIELD_MIN_SIZE[type].w * this.zoom();
+      const minH = FIELD_MIN_SIZE[type].h * this.zoom();
       patch = {
         width: Math.min(Math.max(d.startW + (event.clientX - d.startPointerX), minW), pageW - d.startX),
         height: Math.min(Math.max(d.startH + (event.clientY - d.startPointerY), minH), pageH - d.startY),
@@ -1532,6 +1577,7 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
               height: field.height,
               label: field.label ?? null,
               isRequired: true,
+              fontSizePt: field.fontSizePt ?? null,
             }),
           );
           serverSigner.push({
@@ -1546,6 +1592,7 @@ export class SignatureTemplateEditorComponent implements OnChanges, AfterViewIni
             height: field.height,
             label: field.label ?? null,
             isRequired: true,
+            fontSizePt: field.fontSizePt ?? null,
           });
         }
         for (const field of preparer) {
@@ -1726,6 +1773,7 @@ function serverFieldsToLocal(
       page: page.page,
       ...denormalizeFieldRect(f, page),
       label: f.label ?? undefined,
+      fontSizePt: f.fontSizePt ?? null,
     };
   });
   // Campos del preparador: mismo array con slotOrder sentinela PREPARER_SLOT.

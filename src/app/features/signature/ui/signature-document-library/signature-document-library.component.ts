@@ -17,6 +17,7 @@ import { formatBytes } from '@shared/utils/format.util';
 import { toApiError } from '@core/models/api-error.model';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { FileResponse } from '@core/cloud-storage/cloud-storage.model';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
 
 // Backend acota `take` a 100; paginamos páginas enteras y cortamos cuando una página devuelve
 // menos (fin de la lista). El cap es un seguro para no dejar el componente colgado si algo falla.
@@ -32,7 +33,7 @@ function isPdf(file: FileResponse): boolean {
  * Selector de un PDF ya existente en la oficina (CloudStorage) para reusarlo en una
  * solicitud de firma o al instanciar una plantilla — sin volver a subirlo. Lista los
  * archivos del tenant (`GET /storage/files`), se queda solo con los PDF `Available`, y
- * opcionalmente filtra por el cliente elegido (`ownerFilterId`). Emite el `FileResponse`;
+ * opcionalmente filtra por los clientes elegidos (`ownerFilterIds`). Emite el `FileResponse`;
  * el `id` sirve directo como `originalFileId` (el Create promueve Draft→Ready leyendo la
  * proyección local, porque el archivo ya está disponible).
  */
@@ -46,9 +47,9 @@ function isPdf(file: FileResponse): boolean {
 export class SignatureDocumentLibraryComponent implements OnInit {
   private readonly storage = inject(CloudStorageUploadService);
 
-  /** Si viene un customerId, solo se muestran los PDF de ese cliente. */
-  @Input() set ownerFilterId(value: string | null | undefined) {
-    this.owner.set(value ?? null);
+  /** Clientes de la solicitud: el chip opcional acota la lista a sus PDF. */
+  @Input() set ownerFilterIds(value: readonly string[] | null | undefined) {
+    this.owners.set(new Set(value ?? []));
   }
   /** id del archivo ya elegido (para resaltarlo al reabrir). */
   @Input() set selectedFileId(value: string | null | undefined) {
@@ -58,7 +59,7 @@ export class SignatureDocumentLibraryComponent implements OnInit {
 
   readonly formatBytes = formatBytes;
 
-  private readonly owner = signal<string | null>(null);
+  private readonly owners = signal<ReadonlySet<string>>(new Set());
   readonly all = signal<FileResponse[]>([]);
   readonly loading = signal(false);
   readonly error = signal('');
@@ -67,16 +68,17 @@ export class SignatureDocumentLibraryComponent implements OnInit {
   /** Cuando hay cliente, filtro opcional (por defecto OFF: se ven todos los PDF de la oficina). */
   readonly onlyThisClient = signal(false);
 
-  readonly hasClientFilter = computed(() => !!this.owner());
+  readonly hasClientFilter = computed(() => this.owners().size > 0);
+  readonly multipleClients = computed(() => this.owners().size > 1);
 
   /** Solo PDF disponibles, filtrados por el chip de cliente (si activo) y por el texto. */
   readonly pdfs = computed(() => {
     const term = this.search().trim().toLowerCase();
-    const owner = this.owner();
-    const clientOnly = this.onlyThisClient() && !!owner;
+    const owners = this.owners();
+    const clientOnly = this.onlyThisClient() && owners.size > 0;
     return this.all()
       .filter(file => file.status === 'Available' && isPdf(file))
-      .filter(file => !clientOnly || file.ownerId === owner)
+      .filter(file => !clientOnly || (!!file.ownerId && owners.has(file.ownerId)))
       .filter(file => !term || file.originalName.toLowerCase().includes(term));
   });
 
@@ -118,6 +120,6 @@ export class SignatureDocumentLibraryComponent implements OnInit {
   }
 
   shortDate(iso: string): string {
-    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return parseUtcDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 }

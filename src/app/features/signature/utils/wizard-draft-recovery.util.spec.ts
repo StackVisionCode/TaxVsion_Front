@@ -9,9 +9,11 @@ import { defaultRules } from '../ui/signature-request-panel/signature-wizard.pre
 function snapshot(over: Partial<WizardDraftSnapshot> = {}): WizardDraftSnapshot {
   return {
     savedAt: Date.now(),
-    client: { id: 'c1', displayName: 'Ana', email: 'ana@x.com', phone: '', type: 'individual', isActive: true, createdAt: '' },
-    documentFileId: 'file-1',
-    documentName: 'Form.pdf',
+    clients: [{ id: 'c1', displayName: 'Ana', email: 'ana@x.com', phone: '', type: 'individual', isActive: true, createdAt: '' }],
+    documents: [
+      { id: 'doc-a', fileId: 'file-1', name: 'Form.pdf' },
+      { id: 'doc-b', fileId: 'file-2', name: 'Letter.pdf' },
+    ],
     title: 'Form 1040',
     category: 'Fiscal',
     dueDate: '',
@@ -28,7 +30,25 @@ describe('wizard-draft-recovery.util', () => {
     writeDraftSnapshot(snapshot({ title: 'Restored' }));
     const read = readDraftSnapshot();
     expect(read?.title).toBe('Restored');
-    expect(read?.documentFileId).toBe('file-1');
+    expect(read?.documents.map(d => d.fileId)).toEqual(['file-1', 'file-2']);
+  });
+
+  it('lee el formato anterior (un cliente y un documento)', () => {
+    const current = snapshot();
+    const legacy: Record<string, unknown> = {
+      ...current,
+      client: current.clients[0],
+      documentFileId: 'file-1',
+      documentName: 'Form.pdf',
+    };
+    delete legacy['clients'];
+    delete legacy['documents'];
+    localStorage.setItem('signature.wizard.draft', JSON.stringify(legacy));
+
+    const read = readDraftSnapshot();
+
+    expect(read?.clients.map(c => c.id)).toEqual(['c1']);
+    expect(read?.documents).toEqual([{ id: 'file-1', fileId: 'file-1', name: 'Form.pdf' }]);
   });
 
   it('clear elimina el snapshot', () => {

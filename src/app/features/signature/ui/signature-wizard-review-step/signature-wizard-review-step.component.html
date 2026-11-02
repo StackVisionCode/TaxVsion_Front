@@ -1,8 +1,8 @@
 <div class="review-grid grid gap-4 lg:grid-cols-2">
   <!-- Cliente -->
   <div class="review-card rounded-2xl border border-gray-100 bg-brand-white p-5">
-    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Client</p>
-    <div *ngIf="client as c" class="mt-3 flex items-center gap-3">
+    <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">{{ clients.length === 1 ? 'Client' : 'Clients' }}</p>
+    <div *ngFor="let c of clients" class="mt-3 flex items-center gap-3">
       <app-avatar
         [name]="c.displayName"
         [seed]="c.id"
@@ -177,13 +177,14 @@
           <input
             type="date"
             name="reviewDueDate"
+            [max]="maxDueDate()"
             [ngModel]="dueDate"
             (ngModelChange)="dueDateChange.emit($event)"
             class="w-full bg-transparent text-sm text-gray-700 focus:outline-none cursor-pointer"
           />
         </label>
         <p class="px-1 text-xs text-gray-400">
-          Signing links expire {{ dueDateLabel() }} (30 days max).
+          Signing links expire {{ dueDateLabel() }} {{ maxDueLabel() }}.
         </p>
       </ng-container>
       <ng-template #noExpirationHint>

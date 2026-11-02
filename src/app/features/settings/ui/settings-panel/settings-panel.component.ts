@@ -4,6 +4,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { PublicSharingSettingComponent } from '../public-sharing-setting/public-sharing-setting.component';
+import { SharingPolicySettingComponent } from '../sharing-policy-setting/sharing-policy-setting.component';
+import { PortalUploadsSettingComponent } from '../portal-uploads-setting/portal-uploads-setting.component';
 
 /**
  * Campo SIN respaldo: no existe endpoint donde guardarlo, así que se dibuja
@@ -72,11 +74,10 @@ const PANELS: Record<string, PanelConfig> = {
       { kind: 'pending', key: 'defaultType', control: 'select', label: 'Default client type', description: 'Will be pre-selected when adding a new client' },
     ],
   },
+  // Documents solo muestra ajustes con backend (enlaces públicos, reglas de compartir, subidas del
+  // cliente). Los días de la papelera son de plataforma (PlatformAdmin), no de la oficina.
   documents: {
-    fields: [
-      { kind: 'pending', key: 'autoOcr', control: 'toggle', label: 'Auto-scan uploaded PDFs', description: 'Will extract text for search automatically' },
-      { kind: 'pending', key: 'retention', control: 'select', label: 'Retention policy', description: 'Will define how long deleted files stay in the recycle bin' },
-    ],
+    fields: [],
   },
   invoices: {
     fields: [
@@ -114,7 +115,7 @@ const PANELS: Record<string, PanelConfig> = {
  */
 @Component({
   selector: 'app-settings-panel',
-  imports: [SwitchComponent, CommonModule, FormsModule, RouterLink, PublicSharingSettingComponent],
+  imports: [SwitchComponent, CommonModule, FormsModule, RouterLink, PublicSharingSettingComponent, SharingPolicySettingComponent, PortalUploadsSettingComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './settings-panel.component.html',
 })
@@ -127,7 +128,9 @@ export class SettingsPanelComponent implements OnChanges {
   readonly note = signal<string | null>(PANELS['overview'].note ?? null);
 
   /** true si en este módulo no hay un solo campo que llegue al backend. */
-  readonly allPending = computed(() => this.fields().every(field => field.kind === 'pending'));
+  readonly allPending = computed(
+    () => this.fields().length > 0 && this.fields().every(field => field.kind === 'pending'),
+  );
 
   /** true si hay al menos un campo sin respaldo (para mostrar el aviso). */
   readonly hasPending = computed(() => this.fields().some(field => field.kind === 'pending'));

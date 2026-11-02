@@ -51,6 +51,7 @@ import { SignatureStore } from '../../data-access/signature.store';
 import {
   CHANNEL_META,
   FIELD_TYPE_CIRCLE,
+  FIELD_MIN_SIZE,
   FIELD_TYPE_ICON,
   FIELD_TYPE_LABEL,
   clientTypeBadge,
@@ -75,6 +76,7 @@ import {
   renderPdfPages,
 } from '../../utils/pdf-render.util';
 import { nextSeqAfter } from '../../utils/editor-id-seq.util';
+import { clientSignerId, isClientSignerId, syncClientSigners } from '../../utils/client-signers.util';
 import { movePageInOrder } from '../../utils/pdf-reorder.util';
 import {
   buildMaskedLabel,
@@ -92,7 +94,6 @@ import {
   projectFieldToPage,
   resizeFieldFromCenter,
   scaleFieldFromCenter,
-  reassignSignerFields,
   remapFieldsToPages,
   rescaleFieldsBetweenPages,
   scaleSize,
@@ -106,7 +107,13 @@ import {
   readPanelCollapsed,
   writePanelCollapsed,
 } from '../../utils/panel-collapse.util';
-import { StampFontSizeResult, stampFontSizeForBox } from '../../utils/stamp-font-size.util';
+import {
+  StampPreview,
+  fontSizeOptions,
+  formatStampDate,
+  hasFontSize,
+  stampPreview,
+} from '../../utils/stamp-font-size.util';
 import { startPointerDrag } from '../../utils/pointer-drag.util';
 import {
   RETURN_MS,
@@ -123,22 +130,8 @@ import { prefersReducedMotion } from '@shared/utils/reduced-motion.util';
 import { PermissionService } from '../../../../core/auth/permission.service';
 import { AuthService } from '../../../../core/auth/auth.service';
 
-const MIN_W = 48;
-const MIN_H = 28;
-
-/**
- * Mínimo de tamaño POR TIPO al redimensionar, en px a zoom 100% (se escala por el zoom actual).
- * Una firma/iniciales se sella como un cuño apilado (firma + fecha, y caption si cabe): por debajo
- * de ~44px de alto la firma queda diminuta y se encarama sobre la fecha en el PDF. Fecha/texto sí
- * pueden ser más bajos. Evita que el preparador achique el campo a algo inusable.
- */
-const MIN_SIZE_BY_TYPE: Record<FieldType, { w: number; h: number }> = {
-  signature: { w: 120, h: 44 },
-  // Las iniciales son una marca pequeña: se permite achicarlas bastante (antes 64×40 las dejaba grandes).
-  initials: { w: 40, h: 24 },
-  date: { w: MIN_W, h: MIN_H },
-  text: { w: MIN_W, h: MIN_H },
-};
+/** Canales con código OTP, en el orden del menú (sus nombres coinciden con los del backend). */
+const OTP_CHANNELS: VerificationChannel[] = ['email', 'sms', 'whatsapp'];
 
 /** Escala base del render (100% de zoom). */
 const BASE_SCALE = 1.2;
@@ -223,6 +216,8 @@ export interface NormalizedPlacedField {
   height: number;
   /** Instrucción/etiqueta del campo (solo `text`); el firmante la ve como placeholder. */
   label?: string;
+  /** Letra del estampado en pt; null = automática según la caja. */
+  fontSizePt?: number | null;
 }
 
 /**
@@ -260,7 +255,10 @@ export interface NormalizedPlacedField {
   styleUrl: './signature-pdf-editor.component.css',
 })
 export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
-  @Input() client: WizardClient | null = null;
+  /** Clientes de la solicitud: cada uno firma como `client:<id>` (el paso 1 exige al menos uno). */
+  @Input() clients: WizardClient[] = [];
+  /** Cliente fijado por el perfil (wizard embebido): su firmante no se puede quitar. */
+  @Input() pinnedClientId: string | null = null;
   @Input() document: WizardDocument | null = null;
   /** Siembra al continuar un borrador: firmantes + campos + reglas ya existentes. */
   @Input() seed: EditorSeed | null = null;
@@ -271,6 +269,8 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   @Input() keepFieldsOnDocumentChange = false;
   /** Nº de campos colocados (incluye los del preparador). Se emite desde un effect, nunca en ngOnChanges. */
   @Output() fieldCountChange = new EventEmitter<number>();
+  /** El editor sumó (cliente elegido en "Add signer") o quitó un cliente de la solicitud. */
+  @Output() clientsChange = new EventEmitter<WizardClient[]>();
   /** F2.5: cada vez que el editor consolida un cambio (campo, firmante, regla…). El panel autoguarda. */
   @Output() editorStateChanged = new EventEmitter<void>();
   /**
@@ -502,6 +502,8 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   constructor() {
     // El editor puede montarse sin que la página haya cargado las firmas todavía.
     this.store.loadSignatureProfiles();
+    // Regla de la letra y formato de fecha del estampado (vista previa WYSIWYG).
+    this.store.loadLimits();
     // B5: necesitamos los defaults del despacho para preseleccionarlos en una request nueva.
     this.store.loadSignatureSettings();
     // Preselecciona los defaults del tenant SOLO en una request nueva (sin seed de borrador) y antes
@@ -577,7 +579,8 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   /** Modal "Add signer": cliente registrado o datos manuales + canal. */
   readonly isAddSignerOpen = signal(false);
-  readonly draftClientId = signal('');
+  /** Cliente registrado elegido en el buscador; mientras haya uno, el email es el suyo (lo vincula). */
+  readonly draftClient = signal<WizardClient | null>(null);
   readonly draftName = signal('');
   readonly draftEmail = signal('');
   readonly draftPhone = signal('');
@@ -619,7 +622,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   /** Elegir un cliente del buscador: autollena nombre/email/teléfono (editables) y cierra la lista. */
   pickRegisteredClient(client: WizardClient): void {
-    this.draftClientId.set(client.id);
+    this.draftClient.set(client);
     this.draftName.set(client.displayName);
     this.draftEmail.set(client.email);
     this.draftPhone.set(client.phone ?? '');
@@ -629,7 +632,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   /** Volver a captura manual: limpia la selección y deja escribir a mano. */
   clearRegisteredClient(): void {
-    this.draftClientId.set('');
+    this.draftClient.set(null);
     this.clientListOpen.set(false);
     this.signerClientSearch.set('');
   }
@@ -760,9 +763,9 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     if (changes['seed']) {
       this.applySeed();
     }
-    // También en modo sembrado: si el cliente cambió (id distinto), su firmante y sus campos pasan al nuevo.
-    if (changes['client']) {
-      this.syncClientSigner();
+    // También en modo sembrado: los firmantes cliente siguen a los clientes de la solicitud.
+    if (changes['clients']) {
+      this.syncClientSigners();
     }
     if (changes['document']) {
       this.hasDocument.set(this.document !== null);
@@ -869,6 +872,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
         ),
         signerId: field.signerLocalId,
         label: field.label,
+        fontSizePt: field.fontSizePt ?? null,
       });
     }
     this.pendingSeedFields.set(remaining.length > 0 ? remaining : null);
@@ -899,7 +903,16 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   // ---------- firmantes ----------
 
   isClientSigner(signer: EditorSigner): boolean {
-    return signer.id.startsWith('client:');
+    return isClientSignerId(signer.id);
+  }
+
+  /** Un externo siempre se puede quitar; un cliente, mientras quede otro (la solicitud es para un cliente). */
+  canRemoveSigner(signer: EditorSigner): boolean {
+    if (!this.isClientSigner(signer)) {
+      return true;
+    }
+    const pinned = this.pinnedClientId !== null && signer.id === clientSignerId(this.pinnedClientId);
+    return !pinned && this.clients.length > 1;
   }
 
   setActiveSigner(id: string): void {
@@ -1114,7 +1127,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   }
 
   private minSizeFor(field: PlacedField): { w: number; h: number } {
-    return scaleSize(MIN_SIZE_BY_TYPE[field.type], this.zoom());
+    return scaleSize(FIELD_MIN_SIZE[field.type], this.zoom());
   }
 
   /** 2 = "doblar" el tamaño, 1.25 = agrandar, 0.8 = achicar; siempre desde el centro del campo. */
@@ -1143,7 +1156,8 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
         if (f.id === id || f.type !== source.type || f.documentLocalId !== docId || !page) {
           return f;
         }
-        return resizeFieldFromCenter(f, { w: source.width, h: source.height }, this.minSizeFor(f), page);
+        const resized = resizeFieldFromCenter(f, { w: source.width, h: source.height }, this.minSizeFor(f), page);
+        return { ...resized, fontSizePt: source.fontSizePt ?? null };
       }),
     );
     this.markDirty();
@@ -1258,7 +1272,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   }
 
   openAddSigner(): void {
-    this.draftClientId.set('');
+    this.draftClient.set(null);
     this.draftName.set('');
     this.draftEmail.set('');
     this.draftPhone.set('');
@@ -1303,7 +1317,9 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       this.draftError.set('Confirm the signer agreed to receive text messages.');
       return;
     }
-    const id = this.nextId('signer');
+    // Cliente registrado = firmante cliente (y se suma a los clientes de la solicitud); si no, externo.
+    const client = this.draftClient();
+    const id = client ? clientSignerId(client.id) : this.nextId('signer');
     this.signers.update((list) => {
       const color = SIGNER_PALETTE[list.length % SIGNER_PALETTE.length].bg;
       return [
@@ -1316,12 +1332,16 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
           channel: this.draftChannel(),
           phone,
           language: this.draftLanguage(),
+          avatarFileId: client?.avatarFileId ?? null,
         },
       ];
     });
     this.activeSignerId.set(id);
     this.markDirty();
     this.closeAddSigner();
+    if (client) {
+      this.clientsChange.emit([...this.clients, client]);
+    }
   }
 
   /** Reordenar firmantes (solo tiene sentido en modo secuencial; CDK drag-drop). */
@@ -1353,14 +1373,23 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
 
   // ---------- reglas (se editan en Review; aquí solo viven) ----------
 
-  /** Canales de ENTREGA reales (por firmante). 'app' no entrega a firmantes externos, se excluye. */
-  readonly deliveryChannels: VerificationChannel[] = ['email', 'sms', 'whatsapp', 'none'];
+  /**
+   * Canales de ENTREGA reales (por firmante): los que permiten el plan y la oficina (límites vigentes)
+   * más "sin código". 'app' no entrega a firmantes externos, se excluye. Mientras cargan los límites
+   * se ofrecen todos: el backend rechaza igual un canal no permitido.
+   */
+  readonly deliveryChannels = computed<VerificationChannel[]>(() => {
+    const allowed = this.store.limits()?.allowedChannels;
+    const offered = OTP_CHANNELS.filter(
+      (channel) => !allowed || allowed.some((name) => name.toLowerCase() === channel),
+    );
+    return [...offered, 'none'];
+  });
 
   /** Canales a ofrecer para un firmante: los de entrega + el suyo si vino sembrado con otro (p. ej. 'app'). */
   channelOptionsFor(signer: EditorSigner): VerificationChannel[] {
-    return this.deliveryChannels.includes(signer.channel)
-      ? this.deliveryChannels
-      : [...this.deliveryChannels, signer.channel];
+    const channels = this.deliveryChannels();
+    return channels.includes(signer.channel) ? channels : [...channels, signer.channel];
   }
 
   /** Fija el canal de UN firmante (incluido el cliente). Es lo que decide su invitación + OTP. */
@@ -1418,8 +1447,9 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
   }
 
   removeSigner(id: string): void {
-    if (id.startsWith('client:')) {
-      return; // el cliente es firmante obligatorio
+    const signer = this.signers().find((s) => s.id === id);
+    if (!signer || !this.canRemoveSigner(signer)) {
+      return;
     }
     this.signers.update((list) => list.filter((s) => s.id !== id));
     this.fields.update((list) => list.filter((f) => f.signerId !== id));
@@ -1430,52 +1460,42 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       this.selectedFieldId.set(null);
     }
     this.markDirty();
+    if (this.isClientSigner(signer)) {
+      this.clientsChange.emit(this.clients.filter((client) => clientSignerId(client.id) !== id));
+    }
   }
 
-  /**
-   * Firmante cliente = `client:<id>`. Si el cliente cambia, se reemplaza EN SU SITIO (conserva color
-   * y posición en el orden) y sus campos pasan al nuevo con ids nuevos — antes quedaban huérfanos y
-   * el envío los descartaba en silencio. Mismo id = nada que hacer (respeta canal/teléfono sembrados).
-   */
-  private syncClientSigner(): void {
-    const client = this.client;
-    const list = this.signers();
-    const current = list.find((s) => this.isClientSigner(s)) ?? null;
-    if (!client) {
-      if (current) {
-        this.signers.set(list.filter((s) => s !== current));
-        this.fields.update((fields) => fields.filter((f) => f.signerId !== current.id));
-      }
+  /** Los firmantes cliente siguen a los clientes de la solicitud (ver `syncClientSigners`). */
+  private syncClientSigners(): void {
+    const result = syncClientSigners(
+      this.signers(),
+      this.fields(),
+      this.clients,
+      (client, color) => ({
+        id: clientSignerId(client.id),
+        name: client.displayName,
+        email: client.email,
+        color: color ?? SIGNER_PALETTE[this.signers().length % SIGNER_PALETTE.length].bg,
+        channel: this.defaultSignerChannel(),
+        phone: client.phone ?? '',
+        language: 'En',
+        avatarFileId: client.avatarFileId ?? null,
+      }),
+      () => this.nextId('field'),
+    );
+    if (!result.changed) {
       return;
     }
-    const nextId = `client:${client.id}`;
-    if (current?.id === nextId) {
-      return;
+    this.signers.set(result.signers);
+    this.fields.set(result.fields);
+    const active = this.activeSignerId();
+    const moved = active ? result.replaced[active] : undefined;
+    if (moved) {
+      this.activeSignerId.set(moved);
+    } else if (!active || !result.signers.some((s) => s.id === active)) {
+      this.activeSignerId.set(result.signers[0]?.id ?? null);
     }
-    const clientSigner: EditorSigner = {
-      id: nextId,
-      name: client.displayName,
-      email: client.email,
-      color: current?.color ?? SIGNER_PALETTE[0].bg,
-      channel: this.defaultSignerChannel(),
-      phone: client.phone ?? '',
-      language: 'En',
-    };
-    if (current) {
-      this.signers.set(list.map((s) => (s === current ? clientSigner : s)));
-      this.fields.update((fields) =>
-        reassignSignerFields(fields, current.id, nextId, () => this.nextId('field')),
-      );
-      if (this.activeSignerId() === current.id) {
-        this.activeSignerId.set(nextId);
-      }
-      this.markDirty();
-    } else {
-      this.signers.set([clientSigner, ...list]);
-    }
-    if (!this.activeSignerId() || !this.signers().some((s) => s.id === this.activeSignerId())) {
-      this.activeSignerId.set(this.signers()[0]?.id ?? null);
-    }
+    this.markDirty();
   }
 
   // ---------- campos ----------
@@ -1834,13 +1854,60 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
    * sealing engine son en PT del PDF. Dividir por `page.scale` convierte. Sin esto el número se
    * clava en el máximo porque px ≈ 1.33× pt y la fórmula satura.
    */
-  readonly selectedFieldFontBadge = computed<StampFontSizeResult | null>(() => {
-    const field = this.selectedField();
-    if (!field || this.isPreparerField(field)) return null;
-    const page = this.pageBox(field.page);
-    if (!page || page.scale <= 0) return null;
-    return stampFontSizeForBox(field.type, field.height / page.scale, field.width / page.scale);
+  readonly selectedFieldFontBadge = computed<StampPreview | null>(() => {
+    const id = this.selectedFieldId();
+    return id ? (this.stampPreviews().get(id) ?? null) : null;
   });
+
+  /**
+   * Vista previa WYSIWYG de iniciales, fecha y texto: misma regla que el sellador (letra elegida o
+   * automática, solo se achica si no cabe), con la fecha en el formato de la oficina. Computed para
+   * memoizar por referencia (ver nota de arriba). Sin límites cargados no se inventa nada: sin vista previa.
+   */
+  readonly stampPreviews = computed<ReadonlyMap<string, StampPreview>>(() => {
+    const limits = this.store.limits();
+    const previews = new Map<string, StampPreview>();
+    if (!limits) {
+      return previews;
+    }
+    const today = formatStampDate(new Date(), limits.datePattern);
+    for (const field of this.fields()) {
+      const page = this.pageBox(field.page);
+      if (!page || this.isPreparerField(field)) {
+        continue;
+      }
+      const content =
+        field.type === 'initials'
+          ? this.signerNameOf(field.signerId)
+          : field.type === 'date'
+            ? today
+            : field.label?.trim()
+              ? this.displayLabel(field.label)
+              : '';
+      const preview = stampPreview({ ...field, content }, page.scale, limits);
+      if (preview) {
+        previews.set(field.id, preview);
+      }
+    }
+    return previews;
+  });
+
+  /** Tamaños ofrecidos en el inspector, dentro del rango que permite el backend. */
+  readonly fontSizeOptions = computed<number[]>(() => {
+    const limits = this.store.limits();
+    return limits ? fontSizeOptions(limits) : [];
+  });
+
+  readonly hasFontSize = hasFontSize;
+
+  /** Letra del estampado del campo: null = automática según la caja. */
+  setFieldFontSize(id: string, fontSizePt: number | null): void {
+    if (this.interactionLocked()) {
+      return;
+    }
+    this.fields.update((list) => list.map((f) => (f.id === id ? { ...f, fontSizePt } : f)));
+    this.markDirty();
+  }
 
   removeField(id: string): void {
     if (this.interactionLocked()) {
@@ -2044,7 +2111,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
     if (!pageEl || !page) {
       return;
     }
-    const min = scaleSize(MIN_SIZE_BY_TYPE[field.type], this.zoom());
+    const min = scaleSize(FIELD_MIN_SIZE[field.type], this.zoom());
     const startW = field.width;
     const startH = field.height;
     this.beginDrag(event, pageEl, ({ dx, dy }) => {
@@ -2170,6 +2237,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
       height: 0,
       signerId: field.signerLocalId,
       label: field.label,
+      fontSizePt: field.fontSizePt ?? null,
     }));
     return [...this.fields(), ...pending];
   }
@@ -2219,6 +2287,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
         page: field.page,
         ...rect,
         label: field.type === 'text' ? field.label?.trim() || undefined : undefined,
+        fontSizePt: hasFontSize(field.type) ? (field.fontSizePt ?? null) : null,
       });
     }
     for (const field of this.pendingSeedFields() ?? []) {
@@ -2236,6 +2305,7 @@ export class SignaturePdfEditorComponent implements OnChanges, AfterViewInit {
         width: field.nw,
         height: field.nh,
         label: field.label,
+        fontSizePt: field.fontSizePt ?? null,
       });
     }
     return out;

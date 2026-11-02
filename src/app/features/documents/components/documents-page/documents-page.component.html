@@ -389,6 +389,7 @@
   [isOpen]="uploadOpen()"
   [ownerLabel]="ownerLabel()"
   [folderLabel]="currentFolderLabel()"
+  [policy]="uploadPolicy()"
   (uploaded)="confirmUpload($event)"
   (cancelled)="uploadOpen.set(false)" />
 
@@ -425,6 +426,7 @@
   [file]="shareTarget()"
   [folder]="shareFolderTarget()"
   [publicSharing]="publicSharing()"
+  [policy]="sharingPolicy()"
   [shares]="fileShares()"
   (created)="confirmShare($event)"
   (createdFolder)="confirmFolderShare($event)"

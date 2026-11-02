@@ -27,15 +27,15 @@
 
   <!-- Modo subir -->
   <div *ngIf="docSource() === 'upload'" class="mt-3">
-    <app-dropzone accept=".pdf,application/pdf" [multiple]="false" [maxBytes]="MAX_UPLOAD_BYTES"
+    <app-dropzone accept=".pdf,application/pdf" [multiple]="false" [maxBytes]="maxUploadBytes()"
       [disabled]="busy()" label="Click to pick a PDF or drag and drop here"
-      hint="PDF only, up to 25MB · validated before replacing" (files)="onFiles($event)"
+      [hint]="uploadHint()" (files)="onFiles($event)"
       (rejected)="onRejected($event)"></app-dropzone>
   </div>
 
   <!-- Modo library -->
   <div *ngIf="docSource() === 'library'" class="mt-3">
-    <app-signature-document-library [ownerFilterId]="clientId" [selectedFileId]="candidate()?.fileId ?? null"
+    <app-signature-document-library [ownerFilterIds]="clientIds" [selectedFileId]="candidate()?.fileId ?? null"
       (picked)="onLibraryPicked($event)"></app-signature-document-library>
   </div>
 

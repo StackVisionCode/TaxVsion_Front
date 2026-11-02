@@ -12,7 +12,8 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { PublicSignerFieldView } from '../../data-access/public-signature.model';
+import { PublicSignerFieldView, PublicStampStyleView } from '../../data-access/public-signature.model';
+import { fitWrappedText, startingFontSize } from '../../utils/stamp-font-size.util';
 
 /** Mismo tope que `SignatureFieldValue.MaxLength` en el backend. */
 export const FIELD_VALUE_MAX_LENGTH = 500;
@@ -75,6 +76,10 @@ export class SignDocumentViewComponent implements OnChanges {
   /** Imagen (data URL) de cada página, indexada por número de página. null = hoja en blanco. */
   @Input() pageImages: Record<number, string> | null = null;
   @Input() pageAspectRatios: Record<number, number> | null = null;
+  /** Ancho de cada página en pt del PDF (null = sin vista previa del tamaño). */
+  @Input() pageWidthsPt: Record<number, number> | null = null;
+  /** Regla de la letra del estampado que manda el backend con la vista pública. */
+  @Input() stampStyle: PublicStampStyleView | null = null;
   @Input() zoomPercent = 100;
   @Input() selectedFieldId: string | null = null;
 
@@ -201,6 +206,25 @@ export class SignDocumentViewComponent implements OnChanges {
       default:
         return this.labelText(field) || 'Text';
     }
+  }
+
+  /**
+   * Letra del texto en pantalla = la que tendrá en el PDF sellado (misma regla que el sellador:
+   * elegida o automática según la caja, achicada si lo escrito no cabe). En `cqw` del ancho de la
+   * hoja, así acompaña al zoom. null = sin datos de la página: se queda la letra de la UI.
+   */
+  textFontSize(field: PublicSignerFieldView): string | null {
+    const widthPt = this.pageWidthsPt?.[field.page];
+    const ratio = this.pageAspectRatios?.[field.page];
+    const style = this.stampStyle;
+    if (!widthPt || !ratio || !style) {
+      return null;
+    }
+    const box = { widthPt: field.width * widthPt, heightPt: field.height * (widthPt / ratio) };
+    const start = startingFontSize(field.fontSizePt, box.heightPt, style);
+    const value = this.values[field.id]?.trim();
+    const pt = value ? fitWrappedText(value, start, box, style) : start;
+    return `${((pt / widthPt) * 100).toFixed(4)}cqw`;
   }
 
   /** Posición del campo en % de la hoja (el navegador escala solo con el ancho). */

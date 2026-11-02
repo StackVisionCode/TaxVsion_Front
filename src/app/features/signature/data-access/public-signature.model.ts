@@ -93,6 +93,8 @@ export interface PublicSignerFieldView {
   height: number;
   label: string | null;
   isRequired: boolean;
+  /** Letra del estampado en pt; null = automática según la caja. */
+  fontSizePt?: number | null;
 }
 
 export interface PublicSignerDocumentView {
@@ -148,6 +150,16 @@ export interface PublicSignerView {
   tenantSubDomain: string;
   /** F7 — true si al firmar este signer recibirá una copia inmediata. */
   partialCopyWillBeSent: boolean;
+  /** Cómo se estampan sus campos: formato de fecha y la regla de la letra automática. */
+  stampStyle?: PublicStampStyleView | null;
+}
+
+export interface PublicStampStyleView {
+  datePattern: string;
+  autoFontMinPt: number;
+  autoFontMaxPt: number;
+  autoHeightRatio: number;
+  minFontSizePt: number;
 }
 
 // ---------- Bodies de las mutaciones ----------

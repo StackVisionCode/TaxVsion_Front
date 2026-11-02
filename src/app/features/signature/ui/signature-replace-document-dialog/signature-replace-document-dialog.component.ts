@@ -22,8 +22,7 @@ import { SignatureDocumentLibraryComponent } from '../signature-document-library
 import { SignatureStore } from '../../data-access/signature.store';
 import { DocumentValidationIssue, ValidateDocumentResponse } from '../../data-access/signature.model';
 import { WizardDocument } from '../signature-request-panel/signature-wizard.model';
-
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+import { parseUtcDate } from '@shared/utils/utc-date.util';
 
 type DocSource = 'upload' | 'library';
 type Phase = 'idle' | 'validating' | 'uploading' | 'rejected' | 'failed';
@@ -47,8 +46,8 @@ export class SignatureReplaceDocumentDialogComponent implements OnChanges {
   @Input() isOpen = false;
   /** Documento que se va a reemplazar (muestra su nombre y page count en el header). */
   @Input() currentDocument: WizardDocument | null = null;
-  /** Cliente activo del wizard: acota la librería a sus PDF. */
-  @Input() clientId: string | null = null;
+  /** Clientes del wizard: acotan la librería a sus PDF. */
+  @Input() clientIds: readonly string[] = [];
   /** fileIds que ya forman parte de la request; se filtran de la librería para evitar duplicados. */
   @Input() excludedFileIds: readonly string[] = [];
   /** true = el padre está corriendo la llamada backend; deshabilita acciones. */
@@ -57,7 +56,12 @@ export class SignatureReplaceDocumentDialogComponent implements OnChanges {
   @Output() replace = new EventEmitter<WizardDocument>();
   @Output() cancelled = new EventEmitter<void>();
 
-  readonly MAX_UPLOAD_BYTES = MAX_UPLOAD_BYTES;
+  /** Tamaño de PDF vigente de la oficina (0 mientras carga: valida el backend). */
+  readonly maxUploadBytes = computed(() => this.store.limits()?.maxPdfBytes ?? 0);
+  readonly sizeLabel = computed(() => (this.maxUploadBytes() ? formatBytes(this.maxUploadBytes()) : ''));
+  readonly uploadHint = computed(() =>
+    this.sizeLabel() ? `PDF only, up to ${this.sizeLabel()} · validated before replacing` : 'PDF only · validated before replacing',
+  );
   readonly docSource = signal<DocSource>('upload');
   readonly phase = signal<Phase>('idle');
   readonly issues = signal<DocumentValidationIssue[]>([]);
@@ -106,7 +110,7 @@ export class SignatureReplaceDocumentDialogComponent implements OnChanges {
     if (!first) return;
     this.errorMessage.set(
       first.reason === 'size'
-        ? 'The file must be smaller than 25MB.'
+        ? `The file must be smaller than ${this.sizeLabel()}.`
         : 'Only PDF documents can be sent for signature.',
     );
   }
@@ -132,7 +136,7 @@ export class SignatureReplaceDocumentDialogComponent implements OnChanges {
         name: file.originalName,
         kind: 'pdf',
         size: formatBytes(file.sizeBytes),
-        date: new Date(file.createdAtUtc).toLocaleDateString('en-US', {
+        date: parseUtcDate(file.createdAtUtc).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
           year: 'numeric',
@@ -184,8 +188,8 @@ export class SignatureReplaceDocumentDialogComponent implements OnChanges {
 
   private acceptFile(file: File): void {
     if (this.busy()) return;
-    if (file.size > MAX_UPLOAD_BYTES) {
-      this.errorMessage.set('The file must be smaller than 25MB.');
+    if (this.maxUploadBytes() && file.size > this.maxUploadBytes()) {
+      this.errorMessage.set(`The file must be smaller than ${this.sizeLabel()}.`);
       return;
     }
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');

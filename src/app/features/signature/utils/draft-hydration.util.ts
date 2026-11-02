@@ -17,6 +17,7 @@ import {
   avatarColor,
   defaultRules,
 } from '../ui/signature-request-panel/signature-wizard.presenter';
+import { clientSignerId } from './client-signers.util';
 
 /** El backend usa Checkbox, que el editor no modela: se degrada a texto. */
 export function kindToFieldType(kind: SignatureFieldKind): FieldType {
@@ -32,21 +33,13 @@ export function kindToFieldType(kind: SignatureFieldKind): FieldType {
   }
 }
 
-/** Un campo original tal como está en el backend (para el diff al guardar/enviar). */
-export interface OriginalField {
-  editorLocalId: string;
-  fieldId: string;
-  signerBackendId: string;
-}
-
 export interface DraftHydration {
-  client: WizardClient;
+  /** Clientes de la solicitud (firmantes vinculados a un cliente), en el orden de firma. */
+  clients: WizardClient[];
   seed: EditorSeed;
   /** Estado de envío pre-poblado: el commit NO re-crea/re-agrega lo ya existente. */
   sendState: WizardSendState;
   original: {
-    signerBackendIds: string[];
-    fields: OriginalField[];
     preparerFields: { editorLocalId: string; fieldId: string }[];
   };
   metadata: {
@@ -61,31 +54,44 @@ export interface DraftHydration {
 /**
  * Traduce un borrador del backend a todo lo que el wizard necesita para reabrirlo y editarlo:
  * el cliente, la siembra del editor (firmantes + campos normalizados), el `sendState` que evita
- * duplicar lo ya creado, y los ids originales para calcular el diff al guardar/enviar.
+ * duplicar lo ya creado, y los campos del preparador originales (el upsert no los cubre).
  *
- * El firmante "cliente" es el que tiene `mappedCustomerId` (o el primero por orden); su localId es
- * `client:<id>` para que el editor lo trate como obligatorio. Los demás usan `seed-<backendId>`.
+ * Cada firmante vinculado a un cliente (`mappedCustomerId`) es un cliente de la solicitud con localId
+ * `client:<customerId>`; si ninguno lo está, el primero hace de cliente (borradores viejos). Los demás
+ * usan `seed-<backendId>`.
  * Ojo: SignerResponse no trae canal/teléfono/idioma, así que se muestran por defecto; como el commit
  * no re-agrega firmantes existentes, sus valores reales en el backend se conservan.
  */
 export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydration {
   const signers = [...detail.signers].sort((a, b) => a.order - b.order);
-  const clientSigner = signers.find((s) => s.mappedCustomerId !== null) ?? signers[0] ?? null;
-  const clientId = clientSigner?.mappedCustomerId ?? `draft:${detail.id}`;
-  const clientLocalId = `client:${clientId}`;
+  // Un cliente por customerId (el primer firmante que lo trae); sin ninguno, el primer firmante.
+  const clientIdBySigner = new Map<string, string>();
+  for (const signer of signers) {
+    const customerId = signer.mappedCustomerId;
+    if (customerId && ![...clientIdBySigner.values()].includes(customerId)) {
+      clientIdBySigner.set(signer.id, customerId);
+    }
+  }
+  if (clientIdBySigner.size === 0 && signers[0]) {
+    clientIdBySigner.set(signers[0].id, `draft:${detail.id}`);
+  }
 
-  const localIdOf = (signerId: string): string =>
-    clientSigner && signerId === clientSigner.id ? clientLocalId : `seed-${signerId}`;
-
-  const client: WizardClient = {
-    id: clientId,
-    displayName: clientSigner?.fullName ?? 'Client',
-    email: clientSigner?.email ?? '',
-    phone: '',
-    type: 'individual',
-    isActive: true,
-    createdAt: '',
+  const localIdOf = (signerId: string): string => {
+    const clientId = clientIdBySigner.get(signerId);
+    return clientId ? clientSignerId(clientId) : `seed-${signerId}`;
   };
+
+  const clients: WizardClient[] = signers
+    .filter((signer) => clientIdBySigner.has(signer.id))
+    .map((signer) => ({
+      id: clientIdBySigner.get(signer.id)!,
+      displayName: signer.fullName,
+      email: signer.email,
+      phone: '',
+      type: 'individual',
+      isActive: true,
+      createdAt: '',
+    }));
 
   const editorSigners: EditorSigner[] = signers.map((signer, index) => ({
     id: localIdOf(signer.id),
@@ -98,7 +104,6 @@ export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydrat
   }));
 
   const seedFields: EditorSeedField[] = [];
-  const originalFields: OriginalField[] = [];
   const postedFieldLocalIds: string[] = [];
   const signerIdByLocal: Record<string, string> = {};
 
@@ -117,13 +122,9 @@ export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydrat
         nh: field.height,
         signerLocalId: localIdOf(signer.id),
         label: field.label ?? undefined,
+        fontSizePt: field.fontSizePt ?? null,
       });
       postedFieldLocalIds.push(localId);
-      originalFields.push({
-        editorLocalId: localId,
-        fieldId: field.id,
-        signerBackendId: signer.id,
-      });
     }
   }
 
@@ -168,7 +169,7 @@ export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydrat
   };
 
   return {
-    client,
+    clients,
     seed: {
       signers: editorSigners,
       fields: seedFields,
@@ -194,8 +195,6 @@ export function buildDraftHydration(detail: SignatureRequestDetail): DraftHydrat
       sent: false,
     },
     original: {
-      signerBackendIds: signers.map((s) => s.id),
-      fields: originalFields,
       preparerFields: preparerOriginal,
     },
     metadata: {

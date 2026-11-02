@@ -106,10 +106,11 @@ export interface SignatureSettings {
   generateCertificateByDefault: boolean;
   allowEmployeeOwnSignature: boolean;
   maxPdfBytes: number;
-  maxImageBytes: number;
   maxPagesPerDocument: number;
   retentionYears: number;
   allowPurge: boolean;
+  /** Techos vigentes (plan + excepción de PlatformAdmin): hasta dónde puede llegar la oficina. */
+  planConstraints: SignaturePlanCeilings;
   // F7 — nuevos defaults de entrega + expiración.
   sendPartialCopyDefault: boolean;
   partialCopyDefaultAudienceKind: PartialCopyAudienceKind;
@@ -118,6 +119,92 @@ export interface SignatureSettings {
   // Política legal del despacho: emailar el certificado a firmantes y exigir consentimiento ESIGN.
   sendCertificateToSignersDefault: boolean;
   requiresConsentByDefault: boolean;
+  /** Entrega de los documentos firmados (enlace propio de Signature, no un share). */
+  delivery: DeliveryPolicy;
+  // Estampado del PDF sellado.
+  showSignatureFrame: boolean;
+  dateStampFormat: DateStampFormat;
+}
+
+export interface DeliveryPolicy {
+  linkLifetimeDays: number;
+  allowPublicReissue: boolean;
+  attachDocuments: boolean;
+  maxAttachmentBytes: number;
+}
+
+/** Techos del plan con la excepción de PlatformAdmin (`planConstraints` de GET /signature/settings). */
+export interface SignaturePlanCeilings {
+  maxDocumentsPerRequest: number;
+  maxSignersPerRequest: number;
+  maxAllowedPdfBytes: number;
+  maxAllowedPages: number;
+  minRetentionYears: number;
+  purgeAllowed: boolean;
+  allowedChannels: string[];
+  maxTokenExpirationHours: number;
+}
+
+/**
+ * GET /signature/settings/effective-limits — lo que rige hoy para la oficina. El wizard, el panel de la
+ * solicitud y los ajustes no tienen números propios: todo sale de aquí.
+ */
+export interface EffectiveSignatureLimits {
+  plan: {
+    maxDocumentsPerRequest: number;
+    maxSignersPerRequest: number;
+    maxPdfBytes: number;
+    maxPagesPerDocument: number;
+    maxTokenHours: number;
+    minRetentionYears: number;
+    purgeAllowed: boolean;
+    allowedChannels: string[];
+  };
+  maxPdfBytes: number;
+  maxPagesPerDocument: number;
+  minTokenHours: number;
+  defaultTokenHours: number;
+  retentionYears: number;
+  maxRetentionYears: number;
+  purgeEnabled: boolean;
+  allowedChannels: string[];
+  defaultChannel: string;
+  otpLength: number;
+  otpLifetimeMinutes: number;
+  otpResendCooldownSeconds: number;
+  maxSignatureImageBytes: number;
+  maxProfilesPerPreparer: number;
+  maxRolesPerTemplate: number;
+  maxFieldsPerSigner: number;
+  minReminderIntervalHours: number;
+  maxReminderIntervalHours: number;
+  minDeliveryLinkDays: number;
+  maxDeliveryLinkDays: number;
+  minDeliveryAttachmentBytes: number;
+  maxDeliveryAttachmentBytes: number;
+  // Estampado: marco de la firma, formato de fecha y la regla de la letra (misma que el sellador).
+  showSignatureFrame: boolean;
+  dateStampFormat: DateStampFormat;
+  /** Patrón .NET de la fecha estampada (p. ej. "MM/dd/yyyy"). */
+  datePattern: string;
+  autoFontMinPt: number;
+  autoFontMaxPt: number;
+  autoHeightRatio: number;
+  minFontSizePt: number;
+  maxFontSizePt: number;
+}
+
+/** Formato de la fecha estampada que elige la oficina. */
+export type DateStampFormat = 'MonthDayYear' | 'DayMonthYear' | 'IsoDate';
+
+/** Horas del enlace del firmante para una fecha límite, dentro del rango vigente (sin fecha = el default). */
+export function tokenHoursForDueDate(dueDate: string | null, limits: EffectiveSignatureLimits): number {
+  if (!dueDate) {
+    return limits.defaultTokenHours;
+  }
+  const endOfDay = new Date(`${dueDate}T23:59:59`);
+  const hours = Math.ceil((endOfDay.getTime() - Date.now()) / 3_600_000);
+  return Math.min(Math.max(hours, limits.minTokenHours), limits.plan.maxTokenHours);
 }
 
 /**
@@ -130,7 +217,7 @@ export interface SignatureSettingsUpdate {
   defaultTokenExpirationHours: number;
   remindersEnabledByDefault: boolean;
   generateCertificateByDefault: boolean;
-  documentLimits: { maxPdfBytes: number; maxImageBytes: number; maxPagesPerDocument: number };
+  documentLimits: { maxPdfBytes: number; maxPagesPerDocument: number };
   retentionPolicy: { retentionYears: number; allowPurge: boolean };
   defaultReminderIntervalHours: number;
   allowEmployeeOwnSignature: boolean;
@@ -140,13 +227,10 @@ export interface SignatureSettingsUpdate {
   expirationEnabledByDefault?: boolean | null;
   sendCertificateToSignersDefault?: boolean | null;
   requiresConsentByDefault?: boolean | null;
+  delivery?: DeliveryPolicy | null;
+  showSignatureFrame?: boolean | null;
+  dateStampFormat?: DateStampFormat | null;
 }
-
-/** Rango permitido por el dominio (SignatureRequest.ValidateFactoryInputs / ExtendExpiration). */
-export const TOKEN_EXPIRATION_MIN_HOURS = 1;
-export const TOKEN_EXPIRATION_MAX_HOURS = 720;
-/** Default cuando el usuario no elige fecha límite: 7 días. */
-export const TOKEN_EXPIRATION_DEFAULT_HOURS = 168;
 
 // ---------- Respuestas ----------
 
@@ -164,6 +248,8 @@ export interface SignatureFieldResponse {
   height: number;
   label: string | null;
   isRequired: boolean;
+  /** Letra del estampado en pt (iniciales/fecha/texto); null = automática según la caja. */
+  fontSizePt?: number | null;
 }
 
 export interface SignerResponse {
@@ -195,6 +281,25 @@ export interface PreparerFieldResponse {
   label: string | null;
 }
 
+export type DocumentVerificationStatus = 'Pending' | 'Verified' | 'Rejected';
+
+/** Entrega de documentos firmados a un firmante (enlace propio de Signature, no un share de Documents). */
+export interface SignedDocumentDelivery {
+  id: string;
+  signerId: string;
+  recipientEmail: string;
+  purpose: 'Completed' | 'PartialCopy';
+  status: 'Active' | 'Expired' | 'Revoked';
+  createdAtUtc: string;
+  lastIssuedAtUtc: string;
+  expiresAtUtc: string;
+  issueCount: number;
+  accessCount: number;
+  lastAccessedAtUtc: string | null;
+  revokedAtUtc: string | null;
+  items: { id: string; title: string; kind: 'SignedDocument' | 'Certificate' | 'PartialCopy' }[];
+}
+
 export interface SignatureRequestDocument {
   id: string;
   order: number;
@@ -206,6 +311,12 @@ export interface SignatureRequestDocument {
   hashPost: string | null;
   sealedAtUtc: string | null;
   note: string | null;
+  /** Páginas contadas por el servidor al verificar el PDF. */
+  pageCount?: number | null;
+  /** Revisión del PDF original en el servidor; solo `Verified` se puede enviar. */
+  verificationStatus?: DocumentVerificationStatus;
+  /** Motivo legible cuando el servidor rechazó el archivo (hay que reemplazarlo). */
+  rejectionReason?: string | null;
 }
 
 /** GET /signature/requests/{id} y respuesta de POST /signature/requests. */
@@ -337,10 +448,16 @@ export interface UpsertDraftField {
   height: number;
   label: string | null;
   isRequired: boolean;
+  /** Letra del estampado en pt (iniciales/fecha/texto); null = automática según la caja. */
+  fontSizePt?: number | null;
 }
 
+/** Versión para el siguiente upsert + ids que el servidor resolvió, en el orden del body. */
 export interface UpsertDraftResponse {
   updatedAtUtc: string;
+  documents: { localId: string; id: string }[];
+  signerIds: string[];
+  fieldIds: string[];
 }
 
 /** POST /signature/documents/validate. */
@@ -437,6 +554,8 @@ export interface TemplateFieldResponse {
   height: number;
   label: string | null;
   isRequired: boolean;
+  /** Letra del estampado en pt (iniciales/fecha/texto); null = automática según la caja. */
+  fontSizePt?: number | null;
 }
 
 /** Campo del preparador predefinido en la plantilla (sin slot). "from template" lo hereda. */
@@ -593,6 +712,8 @@ export interface PlaceTemplateFieldBody {
   height: number;
   label?: string | null;
   isRequired: boolean;
+  /** Letra del estampado en pt (iniciales/fecha/texto); null = automática según la caja. */
+  fontSizePt?: number | null;
 }
 
 /** Respuesta 201 de POST fields. */
@@ -748,6 +869,8 @@ export interface PlaceFieldBody {
   height: number;
   label?: string | null;
   isRequired: boolean;
+  /** Letra del estampado en pt (iniciales/fecha/texto); null = automática según la caja. */
+  fontSizePt?: number | null;
 }
 
 export interface ListSignatureRequestsParams {
@@ -846,6 +969,8 @@ export function detailToUiRequest(
       certificateFileId: document.certificateFileId,
       hashPost: document.hashPost,
       sealedAtUtc: document.sealedAtUtc,
+      verificationStatus: document.verificationStatus,
+      rejectionReason: document.rejectionReason,
     })),
     originalFileId: firstDocument?.originalFileId,
     sealedFileId: firstDocument?.sealedFileId ?? null,
@@ -860,6 +985,8 @@ export function detailToUiRequest(
     preparerFieldCount: detail.preparerFields.length,
     isOwnedByActor: currentUserId ? detail.createdByUserId === currentUserId : false,
     scheduledSendAtUtc: detail.scheduledSendAtUtc,
+    deliversToSigners:
+      detail.sendSealedDocumentToSigners || (detail.generateCertificate && detail.sendCertificateToSigners),
   };
 }
 

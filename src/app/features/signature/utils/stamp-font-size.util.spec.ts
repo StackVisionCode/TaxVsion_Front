@@ -1,70 +1,85 @@
 import { describe, expect, it } from 'vitest';
-import { StampFieldKind, stampFontSizeForBox } from './stamp-font-size.util';
+import {
+  INITIALS_TYPEFACE,
+  StampTextMeasurer,
+  StampTypography,
+  TEXT_TYPEFACE,
+  fitSingleLine,
+  fitWrappedText,
+  formatStampDate,
+  fontSizeOptions,
+  hasFontSize,
+  stampPreview,
+  startingFontSize,
+  toInitials,
+} from './stamp-font-size.util';
 
-/**
- * F6 — Las fórmulas aquí deben coincidir CON LA DEL BACKEND (PdfSharpSealingEngine.cs). Si el
- * sealing engine cambia, estos vectores deben actualizarse en el mismo PR o el preview mentirá.
- *
- * Vectores calculados a mano reproduciendo las fórmulas del backend:
- *  - signatureBand(h) = max(1, h - captionBand - metaBand - gap)
- *      captionBand = h>=34 ? min(10, h*0.20) : 0
- *      metaBand    = min(11, h*0.24)
- *      gap         = min(2, h*0.04)
- *  - signature: clamp(signatureBand * 0.72, 9, 24)   (sin FitFontSize posterior — fallback tipográfico)
- *  - initials : clamp(h * 0.55 * 0.8, 6, 20)         (starting size de FitFontSize; cap bajo)
- *  - text/date: clamp(h * 0.8, 6, 18)                (starting size; may shrink por ancho)
- */
-describe('stampFontSizeForBox (F6)', () => {
-  describe('signature (fallback tipográfico)', () => {
-    const cases: Array<[number, number]> = [
-      // h  → pt esperado
-      [20, 10], // caja chica → captionBand=0, metaBand=4.8, gap=0.8 → band=14.4 → 14.4*0.72=10.4 → round 10
-      [40, 15], // caja media → captionBand=8, metaBand=9.6, gap=1.6 → band=20.8 → 14.98 → round 15
-      [80, 24], // caja grande → captionBand=10, metaBand=11, gap=2 → band=57 → 41.04 → clamp a 24
-    ];
-    it.each(cases)('h=%d → %dpt', (h, expected) => {
-      const r = stampFontSizeForBox('signature', h);
-      expect(r.mayShrink).toBe(false);
-      expect(r.pt).toBe(expected);
-    });
+const RULE: StampTypography = { autoFontMinPt: 6, autoFontMaxPt: 12, autoHeightRatio: 0.75, minFontSizePt: 6 };
+// Medidor determinista: 0.5 em por carácter.
+const halfEm: StampTextMeasurer = (text, size) => text.length * size * 0.5;
+
+describe('stamp typography (same rule as the sealer)', () => {
+  it('auto takes three quarters of the box height, capped by the platform range', () => {
+    expect(startingFontSize(null, 12, RULE)).toBe(9);
+    expect(startingFontSize(undefined, 40, RULE)).toBe(12);
+    expect(startingFontSize(null, 4, RULE)).toBe(6);
   });
 
-  describe('initials', () => {
-    const cases: Array<[number, number]> = [
-      [10, 6], // 10*0.55*0.8 = 4.4 → clamp a 6
-      [30, 13], // 30*0.44 = 13.2 → round 13
-      [80, 20], // 80*0.44 = 35.2 → clamp a 20
-    ];
-    it.each(cases)('h=%d → %dpt', (h, expected) => {
-      const r = stampFontSizeForBox('initials', h);
-      expect(r.mayShrink).toBe(false);
-      expect(r.pt).toBe(expected);
-    });
+  it('a chosen size wins over auto', () => {
+    expect(startingFontSize(20, 10, RULE)).toBe(20);
   });
 
-  describe('text and date', () => {
-    const cases: Array<[StampFieldKind, number, number]> = [
-      ['text', 6, 6], // 6*0.8 = 4.8 → clamp a 6
-      ['text', 15, 12], // 15*0.8 = 12
-      ['date', 30, 18], // 30*0.8 = 24 → clamp a 18
-      ['text', 80, 18],
-    ];
-    it.each(cases)('%s h=%d → %dpt', (kind, h, expected) => {
-      const r = stampFontSizeForBox(kind, h);
-      expect(r.mayShrink).toBe(true);
-      expect(r.pt).toBe(expected);
-    });
+  it('never grows: a size that fits is kept', () => {
+    expect(fitSingleLine('JD', 8, { widthPt: 200, heightPt: 60 }, RULE, INITIALS_TYPEFACE, halfEm)).toBe(8);
   });
 
-  it('zero or negative height falls back to the minimum', () => {
-    expect(stampFontSizeForBox('signature', 0).pt).toBe(9);
-    expect(stampFontSizeForBox('initials', -5).pt).toBe(6);
-    expect(stampFontSizeForBox('text', 0).pt).toBe(6);
+  it('shrinks a single line until it fits the width and height', () => {
+    const size = fitSingleLine('10/04/2026', 30, { widthPt: 40, heightPt: 20 }, RULE, TEXT_TYPEFACE, halfEm);
+    expect(size).toBeLessThan(30);
+    expect(size * 10 * 0.5).toBeLessThanOrEqual(40);
   });
 
-  it('cap values stay bounded as height grows', () => {
-    expect(stampFontSizeForBox('signature', 10000).pt).toBe(24);
-    expect(stampFontSizeForBox('initials', 10000).pt).toBe(20);
-    expect(stampFontSizeForBox('text', 10000).pt).toBe(18);
+  it('wrapped text shrinks until the block fits the height', () => {
+    const text = Array(8).fill('rental income').join(' ');
+    const size = fitWrappedText(text, 14, { widthPt: 120, heightPt: 30 }, RULE, halfEm);
+    expect(size).toBeLessThan(14);
+  });
+
+  it('does not go below the floor', () => {
+    expect(fitSingleLine('A very long value', 12, { widthPt: 5, heightPt: 2 }, RULE, TEXT_TYPEFACE, halfEm)).toBe(6);
+  });
+
+  it('only initials, date and text have a font size', () => {
+    expect(hasFontSize('initials')).toBe(true);
+    expect(hasFontSize('date')).toBe(true);
+    expect(hasFontSize('text')).toBe(true);
+    expect(hasFontSize('signature')).toBe(false);
+  });
+
+  it('initials take the first letter of each word, up to four', () => {
+    expect(toInitials('ana maria perez')).toBe('AMP');
+    expect(toInitials('A B C D E')).toBe('ABCD');
+    expect(toInitials('  ')).toBe('—');
+  });
+
+  it('formats the date with the office pattern', () => {
+    const date = new Date(2026, 9, 4);
+    expect(formatStampDate(date, 'MM/dd/yyyy')).toBe('10/04/2026');
+    expect(formatStampDate(date, 'dd/MM/yyyy')).toBe('04/10/2026');
+    expect(formatStampDate(date, 'yyyy-MM-dd')).toBe('2026-10-04');
+  });
+
+  it('previews initials at screen scale with the sealer size, and nothing for signatures', () => {
+    // 1.5 px por pt: caja de 30 pt de alto → auto 12 pt (tope) → 18 px en pantalla.
+    const preview = stampPreview({ type: 'initials', width: 90, height: 45, content: 'Ana Perez' }, 1.5, RULE);
+    expect(preview?.text).toBe('AP');
+    expect(preview?.pt).toBe(12);
+    expect(preview?.auto).toBe(true);
+    expect(preview?.font).toContain('18px');
+    expect(stampPreview({ type: 'signature', width: 90, height: 45, content: '' }, 1.5, RULE)).toBeNull();
+  });
+
+  it('offers only the sizes the backend allows', () => {
+    expect(fontSizeOptions({ minFontSizePt: 8, maxFontSizePt: 14 })).toEqual([8, 9, 10, 11, 12, 14]);
   });
 });

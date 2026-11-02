@@ -51,19 +51,17 @@ import {
   ApiSignatureRequestStatus,
   SetPreparerBody,
   SignatureCategory,
-  TOKEN_EXPIRATION_DEFAULT_HOURS,
-  TOKEN_EXPIRATION_MAX_HOURS,
-  TOKEN_EXPIRATION_MIN_HOURS,
-  UpsertDraftBody,
-  UpsertDraftField,
-  UpsertDraftSigner,
+  tokenHoursForDueDate,
   channelToVerificationMethod,
   customerToWizardClient,
   fieldTypeToKind,
 } from '../../data-access/signature.model';
 import {
+  DocumentRejectedError,
   DraftEditOriginal,
   SignatureStore,
+  applyUpsertResult,
+  draftToUpsertBody,
   WizardRequestDraft,
   WizardSendState,
   emptySendState,
@@ -149,6 +147,8 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   /** Cliente fijo cuando el wizard corre embebido en su perfil: el paso 1 queda bloqueado. */
   private readonly embeddedCustomer = injectEmbeddedCustomer();
   readonly clientLocked = computed(() => this.embeddedCustomer() !== null);
+  /** Embebido en el perfil: ese cliente queda fijo en la solicitud (se pueden sumar otros). */
+  readonly pinnedClientId = computed(() => this.embeddedCustomer()?.id ?? null);
 
   readonly currentStep = signal<WizardStep>(1);
 
@@ -164,6 +164,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   private fullscreenAnchor: Comment | null = null;
 
   constructor() {
+    this.store.loadLimits();
     // Portar el host entero (wizard + diálogos hermanos) al <body>: ningún ancestro con transform
     // del perfil puede encerrar el `fixed`, y al salir vuelve exactamente a su sitio.
     effect(() => (this.fullscreen() ? this.enterFullscreen() : this.exitFullscreen()));
@@ -217,7 +218,9 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   readonly recoverable = signal<WizardDraftSnapshot | null>(null);
   /** Ids originales del borrador (para el diff al guardar/enviar). null = creación nueva. */
   private original: DraftEditOriginal | null = null;
-  readonly selectedClient = signal<WizardClient | null>(null);
+  /** Clientes de la solicitud (paso 1 o "Add signer" del editor); cada uno firma como cliente. */
+  readonly selectedClients = signal<WizardClient[]>([]);
+  readonly clientIds = computed(() => this.selectedClients().map((client) => client.id));
   /** Últimos clientes elegidos (recientes del directorio compartido), para el acceso rápido del paso 1. */
   readonly recentClients = computed(() => this.directory.recent());
   readonly selectedDocuments = signal<WizardDocument[]>([]);
@@ -257,10 +260,9 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
 
   /** Progreso del envío multi-paso; sobrevive a fallos parciales para reintentar sin duplicar. */
   private sendState: WizardSendState = emptySendState();
-  // F2.5: versión del backend para optimistic concurrency en el autosave. Se seed al hidratar y la
-  // mantiene el store (lastSavedAtUtc) cuando cada upsert responde.
-  private hydratedUpdatedAtUtc: string | null = null;
   readonly sendError = signal('');
+  // Un documento rechazado no se arregla reintentando: hay que reemplazar el archivo.
+  readonly sendErrorRetryable = signal(true);
   // F3 — picker inline del Schedule send (Review step).
   readonly scheduleOpen = signal(false);
   readonly scheduleAtLocal = signal('');
@@ -320,7 +322,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   readonly canProceed = computed(() => {
     switch (this.currentStep()) {
       case 1:
-        return this.selectedClient() !== null;
+        return this.selectedClients().length > 0;
       case 2:
         // El documento debe haber pasado el preflight Y estar ya en CloudStorage.
         return (
@@ -380,7 +382,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     const documents = this.selectedDocuments();
     const titleLength = this.title().trim().length;
     return (
-      this.selectedClient() !== null &&
+      this.selectedClients().length > 0 &&
       documents.length > 0 &&
       documents.every((document) => !!document.fileId) &&
       titleLength >= 3 &&
@@ -401,7 +403,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
   readonly canSaveDraft = computed(() => {
     const titleLength = this.title().trim().length;
     return (
-      this.selectedClient() !== null &&
+      this.selectedClients().length > 0 &&
       this.selectedDocuments().length > 0 &&
       this.selectedDocuments().every((document) => !!document.fileId) &&
       titleLength >= 3 &&
@@ -451,7 +453,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       const snapshot = readDraftSnapshot();
       // Embebido en el perfil: solo se ofrece un snapshot de ESE cliente (el snapshot es global).
       const embedded = this.embeddedCustomer();
-      if (snapshot && (!embedded || snapshot.client.id === embedded.id)) {
+      if (snapshot && (!embedded || snapshot.clients.some((client) => client.id === embedded.id))) {
         this.recoverable.set(snapshot);
       }
     }
@@ -478,9 +480,9 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     if (this.editingDraft() || !this.editor || !this.editor.safeToExport()) {
       return;
     }
-    const client = this.selectedClient();
-    const doc = this.selectedDocument();
-    if (!client || !doc?.fileId) {
+    const clients = this.selectedClients();
+    const documents = this.selectedDocuments();
+    if (clients.length === 0 || documents.length === 0 || documents.some((document) => !document.fileId)) {
       return;
     }
     const seed = this.buildEditorSeedFromLive();
@@ -489,9 +491,12 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     }
     writeDraftSnapshot({
       savedAt: Date.now(),
-      client,
-      documentFileId: doc.fileId,
-      documentName: doc.name,
+      clients,
+      documents: documents.map((document) => ({
+        id: document.id,
+        fileId: document.fileId!,
+        name: document.name,
+      })),
       title: this.title(),
       category: this.category(),
       dueDate: this.dueDate(),
@@ -514,6 +519,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       nh: f.height,
       signerLocalId: f.signerLocalId,
       label: f.label,
+      fontSizePt: f.fontSizePt ?? null,
     });
     const signerFields = editor.buildNormalizedFields().map(toSeedField);
     const preparerFields = editor
@@ -528,7 +534,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     };
   }
 
-  /** Restaura el trabajo del snapshot: cliente, metadata, documento (re-descargado) y siembra del editor. */
+  /** Restaura el trabajo del snapshot: clientes, metadata, documentos (re-descargados) y siembra del editor. */
   async restoreDraft(): Promise<void> {
     const snapshot = this.recoverable();
     if (!snapshot) {
@@ -538,7 +544,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     this.hydrating.set(true);
     this.hydrateError.set('');
     try {
-      this.selectedClient.set(snapshot.client);
+      this.selectedClients.set(snapshot.clients);
       this.title.set(snapshot.title);
       this.category.set(snapshot.category);
       this.notes.set(snapshot.notes);
@@ -550,17 +556,14 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
         rules: { ...snapshot.seed.rules, certificate: true },
       });
 
-      const url = await firstValueFrom(this.store.getDownloadUrl(snapshot.documentFileId));
-      const blob = await this.fetchPdfBlob(url);
-      this.setDocument({
-        id: snapshot.documentFileId,
-        name: snapshot.documentName,
-        kind: 'pdf',
-        size: '',
-        date: '',
-        blob,
-        fileId: snapshot.documentFileId,
-      });
+      const documents = await Promise.all(
+        snapshot.documents.map((document) =>
+          this.downloadWizardDocument(document.id, document.name, document.fileId),
+        ),
+      );
+      this.selectedDocuments.set(documents);
+      this.selectedDocument.set(documents[0]);
+      this.editorDocument.set(documents[0]);
       this.currentStep.set(3);
     } catch (err) {
       console.error('[signature] restore failed', err);
@@ -590,7 +593,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       const detail = await firstValueFrom(this.store.getDetail(requestId));
       const hydration = buildDraftHydration(detail);
 
-      this.selectedClient.set(hydration.client);
+      this.selectedClients.set(hydration.clients);
       this.title.set(hydration.metadata.title);
       this.category.set(hydration.metadata.category);
       this.notes.set(hydration.metadata.description);
@@ -598,9 +601,8 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       this.editorSeed.set(hydration.seed);
       this.original = hydration.original;
       this.sendState = hydration.sendState;
-      // F2.5: la versión base del autosave es la que trae el detail; cada upsert devuelve una nueva.
-      this.hydratedUpdatedAtUtc = detail.updatedAtUtc;
-      this.store.resetAutosaveStatus();
+      // F2.5: la versión base de los guardados es la que trae el detail; cada upsert devuelve una nueva.
+      this.store.beginDraftEditing(detail.updatedAtUtc);
 
       // Bytes del PDF original para que el editor renderice el documento real (no el de muestra).
       const orderedDocuments = [...detail.documents].sort((a, b) => a.order - b.order);
@@ -608,19 +610,9 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
         throw new Error('The draft has no documents.');
       }
       const documents = await Promise.all(
-        orderedDocuments.map(async (document) => {
-          const url = await firstValueFrom(this.store.getDownloadUrl(document.originalFileId));
-          const blob = await this.fetchPdfBlob(url);
-          return {
-            id: document.id,
-            name: document.title,
-            kind: 'pdf' as const,
-            size: '',
-            date: '',
-            blob,
-            fileId: document.originalFileId,
-          };
-        }),
+        orderedDocuments.map((document) =>
+          this.downloadWizardDocument(document.id, document.title, document.originalFileId),
+        ),
       );
       this.selectedDocuments.set(documents);
       this.selectedDocument.set(documents[0]);
@@ -635,10 +627,42 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     }
   }
 
-  /** Cliente elegido en el paso 1 (buscador o recientes): se sube a los recientes del directorio. */
+  /** Cliente elegido en el paso 1 (buscador o recientes): se suma a la solicitud y a los recientes. */
   onClientPicked(customer: CustomerSummary): void {
     this.directory.addRecent(customer);
-    this.selectedClient.set(customerToWizardClient(customer));
+    if (!this.selectedClients().some((client) => client.id === customer.id)) {
+      this.selectedClients.update((clients) => [...clients, customerToWizardClient(customer)]);
+    }
+  }
+
+  /** "Change" de un cliente en el paso 1: lo reemplaza en su sitio (su firmante conserva los campos). */
+  onClientReplaced(event: { previousId: string; customer: CustomerSummary }): void {
+    this.directory.addRecent(event.customer);
+    const next = customerToWizardClient(event.customer);
+    this.selectedClients.update((clients) =>
+      clients.some((client) => client.id === next.id)
+        ? clients.filter((client) => client.id !== event.previousId)
+        : clients.map((client) => (client.id === event.previousId ? next : client)),
+    );
+  }
+
+  /** Quitar un cliente (paso 1 o su firmante en el editor). El fijado por el perfil no se quita. */
+  removeClient(clientId: string): void {
+    if (clientId === this.pinnedClientId()) {
+      return;
+    }
+    this.selectedClients.update((clients) => clients.filter((client) => client.id !== clientId));
+  }
+
+  /** El editor sumó o quitó un cliente desde sus firmantes. */
+  onEditorClientsChange(clients: WizardClient[]): void {
+    this.selectedClients.set(clients);
+  }
+
+  private async downloadWizardDocument(id: string, name: string, fileId: string): Promise<WizardDocument> {
+    const url = await firstValueFrom(this.store.getDownloadUrl(fileId));
+    const blob = await this.fetchPdfBlob(url);
+    return { id, name, kind: 'pdf', size: '', date: '', blob, fileId };
   }
 
   /** Descarga los bytes del PDF comprobando el status (antes un 403/404 se tomaba como PDF y fallaba en pdf.js). */
@@ -663,8 +687,9 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       this.activateDocument(doc.id);
       return;
     }
-    if (this.selectedDocuments().length >= 20) {
-      this.toast.error('A signature request can include up to 20 documents.');
+    const maxDocuments = this.store.limits()?.plan.maxDocumentsPerRequest;
+    if (maxDocuments !== undefined && this.selectedDocuments().length >= maxDocuments) {
+      this.toast.error(`A signature request can include up to ${maxDocuments} documents.`);
       return;
     }
     this.selectedDocuments.update((documents) => [...documents, doc]);
@@ -682,6 +707,33 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     }
     this.selectedDocument.set(document);
     this.editorDocument.set(document);
+  }
+
+  /** Documento a quitar que ya tiene campos: se confirma antes (sus campos se van con él). */
+  readonly pendingDocumentRemoval = signal<{ id: string; name: string; fieldCount: number } | null>(null);
+
+  /** Quitar desde el paso Documents o desde la pestaña del editor: sin campos se quita directo. */
+  requestRemoveDocument(documentId: string): void {
+    const document = this.selectedDocuments().find((item) => item.id === documentId);
+    if (!document) {
+      return;
+    }
+    const fieldCount = (this.editor?.getFields() ?? this.fieldsSnapshot()).filter(
+      (field) => field.documentLocalId === documentId,
+    ).length;
+    if (fieldCount === 0) {
+      this.removeDocument(documentId);
+      return;
+    }
+    this.pendingDocumentRemoval.set({ id: document.id, name: document.name, fieldCount });
+  }
+
+  confirmDocumentRemoval(): void {
+    const pending = this.pendingDocumentRemoval();
+    this.pendingDocumentRemoval.set(null);
+    if (pending) {
+      this.removeDocument(pending.id);
+    }
   }
 
   removeDocument(documentId: string): void {
@@ -1207,6 +1259,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       this.saved.emit();
     } catch (err) {
       this.savingDraft.set(false);
+      this.sendErrorRetryable.set(!(err instanceof DocumentRejectedError));
       this.sendError.set(err instanceof Error ? err.message : 'The draft could not be saved.');
     }
   }
@@ -1232,6 +1285,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       this.sent.emit();
     } catch (err) {
       this.sendPhase.set('idle');
+      this.sendErrorRetryable.set(!(err instanceof DocumentRejectedError));
       this.sendError.set(
         err instanceof Error ? err.message : 'The request could not be sent. Please retry.',
       );
@@ -1273,100 +1327,26 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
     if (!editor || !editor.safeToExport()) {
       return;
     }
-    const body = this.buildAutosaveBody(editor);
-    if (!body) {
+    // Mismo borrador que Save/Send; al guardarse, sus ids nuevos quedan en el sendState.
+    const draft = this.buildDraft();
+    if (!draft) {
       return;
     }
-    this.store.scheduleAutosave(requestId, body);
-  }
-
-  /** Snapshot del editor + metadata del wizard en el shape que el endpoint `PUT /requests/{id}/draft` espera. */
-  private buildAutosaveBody(editor: SignaturePdfEditorComponent): UpsertDraftBody | null {
-    const client = this.selectedClient();
-    const documents = this.selectedDocuments();
-    if (!client || documents.length === 0 || documents.some((document) => !document.fileId)) {
-      return null;
-    }
-    const rules = editor.getRules();
-    const editorSigners = editor.getSigners();
-    const normalized = editor.buildNormalizedFields();
-
-    // Signers conservan su Id del backend cuando ya se posteó (sendState.signerIdByLocal); los nuevos
-    // llevan Id null para que el handler los cree y les asigne un Guid.
-    const signers: UpsertDraftSigner[] = editorSigners.map((s) => ({
-      id: this.sendState.signerIdByLocal[s.id] ?? null,
-      email: s.email,
-      fullName: s.name,
-      phoneNumber: s.phone.trim() || null,
-      language: s.language,
-      verificationMethod: channelToVerificationMethod(s.channel) ?? null,
-    }));
-
-    // MVP: los fields van sin Id → el handler re-sincroniza fields en cada autosave (borra lo que
-    // ya no está, crea los nuevos). Correcto e idempotente; optimización por diff queda para después.
-    const signerIndexById = new Map<string, number>();
-    editorSigners.forEach((s, i) => signerIndexById.set(s.id, i));
-    const fields: UpsertDraftField[] = [];
-    for (const f of normalized) {
-      const idx = signerIndexById.get(f.signerLocalId);
-      if (idx === undefined) {
-        continue; // field huérfano (su signer local ya no existe) — se omite
-      }
-      fields.push({
-        id: null,
-        signerIndex: idx,
-        documentLocalId: f.documentLocalId,
-        kind: fieldTypeToKind(f.type),
-        page: f.page,
-        x: f.x,
-        y: f.y,
-        width: f.width,
-        height: f.height,
-        label: f.label ?? null,
-        isRequired: true,
-      });
-    }
-
-    return {
-      expectedUpdatedAtUtc: this.store.lastSavedAtUtc() ?? this.hydratedUpdatedAtUtc,
-      title: this.title().trim() || 'Untitled',
-      description: this.notes().trim() || null,
-      category: this.category(),
-      tokenExpirationHours: this.tokenExpirationHours(),
-      sendSealedDocumentToSigners: rules.sendSealedDocument,
-      sendCertificateToSigners: rules.sendCertificate && rules.certificate,
-      certificateGenerationMode:
-        documents.length > 1 ? rules.certificateGenerationMode : 'SingleForRequest',
-      autoRemindersEnabled: rules.autoReminder,
-      reminderIntervalHours: rules.reminderIntervalHours,
-      documents: documents.map((document) => ({
-        localId: document.id,
-        id: this.sendState.documentIdByLocal[document.id] ?? null,
-        originalFileId: document.fileId!,
-        title: document.name,
-        note: null,
-      })),
-      signers,
-      fields,
-      // F7 — flags de entrega + expiración.
-      sendPartialCopyOnEachSignature: rules.sendPartialCopy,
-      partialCopyAudience: rules.sendPartialCopy
-        ? {
-            kind: rules.partialCopyAudienceKind,
-            signerIds:
-              rules.partialCopyAudienceKind === 'Specific'
-                ? rules.partialCopyAudienceSignerIds
-                : [],
-          }
-        : null,
-      expirationEnabled: rules.expirationEnabled,
-    };
+    this.store.scheduleAutosave(requestId, draftToUpsertBody(draft, this.sendState, null), (resp) =>
+      applyUpsertResult(draft, this.sendState, resp),
+    );
   }
 
   private buildDraft(): WizardRequestDraft | null {
-    const client = this.selectedClient();
     const documents = this.selectedDocuments();
-    if (!client || documents.length === 0 || documents.some((document) => !document.fileId)) {
+    // Sin límites vigentes todavía no se sabe la vida del enlace: se espera (llegan al abrir el panel).
+    const limits = this.store.limits();
+    if (
+      this.selectedClients().length === 0 ||
+      !limits ||
+      documents.length === 0 ||
+      documents.some((document) => !document.fileId)
+    ) {
       return null;
     }
     const rules = this.rulesSnapshot();
@@ -1381,7 +1361,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
         title: document.name,
         note: null,
       })),
-      tokenExpirationHours: this.tokenExpirationHours(),
+      tokenExpirationHours: tokenHoursForDueDate(this.dueDate() || null, limits),
       requiresSequentialSigning: rules?.sequential ?? true,
       requiresConsent: true,
       // Siempre true: el certificado de firma ya no es opcional (el switch se quitó del paso Review).
@@ -1420,6 +1400,7 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
         height: field.height,
         isRequired: true,
         label: field.label ?? null,
+        fontSizePt: field.fontSizePt ?? null,
       })),
       preparerFields: this.preparerFieldsSnapshot().map((field) => ({
         localId: field.localId,
@@ -1437,17 +1418,6 @@ export class SignatureRequestPanelComponent implements OnChanges, OnInit {
       preparerSignatureFileId: this.preparerSignatureFileIdSnapshot(),
       preparerInfo: this.preparerInfoSnapshot(),
     };
-  }
-
-  /** Due date → horas de expiración del token (rango 1..720 del dominio; sin fecha = 7 días). */
-  private tokenExpirationHours(): number {
-    const due = this.dueDate();
-    if (!due) {
-      return TOKEN_EXPIRATION_DEFAULT_HOURS;
-    }
-    const endOfDay = new Date(`${due}T23:59:59`);
-    const hours = Math.ceil((endOfDay.getTime() - Date.now()) / 3_600_000);
-    return Math.min(Math.max(hours, TOKEN_EXPIRATION_MIN_HOURS), TOKEN_EXPIRATION_MAX_HOURS);
   }
 
   private delay(ms: number): Promise<void> {

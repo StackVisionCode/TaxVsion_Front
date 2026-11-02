@@ -1,13 +1,14 @@
 import { PermissionService } from '@core/auth/permission.service';
 import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, concatMap, from, last, map, switchMap, tap } from 'rxjs';
+import { Observable, catchError, concatMap, from, last, map, of, switchMap, tap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { FetchGate } from '@core/data/fetch-gate';
 import { AuthService } from '@core/auth/auth.service';
 import { AvatarUrlService } from '@core/profile-photo/avatar-url';
 import { StaffDirectoryStore } from '@core/staff/staff-directory.store';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { StoragePolicyService, uploadRejection } from '@core/cloud-storage/storage-policy.service';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { InitiateUploadRequest } from '@core/cloud-storage/cloud-storage.model';
 import { ClientNotesService } from './client-notes.service';
@@ -45,6 +46,7 @@ export class ClientNotesStore {
   private readonly service = inject(ClientNotesService);
   private readonly auth = inject(AuthService);
   private readonly cloud = inject(CloudStorageUploadService);
+  private readonly storagePolicy = inject(StoragePolicyService);
   private readonly toast = inject(ToastService);
   private readonly staff = inject(StaffDirectoryStore);
   private readonly avatarUrls = inject(AvatarUrlService);
@@ -232,11 +234,32 @@ export class ClientNotesStore {
     this.attachFiles(noteId, [file]);
   }
 
-  /** Varios archivos en serie (uno tras otro: el busy de la nota cubre toda la tanda). */
+  /**
+   * Varios archivos en serie (uno tras otro: el busy de la nota cubre toda la tanda). Antes se descartan
+   * los que la carpeta no admite (tipo o tamaño de la política vigente), avisando por cuál.
+   */
   attachFiles(noteId: string, files: readonly File[]): void {
     if (files.length === 0) {
       return;
     }
+    this.storagePolicy
+      .uploadPolicy('Other')
+      .pipe(catchError(() => of(null)))
+      .subscribe(policy => {
+        const accepted = files.filter(file => {
+          const rejection = uploadRejection(file, policy);
+          if (rejection) {
+            this.toast.error(rejection);
+          }
+          return !rejection;
+        });
+        if (accepted.length > 0) {
+          this.uploadAll(noteId, accepted);
+        }
+      });
+  }
+
+  private uploadAll(noteId: string, files: readonly File[]): void {
     this.markBusy(noteId, true);
     from(files)
       .pipe(

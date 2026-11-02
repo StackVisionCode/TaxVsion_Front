@@ -27,6 +27,9 @@ import {
   isFileReady,
 } from '../../data-access/documents.model';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { StoragePolicyService } from '@core/cloud-storage/storage-policy.service';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { catchError, of, switchMap } from 'rxjs';
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
 import { FileViewerDownload, FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { DocumentNavigatorComponent } from '../../ui/document-navigator/document-navigator.component';
@@ -96,6 +99,7 @@ export class DocumentsPageComponent implements OnInit {
   private readonly clipboard = inject(ClipboardService);
   private readonly toast = inject(ToastService);
   private readonly cloudStorage = inject(CloudStorageUploadService);
+  private readonly storagePolicy = inject(StoragePolicyService);
 
   // Estado del store expuesto al template.
   readonly context = this.store.context;
@@ -153,12 +157,34 @@ export class DocumentsPageComponent implements OnInit {
    * "la oficina lo tiene apagado", que es una afirmación que la aplicación no puede hacer.
    */
   readonly publicSharing = computed<'enabled' | 'disabled' | 'unknown'>(() => {
+    // Las reglas de compartir las lee quien crea enlaces; `usage` queda de respaldo para admins.
+    const policy = this.sharingPolicy();
+    if (policy) {
+      return policy.allowPublicShareLinks ? 'enabled' : 'disabled';
+    }
     const usage = this.usage();
     if (!usage) {
       return 'unknown';
     }
     return usage.allowPublicShareLinks ? 'enabled' : 'disabled';
   });
+
+  /** Reglas de compartir de la oficina y qué admite la carpeta Documents (sin números propios en el front). */
+  // Solo se pregunta si el usuario puede compartir/subir: así nadie recibe un 403 por abrir la página.
+  readonly sharingPolicy = toSignal(
+    toObservable(this.can.canShare).pipe(
+      switchMap(allowed => (allowed ? this.storagePolicy.sharing().pipe(catchError(() => of(null))) : of(null))),
+    ),
+    { initialValue: null },
+  );
+  readonly uploadPolicy = toSignal(
+    toObservable(this.can.canUpload).pipe(
+      switchMap(allowed =>
+        allowed ? this.storagePolicy.uploadPolicy('Documents').pipe(catchError(() => of(null))) : of(null),
+      ),
+    ),
+    { initialValue: null },
+  );
 
   // Estado local de la vista (menús/diálogos).
   readonly filtersOpen = signal(false);

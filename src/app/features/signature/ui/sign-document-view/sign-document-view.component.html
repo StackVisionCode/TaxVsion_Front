@@ -69,7 +69,8 @@
             [attr.aria-label]="labelText(field) || 'Text field'"
             [required]="field.isRequired"
             [title]="labelText(field) || 'Text field'"
-            class="h-full w-full bg-transparent px-1.5 text-[0.8125rem] text-gray-900 placeholder-indigo-400 focus:outline-none"
+            [style.font-size]="textFontSize(field)"
+            class="h-full w-full bg-transparent px-0.5 text-[0.8125rem] text-gray-900 placeholder-indigo-400 focus:outline-none"
           />
           <span *ngIf="field.isRequired" class="required-dot" aria-hidden="true"></span>
           <!-- La etiqueta es un enlace: se abre aparte (sin enfocar el campo) y siempre muestra el dominio real. -->

@@ -25,3 +25,9 @@ export function toPngOnWhiteBase64(dataUrl: string): Promise<string> {
     img.src = dataUrl;
   });
 }
+
+/** Bytes reales de un base64 (sin el prefijo data:), para comparar con el tope antes de subir. */
+export function base64Bytes(base64: string): number {
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+  return Math.floor((base64.length * 3) / 4) - padding;
+}

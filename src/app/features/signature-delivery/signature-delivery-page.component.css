@@ -1,0 +1,55 @@
+/* Fondo suave teñido con la marca (cae a los grises del sistema si el tenant no personaliza). */
+.share-bg {
+  background:
+    radial-gradient(1100px 520px at 50% -8%, rgb(var(--color-indigo-50-rgb, 245 247 250)), transparent 70%),
+    rgb(var(--color-gray-50-rgb, 248 249 250));
+}
+
+/* Entrada de la tarjeta con la curva de la casa. */
+.share-card {
+  animation: card-in 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.share-spinner {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 9999px;
+  border: 2.5px solid rgb(var(--color-gray-200-rgb, 226 228 230));
+  border-top-color: rgb(var(--color-indigo-600-rgb, 30 70 107));
+  animation: share-spin 720ms linear infinite;
+}
+
+.share-spinner-sm {
+  width: 1rem;
+  height: 1rem;
+  border-width: 2px;
+  border-top-color: #fff;
+  border-color: rgb(255 255 255 / 0.4);
+  border-top-color: #fff;
+}
+
+@keyframes share-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-card {
+    animation: none;
+  }
+  .share-spinner {
+    animation-duration: 1.4s;
+  }
+}
