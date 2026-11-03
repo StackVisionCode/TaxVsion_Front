@@ -210,4 +210,50 @@ describe('GroupedSearchComponent', () => {
     expect(document.activeElement).toBe(input());
     fixture.nativeElement.remove();
   });
+
+  it('extensiones: insignia, quitar con X o Supr, acción de cabecera y contenido proyectado', () => {
+    const component = create({
+      idleGroups: [
+        {
+          id: 'recent',
+          label: 'Recent searches',
+          action: 'Clear',
+          items: [
+            { id: 'r1', label: 'factura', removable: true, data: 'r1' },
+            { id: 'r2', label: 'from:ana@x.com', removable: true, data: 'r2' },
+          ],
+        },
+        { id: 'people', label: 'People', items: [{ id: 'p1', label: 'Ana', badge: 'Client', data: 'p1' }] },
+      ],
+    });
+    const removed: string[] = [];
+    const actions: string[] = [];
+    component.itemRemoved.subscribe((value) => removed.push(value.item.id));
+    component.groupAction.subscribe((value) => actions.push(value));
+    input().dispatchEvent(new Event('focus'));
+    fixture.detectChanges();
+
+    expect(options()[2].textContent).toContain('Client');
+    expect(options()[0].getAttribute('aria-keyshortcuts')).toBe('Delete');
+    expect(options()[2].getAttribute('aria-keyshortcuts')).toBeNull();
+
+    // La X no elige la sugerencia.
+    (options()[0].querySelector('[title="Remove"]') as HTMLElement).click();
+    expect(removed).toEqual(['r1']);
+    expect(picked).toEqual([]);
+
+    // Supr solo quita lo que es `removable`.
+    key('ArrowDown');
+    key('ArrowDown');
+    key('Delete');
+    expect(removed).toEqual(['r1', 'r2']);
+    key('ArrowDown');
+    key('Delete');
+
+    const clear = Array.from(fixture.nativeElement.querySelectorAll('button')).find(
+      (button) => (button as HTMLButtonElement).textContent?.trim() === 'Clear',
+    ) as HTMLButtonElement;
+    clear.click();
+    expect(actions).toEqual(['recent']);
+  });
 });

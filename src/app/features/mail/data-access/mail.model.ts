@@ -356,9 +356,38 @@ export interface FileSearchHit {
   downloadStatus: AttachmentDownloadStatus | string | null;
 }
 
+/** Grupos que puede calcular `GET /search` (`groups=`); sin el parámetro, el backend da los tres. */
+export type MailSearchGroup = 'emails' | 'files' | 'people';
+
+/**
+ * Corresponsal que coincide (remitentes de entrantes y destinatarios de enviados visibles), uno por
+ * dirección. `customerId` si la conversación está ligada a un cliente. Excluye los buzones de la oficina.
+ */
+export interface PersonSearchHit {
+  address: string;
+  displayName: string | null;
+  customerId: string | null;
+  messageCount: number;
+  lastContactAtUtc: string | null;
+  direction: 'From' | 'To' | 'Both' | string;
+}
+
 export interface MailSearchResult {
   emails: EmailSearchHit[];
   files: FileSearchHit[];
+  /** Ausente en un backend sin el grupo `people` (o si no se pidió). */
+  people?: PersonSearchHit[];
+}
+
+/** Respuesta de `/search` con los tres grupos siempre presentes (tolera un backend viejo o grupos no pedidos). */
+export function normalizeMailSearchResult(
+  raw: Partial<MailSearchResult> | null | undefined,
+): Required<MailSearchResult> {
+  return {
+    emails: Array.isArray(raw?.emails) ? raw.emails : [],
+    files: Array.isArray(raw?.files) ? raw.files : [],
+    people: Array.isArray(raw?.people) ? raw.people : [],
+  };
 }
 
 /** GET /correspondence/unread-count: hilos con algo sin leer y mensajes sin leer (badges). */

@@ -42,31 +42,38 @@ import {
   FileSearchHit,
   MailAccount,
   MailCustomerScope,
+  MailSearchFolder,
+  MailSearchGroup,
   MailSearchResult,
   MessageSummary,
+  PersonSearchHit,
   SentMessageListItem,
   TestManualConnectionResult,
   ThreadSummary,
   TrashItem,
   isUsableAccount,
+  normalizeMailSearchResult,
   parseRecipients,
   plainTextToHtml,
 } from './mail.model';
 import { ProviderDetection, detectProvider } from './mail-provider-detect.util';
 import { ConnectorsCapabilities } from './connectors-permissions';
 import { parseUtcDate } from '@shared/utils/utc-date.util';
+import { MailDatePreset, mailDateRangeUtc } from '../utils/mail-search-dates';
+import { parseMailSearchOperators } from '../utils/mail-search-operators';
 
 /** Carpetas honestas: solo las que tienen respaldo real en Correspondence. */
 export type MailFolderId = 'inbox' | 'sent' | 'archived' | 'drafts' | 'trash';
 
-/** Pestañas del modo resultados de la búsqueda. */
-export type MailSearchTab = 'emails' | 'files';
-/** Chip de fecha (se aplica en el cliente: ningún endpoint filtra por fecha). */
-export type MailDateFilter = 'any' | '7d' | '30d';
+/** Pestañas del modo resultados de la búsqueda (Events llega con Calendar, F4). */
+export type MailSearchTab = 'all' | 'emails' | 'people' | 'files';
+/** Chip de fecha (en el servidor): presets relativos a ahora o rango personalizado (`dateFrom`/`dateTo`). */
+export type MailDateFilter = MailDatePreset;
 
 /**
  * Estado completo de la búsqueda y los chips (vive en la URL de /email). `results` = modo resultados
  * (todas las carpetas, `GET /search`); sin él, `q` filtra la carpeta activa. `folder` null = no cambiarla.
+ * `from`/`to`/`subject`/`searchFolder` solo existen en el modo resultados (filtros de `/search`).
  */
 export interface MailSearchFilters {
   q: string;
@@ -77,16 +84,51 @@ export interface MailSearchFilters {
   unread: boolean;
   notClient: boolean;
   date: MailDateFilter;
+  /** `YYYY-MM-DD` del rango personalizado (solo con `date: 'custom'`). */
+  dateFrom: string | null;
+  dateTo: string | null;
   folder: MailFolderId | null;
+  from: string;
+  to: string;
+  subject: string;
+  /** Carpeta como filtro de `/search` (`in:sent`), distinta de la carpeta abierta (`folder`). */
+  searchFolder: MailFolderId | null;
 }
 
-/** Sugerencias del buscador agrupado: clientes del directorio + correos y archivos del backend. */
+/** Sugerencias del buscador agrupado: clientes del directorio + correos, archivos y personas del backend. */
 export interface MailSuggestions {
   clients: CustomerSummary[];
   emails: EmailSearchHit[];
   files: FileSearchHit[];
+  people: PersonSearchHit[];
   /** Algún grupo sigue en camino. */
   pending: boolean;
+}
+
+/** Grupos de `/search` que pide cada pestaña (no se calcula lo que no se muestra). */
+export const SEARCH_TAB_GROUPS: Readonly<Record<MailSearchTab, readonly MailSearchGroup[]>> = {
+  all: ['emails', 'files', 'people'],
+  emails: ['emails'],
+  people: ['people'],
+  files: ['files'],
+};
+
+/** Carpeta del rail → valor de `folder` en `/search`. */
+export const SEARCH_FOLDER_PARAM: Readonly<Record<MailFolderId, MailSearchFolder>> = {
+  inbox: 'Inbox',
+  archived: 'Archived',
+  sent: 'Sent',
+  drafts: 'Drafts',
+  trash: 'Trash',
+};
+
+/**
+ * ¿Hay criterio para `/search`? Al menos un texto (q, from, to o subject) y cada texto presente con 2+
+ * caracteres (si no, el backend responde 400).
+ */
+export function hasValidSearchCriteria(state: Pick<MailSearchFilters, 'q' | 'from' | 'to' | 'subject'>): boolean {
+  const texts = [state.q, state.from, state.to, state.subject].map(text => (text ?? '').trim()).filter(Boolean);
+  return texts.length > 0 && texts.every(text => text.length >= SEARCH_MIN_CHARS && text.length <= 200);
 }
 
 /** Qué abrió un resultado de correo: la página decide la fila resaltada o la carpeta. */
@@ -453,10 +495,10 @@ export class MailStore {
   /** Término confirmado (Enter): filtra la carpeta activa en el servidor y alimenta el modo resultados. */
   private readonly _query = signal('');
   readonly query = this._query.asReadonly();
-  /** Modo resultados: todas las carpetas (`GET /search`), con pestañas Emails | Files. */
+  /** Modo resultados: todas las carpetas (`GET /search`), con pestañas All | Emails | People | Files. */
   private readonly _resultsMode = signal(false);
   readonly resultsMode = this._resultsMode.asReadonly();
-  private readonly _searchTab = signal<MailSearchTab>('emails');
+  private readonly _searchTab = signal<MailSearchTab>('all');
   readonly searchTab = this._searchTab.asReadonly();
   /** Chips, todos en el servidor. "Unread" no existe en Sent/Drafts/Trash (no hay nada que leer). */
   private readonly _unreadOnly = signal(false);
@@ -465,8 +507,24 @@ export class MailStore {
   readonly hasAttachmentsOnly = this._hasAttachmentsOnly.asReadonly();
   private readonly _dateFilter = signal<MailDateFilter>('any');
   readonly dateFilter = this._dateFilter.asReadonly();
+  private readonly _dateFrom = signal<string | null>(null);
+  readonly dateFrom = this._dateFrom.asReadonly();
+  private readonly _dateTo = signal<string | null>(null);
+  readonly dateTo = this._dateTo.asReadonly();
+  /** Filtros de campo del modo resultados (operadores, panel o persona elegida). */
+  private readonly _fromFilter = signal('');
+  readonly fromFilter = this._fromFilter.asReadonly();
+  private readonly _toFilter = signal('');
+  readonly toFilter = this._toFilter.asReadonly();
+  private readonly _subjectFilter = signal('');
+  readonly subjectFilter = this._subjectFilter.asReadonly();
+  private readonly _searchFolder = signal<MailFolderId | null>(null);
+  readonly searchFolder = this._searchFolder.asReadonly();
 
-  private readonly _search = signal<MailSearchResult | null>(null);
+  private readonly _search = signal<Required<MailSearchResult> | null>(null);
+  /** Grupos que trae `_search` (al cambiar de pestaña se reutilizan si ya están). */
+  private readonly _searchGroups = signal<readonly MailSearchGroup[]>([]);
+  readonly searchGroups = this._searchGroups.asReadonly();
   private readonly _searchLoading = signal(false);
   private readonly _searchError = signal<string | null>(null);
   readonly searchLoading = this._searchLoading.asReadonly();
@@ -485,12 +543,19 @@ export class MailStore {
     unread: this._unreadOnly(),
     notClient: this._unlinkedView(),
     date: this._dateFilter(),
+    dateFrom: this._dateFrom(),
+    dateTo: this._dateTo(),
     folder: this._activeFolderId(),
+    from: this._fromFilter(),
+    to: this._toFilter(),
+    subject: this._subjectFilter(),
+    searchFolder: this._searchFolder(),
   }));
 
-  /** Correos y adjuntos del modo resultados (los chips ya los aplicó `/search`). */
+  /** Correos, adjuntos y personas del modo resultados (los chips ya los aplicó `/search`). */
   readonly searchEmails = computed(() => this._search()?.emails ?? []);
   readonly searchFiles = computed(() => this._search()?.files ?? []);
+  readonly searchPeople = computed(() => this._search()?.people ?? []);
 
   /** Solo la última carga de hilos pinta: una respuesta vieja (búsqueda anterior) no pisa a la nueva. */
   private threadsRequestSeq = 0;
@@ -646,30 +711,53 @@ export class MailStore {
     const embedded = this.embedded();
     const clientId = embedded ? this._selectedCustomerId() : next.clientId;
     const notClient = embedded || clientId ? false : next.notClient;
-    const results = next.results && q.length >= SEARCH_MIN_CHARS;
+    const from = (next.from ?? '').trim();
+    const to = (next.to ?? '').trim();
+    const subject = (next.subject ?? '').trim();
+    const searchFolder = next.searchFolder ?? null;
+    const criteria = hasValidSearchCriteria({ q, from, to, subject });
+    const results = next.results && criteria;
+    const custom = next.date === 'custom';
+    const dateFrom = custom ? (next.dateFrom ?? null) : null;
+    const dateTo = custom ? (next.dateTo ?? null) : null;
 
     const qChanged = q !== this._query();
     const clientChanged = clientId !== this._selectedCustomerId();
     const notClientChanged = notClient !== this._unlinkedView();
     const unreadChanged = next.unread !== this._unreadOnly();
     const attachmentsChanged = next.hasAttachments !== this._hasAttachmentsOnly();
-    const dateChanged = next.date !== this._dateFilter();
+    const dateChanged =
+      next.date !== this._dateFilter() || dateFrom !== this._dateFrom() || dateTo !== this._dateTo();
+    const fieldsChanged =
+      from !== this._fromFilter() ||
+      to !== this._toFilter() ||
+      subject !== this._subjectFilter() ||
+      searchFolder !== this._searchFolder();
     const resultsTurnedOn = results && !this._resultsMode();
     const folderChanged = !!next.folder && next.folder !== this._activeFolderId();
+    // La pestaña nueva necesita un grupo que la última respuesta no trajo.
+    const missingGroups = SEARCH_TAB_GROUPS[next.tab].some(group => !this._searchGroups().includes(group));
 
     this._query.set(q);
     this._searchTab.set(next.tab);
     this._unreadOnly.set(next.unread);
     this._hasAttachmentsOnly.set(next.hasAttachments);
     this._dateFilter.set(next.date);
+    this._dateFrom.set(dateFrom);
+    this._dateTo.set(dateTo);
+    this._fromFilter.set(from);
+    this._toFilter.set(to);
+    this._subjectFilter.set(subject);
+    this._searchFolder.set(searchFolder);
     this._unlinkedView.set(notClient);
     this._resultsMode.set(results);
     if (clientChanged) {
       this._selectedCustomerId.set(clientId);
       this.syncSelectedCustomer(clientId);
     }
-    if (!q) {
+    if (!criteria) {
       this._search.set(null);
+      this._searchGroups.set([]);
       this._searchError.set(null);
     }
 
@@ -689,7 +777,7 @@ export class MailStore {
     if (threads || shared) {
       this.reloadLists(threads, shared);
     }
-    if (results && (shared || unreadChanged || resultsTurnedOn || !this._search())) {
+    if (results && (shared || unreadChanged || fieldsChanged || resultsTurnedOn || missingGroups || !this._search())) {
       this.loadSearch();
     }
   }
@@ -720,27 +808,44 @@ export class MailStore {
       });
   }
 
-  /** Modo resultados: correos y archivos de todas las carpetas. Solo pinta la última respuesta. */
+  /**
+   * Modo resultados: correos, archivos y personas de todas las carpetas, solo los grupos que pide la
+   * pestaña. Solo pinta la última respuesta.
+   */
   loadSearch(): void {
     const q = this._query();
-    if (q.length < SEARCH_MIN_CHARS) {
+    const fields = { from: this._fromFilter(), to: this._toFilter(), subject: this._subjectFilter() };
+    if (!hasValidSearchCriteria({ q, ...fields })) {
       return;
     }
     const seq = ++this.searchSeq;
+    const groups = SEARCH_TAB_GROUPS[this._searchTab()];
+    const folder = this._searchFolder();
     this._searchLoading.set(true);
     this._searchError.set(null);
     const filters: MailSearchFiltersQuery = {
       ...this.customerFilter(),
       hasAttachments: this._hasAttachmentsOnly() || undefined,
       unreadOnly: this._unreadOnly() || undefined,
-      fromUtc: this.fromUtc(),
+      ...this.dateRange(),
+      ...(fields.from ? { from: fields.from } : {}),
+      ...(fields.to ? { to: fields.to } : {}),
+      ...(fields.subject ? { subject: fields.subject } : {}),
+      ...(folder ? { folder: SEARCH_FOLDER_PARAM[folder] } : {}),
+      groups,
     };
     this.service.search(q, SEARCH_RESULTS_LIMIT, filters).subscribe({
-      next: result => {
+      next: raw => {
         if (seq !== this.searchSeq) return;
+        const result = normalizeMailSearchResult(raw);
         this._search.set(result);
+        this._searchGroups.set(groups);
         this._searchLoading.set(false);
-        this.resolveCustomers([...result.emails.map(hit => hit.customerId), ...result.files.map(hit => hit.customerId)]);
+        this.resolveCustomers([
+          ...result.emails.map(hit => hit.customerId),
+          ...result.files.map(hit => hit.customerId),
+          ...result.people.map(hit => hit.customerId),
+        ]);
       },
       error: err => {
         if (seq !== this.searchSeq) return;
@@ -757,25 +862,40 @@ export class MailStore {
    * cliente fijado); el grupo de clientes no existe en el perfil.
    */
   suggest(term: string): Observable<MailSuggestions> {
-    const q = term.trim();
-    const clients$: Observable<CustomerSummary[] | null> = this.embedded()
-      ? of([])
-      : this.directory.search({ term: q, status: 'NotArchived', page: 1, size: SUGGESTION_LIMIT }).pipe(
-          map(result => (result.items ?? []).slice(0, SUGGESTION_LIMIT)),
-          catchError(() => of<CustomerSummary[]>([])),
+    // Lo tecleado puede traer operadores (`from:ana factura`): van como filtros; el resto es `q`.
+    const parsed = parseMailSearchOperators(term);
+    const q = parsed.q;
+    const clients$: Observable<CustomerSummary[] | null> =
+      this.embedded() || q.length < SEARCH_MIN_CHARS
+        ? of([])
+        : this.directory.search({ term: q, status: 'NotArchived', page: 1, size: SUGGESTION_LIMIT }).pipe(
+            map(result => (result.items ?? []).slice(0, SUGGESTION_LIMIT)),
+            catchError(() => of<CustomerSummary[]>([])),
+            startWith(null),
+          );
+    const filters: MailSearchFiltersQuery = {
+      ...this.customerFilter(),
+      ...(parsed.from ? { from: parsed.from } : {}),
+      ...(parsed.to ? { to: parsed.to } : {}),
+      ...(parsed.subject ? { subject: parsed.subject } : {}),
+      ...(parsed.folder ? { folder: SEARCH_FOLDER_PARAM[parsed.folder] } : {}),
+      ...(parsed.hasAttachments ? { hasAttachments: true } : {}),
+      ...(parsed.unread ? { unreadOnly: true } : {}),
+      groups: SEARCH_TAB_GROUPS.all,
+    };
+    const mail$: Observable<Required<MailSearchResult> | null> = hasValidSearchCriteria(parsed)
+      ? this.service.search(q, SUGGESTION_LIMIT, filters).pipe(
+          map(raw => normalizeMailSearchResult(raw)),
+          catchError(() => of(normalizeMailSearchResult(null))),
           startWith(null),
-        );
-    const mail$: Observable<MailSearchResult | null> = this.service
-      .search(q, SUGGESTION_LIMIT, this.customerFilter())
-      .pipe(
-        catchError(() => of<MailSearchResult>({ emails: [], files: [] })),
-        startWith(null),
-      );
+        )
+      : of(normalizeMailSearchResult(null));
     return combineLatest([clients$, mail$]).pipe(
       map(([clients, mail]) => ({
         clients: clients ?? [],
         emails: mail?.emails ?? [],
         files: mail?.files ?? [],
+        people: mail?.people ?? [],
         pending: clients === null || mail === null,
       })),
     );
@@ -919,19 +1039,20 @@ export class MailStore {
     return this._unlinkedView() ? { unlinked: true } : {};
   }
 
-  /** Chip de fecha → `fromUtc` (ahora menos N días, ISO UTC); sin `toUtc`: el rango termina ahora. */
-  private fromUtc(): string | undefined {
-    const filter = this._dateFilter();
-    if (filter === 'any') {
-      return undefined;
-    }
-    const days = filter === '7d' ? 7 : 30;
-    return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  /** Chip de fecha → `fromUtc`/`toUtc` (preset: ahora menos N días, sin `toUtc`; personalizado: días locales). */
+  private dateRange(): { fromUtc?: string; toUtc?: string } {
+    return mailDateRangeUtc(this._dateFilter(), this._dateFrom(), this._dateTo());
   }
 
   /** Filtros de servidor de Sent/Drafts/Trash (el alcance de cliente va aparte, en `listScope`). */
   private outgoingFilters(): MailListFilters {
-    return { q: this._query(), hasAttachments: this._hasAttachmentsOnly() || undefined, fromUtc: this.fromUtc() };
+    const range = this.dateRange();
+    return {
+      q: this._query(),
+      hasAttachments: this._hasAttachmentsOnly() || undefined,
+      fromUtc: range.fromUtc,
+      ...(range.toUtc ? { toUtc: range.toUtc } : {}),
+    };
   }
 
   /** El composer pide sugerencias para el destinatario que se está tecleando. */
@@ -1383,7 +1504,7 @@ export class MailStore {
       search: this._query(),
       unreadOnly: this._unreadOnly() || undefined,
       hasAttachments: this._hasAttachmentsOnly() || undefined,
-      fromUtc: this.fromUtc(),
+      ...this.dateRange(),
     };
     this.service.listInboxThreads(query, page, LIST_PAGE_SIZE).subscribe({
       next: result => {
@@ -2340,13 +2461,14 @@ export class MailStore {
    * el cliente filtrado (en el perfil, siempre el del perfil); sin filtro, en el cliente que se elija
    * como destinatario (`fileComposeUnder`) o en ninguno.
    */
-  openCompose(initialTo: string | null = null): void {
+  /** `fileUnder` = cliente donde archivar si no hay uno filtrado (p. ej. escribirle a una persona que es cliente). */
+  openCompose(initialTo: string | null = null, fileUnder: string | null = null): void {
     this._reply.set(null);
     this._compose.set({
       ...EMPTY_COMPOSE,
       open: true,
       initialTo: initialTo?.trim() || null,
-      customerId: this._selectedCustomerId(),
+      customerId: this._selectedCustomerId() ?? fileUnder,
     });
   }
 

@@ -55,6 +55,8 @@ let groupedSearchSeq = 0;
  * - La coincidencia se resalta en etiqueta y subtítulo (sin innerHTML).
  * - Pantallas chicas (< lg): al abrirse ocupa toda la pantalla, con botón para volver.
  * - Cierra al pulsar fuera (`appClickOutside`).
+ * - Extensiones: `badge` por sugerencia ("Client"), `removable` (X / Supr → `itemRemoved`), `action` en la
+ *   cabecera del grupo ("Clear" → `groupAction`) y contenido `[gsTrailing]` dentro de la píldora.
  */
 @Component({
   selector: 'app-grouped-search',
@@ -95,7 +97,8 @@ let groupedSearchSeq = 0;
         <div class="flex min-h-10 min-w-0 flex-1 flex-wrap items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 py-1 focus-within:border-gray-300 transition-colors">
           <ion-icon name="search-outline" class="shrink-0 text-base text-gray-400"></ion-icon>
           @for (chip of chips; track chip.id) {
-            <span class="flex max-w-[12rem] items-center gap-1 rounded-full bg-brand-bold/10 py-0.5 pl-2.5 pr-1 text-xs font-semibold text-brand-bold">
+            <span class="flex max-w-[12rem] items-center gap-1 rounded-full bg-brand-bold/10 py-0.5 pl-2.5 pr-1 text-xs font-semibold text-brand-bold"
+              [attr.title]="chip.label">
               <span class="truncate">{{ chip.label }}</span>
               <button type="button" (click)="removeChip(chip.id)" [attr.aria-label]="'Remove ' + chip.label"
                 class="grid h-4 w-4 shrink-0 place-items-center rounded-full hover:bg-brand-bold/15">
@@ -108,26 +111,37 @@ let groupedSearchSeq = 0;
             [attr.aria-activedescendant]="panelVisible() && highlighted() >= 0 ? listId + '-' + highlighted() : null"
             [placeholder]="chips.length ? '' : placeholder" [value]="text()"
             (input)="onInput($any($event.target).value)" (focus)="onFocus()" (click)="onFocus()" (keydown)="onKeydown($event)"
-            class="h-8 flex-1 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
+            class="h-8 w-0 min-w-11 flex-1 bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
           @if (text() || value) {
             <button type="button" (click)="clear()" aria-label="Clear search"
               class="grid h-5 w-5 shrink-0 place-items-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors">
               <ion-icon name="close-outline" class="text-sm"></ion-icon>
             </button>
           }
+          <!-- Acción extra del llamador dentro de la píldora (p. ej. el ícono de filtros) -->
+          <ng-content select="[gsTrailing]"></ng-content>
         </div>
       </div>
 
       @if (panelVisible()) {
         <div [id]="listId" role="listbox" [attr.aria-label]="ariaLabel || placeholder"
-          class="gs-panel absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-y-auto rounded-2xl border border-gray-100 bg-white py-1 shadow-lg">
+          class="gs-panel absolute left-0 right-0 z-30 mt-1 max-h-[60vh] overflow-y-auto rounded-2xl border border-gray-100 bg-white py-1 shadow-lg">
           @for (group of shownGroups(); track group.id) {
-            <p class="px-3 pb-1 pt-2 text-[0.625rem] font-semibold uppercase tracking-wide text-gray-400">{{ group.label }}</p>
+            <div class="flex items-center justify-between gap-2 px-3 pb-1 pt-2">
+              <p class="text-[0.625rem] font-semibold uppercase tracking-wide text-gray-400">{{ group.label }}</p>
+              @if (group.action) {
+                <button type="button" tabindex="-1" (mousedown)="$event.preventDefault()" (click)="groupAction.emit(group.id)"
+                  class="rounded-full px-1.5 text-[0.6875rem] font-medium text-gray-400 hover:text-gray-700 transition-colors">
+                  {{ group.action }}
+                </button>
+              }
+            </div>
             @for (item of group.items; track item.id) {
               @let index = indexOf(group.id, item);
               <button type="button" role="option" [id]="listId + '-' + index" [attr.aria-selected]="index === highlighted()"
                 (mousedown)="$event.preventDefault()" (mouseenter)="highlighted.set(index)" (click)="pick(group.id, item)"
-                class="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors"
+                [attr.aria-keyshortcuts]="item.removable ? 'Delete' : null"
+                class="group flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors"
                 [class.bg-gray-50]="index === highlighted()">
                 @if (item.avatar; as avatar) {
                   <app-avatar [name]="avatar.name" [seed]="avatar.seed ?? null" [imageUrl]="avatar.imageUrl ?? null" size="sm" />
@@ -137,9 +151,14 @@ let groupedSearchSeq = 0;
                   </span>
                 }
                 <span class="min-w-0 flex-1">
-                  <span class="block truncate text-sm text-gray-800">
-                    @for (part of parts(item.label); track $index) {
-                      @if (part.match) {<mark class="bg-transparent font-semibold text-gray-900">{{ part.text }}</mark>} @else {<span>{{ part.text }}</span>}
+                  <span class="flex min-w-0 items-center gap-1.5">
+                    <span class="truncate text-sm text-gray-800">
+                      @for (part of parts(item.label); track $index) {
+                        @if (part.match) {<mark class="bg-transparent font-semibold text-gray-900">{{ part.text }}</mark>} @else {<span>{{ part.text }}</span>}
+                      }
+                    </span>
+                    @if (item.badge) {
+                      <span class="shrink-0 rounded-full bg-brand-bold/10 px-1.5 py-0.5 text-[0.625rem] font-semibold leading-none text-brand-bold">{{ item.badge }}</span>
                     }
                   </span>
                   @if (item.sublabel) {
@@ -152,6 +171,14 @@ let groupedSearchSeq = 0;
                 </span>
                 @if (item.meta) {
                   <span class="shrink-0 text-[0.6875rem] text-gray-400">{{ item.meta }}</span>
+                }
+                @if (item.removable) {
+                  <!-- X de quitar: con ratón; con teclado, Supr sobre la sugerencia resaltada -->
+                  <span aria-hidden="true" title="Remove" (click)="$event.stopPropagation(); removeItem(group.id, item)"
+                    class="grid h-6 w-6 shrink-0 place-items-center rounded-full text-gray-400 opacity-0 transition-opacity hover:bg-gray-200 hover:text-gray-700 group-hover:opacity-100"
+                    [class.opacity-100]="index === highlighted()">
+                    <ion-icon name="close-outline" class="text-sm"></ion-icon>
+                  </span>
                 }
               </button>
             }
@@ -202,6 +229,10 @@ export class GroupedSearchComponent<T = unknown> implements OnChanges {
   @Output() readonly submitted = new EventEmitter<string>();
   @Output() readonly chipRemoved = new EventEmitter<string>();
   @Output() readonly cleared = new EventEmitter<void>();
+  /** Se quitó una sugerencia `removable` (X o Supr). */
+  @Output() readonly itemRemoved = new EventEmitter<GroupedSearchPick<T>>();
+  /** Botón de cabecera de un grupo (`action`), con el id del grupo. */
+  @Output() readonly groupAction = new EventEmitter<string>();
 
   @ViewChild('input') private inputRef?: ElementRef<HTMLInputElement>;
 
@@ -352,7 +383,34 @@ export class GroupedSearchComponent<T = unknown> implements OnChanges {
           this.removeChip(this.chips[this.chips.length - 1].id);
         }
         break;
+      case 'Delete': {
+        const entry = this.entries()[this.highlighted()];
+        if (entry?.kind === 'item' && entry.item.removable) {
+          event.preventDefault();
+          this.removeItem(entry.groupId, entry.item);
+        }
+        break;
+      }
     }
+  }
+
+  /** Quita una sugerencia `removable`; el resaltado queda en la siguiente (o la anterior si era la última). */
+  removeItem(groupId: string, item: GroupedSearchItem<T>): void {
+    const remaining = this.entries().length - 1;
+    this.itemRemoved.emit({ groupId, item });
+    if (this.highlighted() >= remaining) {
+      this.highlighted.set(remaining - 1);
+    }
+  }
+
+  /** Reemplaza lo tecleado (p. ej. tras convertir operadores en chips, deja solo el texto libre). */
+  setText(value: string): void {
+    this.text.set(value ?? '');
+  }
+
+  /** ¿Está abierto el desplegable? (el llamador cierra otros paneles al abrir el suyo). */
+  isOpen(): boolean {
+    return this.open();
   }
 
   pick(groupId: string, item: GroupedSearchItem<T>): void {

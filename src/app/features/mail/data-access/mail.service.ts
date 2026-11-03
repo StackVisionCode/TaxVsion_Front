@@ -17,6 +17,8 @@ import {
   InitiateOAuthConnectResult,
   MailAccount,
   MailCustomerScope,
+  MailSearchFolder,
+  MailSearchGroup,
   MailSearchResult,
   MessageBody,
   MessageSummary,
@@ -33,8 +35,10 @@ import {
 export interface MailListFilters {
   q?: string | null;
   hasAttachments?: boolean;
-  /** ISO UTC inclusivo (chip de fecha); `toUtc` no se usa: el rango termina "ahora". */
+  /** ISO UTC inclusivo (chip de fecha). */
   fromUtc?: string | null;
+  /** ISO UTC inclusivo; solo en un rango personalizado (los presets terminan "ahora"). */
+  toUtc?: string | null;
 }
 
 /** Agrega a `params` los filtros presentes (los vacíos no viajan). */
@@ -43,6 +47,7 @@ function withFilters(params: HttpParams, filters: MailListFilters | undefined): 
   if (term) params = params.set('q', term);
   if (filters?.hasAttachments) params = params.set('hasAttachments', true);
   if (filters?.fromUtc) params = params.set('fromUtc', filters.fromUtc);
+  if (filters?.toUtc) params = params.set('toUtc', filters.toUtc);
   return params;
 }
 
@@ -79,16 +84,27 @@ export interface InboxThreadsQuery {
   unreadOnly?: boolean;
   hasAttachments?: boolean;
   fromUtc?: string | null;
+  toUtc?: string | null;
   search?: string | null;
 }
 
-/** Filtros de servidor de `GET /search` (`hasAttachments`/`unreadOnly` solo aplican a correos). */
+/**
+ * Filtros de servidor de `GET /search` (`hasAttachments`/`unreadOnly` solo aplican a correos).
+ * `from`/`to`/`subject` = "contiene"; con alguno de ellos `q` puede ir vacío. `groups` = solo lo que la
+ * pestaña muestra (sin él, el backend calcula los tres).
+ */
 export interface MailSearchFiltersQuery {
   customerId?: string | null;
   unlinked?: boolean;
   hasAttachments?: boolean;
   unreadOnly?: boolean;
   fromUtc?: string | null;
+  toUtc?: string | null;
+  from?: string | null;
+  to?: string | null;
+  subject?: string | null;
+  folder?: MailSearchFolder | null;
+  groups?: readonly MailSearchGroup[];
 }
 
 /**
@@ -168,7 +184,12 @@ export class MailService {
     let params = new HttpParams().set('status', 'all').set('page', page).set('size', size);
     params = customerParams(params, query.customerId, query.unlinked);
     if (query.unreadOnly) params = params.set('unreadOnly', true);
-    params = withFilters(params, { q: query.search, hasAttachments: query.hasAttachments, fromUtc: query.fromUtc });
+    params = withFilters(params, {
+      q: query.search,
+      hasAttachments: query.hasAttachments,
+      fromUtc: query.fromUtc,
+      toUtc: query.toUtc,
+    });
     return this.http.get<PagedResult<ThreadSummary>>(`${this.correspondence}/threads`, { params });
   }
 
@@ -177,12 +198,26 @@ export class MailService {
     return this.http.get<ThreadSummary>(`${this.correspondence}/threads/${threadId}`);
   }
 
-  /** Búsqueda unificada: correos y adjuntos (los clientes se piden aparte al directorio). */
+  /**
+   * Búsqueda unificada: correos, adjuntos y personas (los clientes se piden aparte al directorio). Los
+   * textos vacíos no viajan; `people` puede faltar en la respuesta (backend sin el grupo).
+   */
   search(q: string, limit: number, filters: MailSearchFiltersQuery = {}): Observable<MailSearchResult> {
-    let params = new HttpParams().set('q', q.trim()).set('limit', limit);
+    let params = new HttpParams().set('limit', limit);
+    params = withFilters(params, { q });
     params = customerParams(params, filters.customerId, filters.unlinked);
     if (filters.unreadOnly) params = params.set('unreadOnly', true);
-    params = withFilters(params, { hasAttachments: filters.hasAttachments, fromUtc: filters.fromUtc });
+    params = withFilters(params, {
+      hasAttachments: filters.hasAttachments,
+      fromUtc: filters.fromUtc,
+      toUtc: filters.toUtc,
+    });
+    for (const key of ['from', 'to', 'subject'] as const) {
+      const value = filters[key]?.trim();
+      if (value) params = params.set(key, value);
+    }
+    if (filters.folder) params = params.set('folder', filters.folder);
+    if (filters.groups?.length) params = params.set('groups', filters.groups.join(','));
     return this.http.get<MailSearchResult>(`${this.correspondence}/search`, { params });
   }
 

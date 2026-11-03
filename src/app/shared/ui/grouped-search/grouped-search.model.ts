@@ -13,6 +13,10 @@ export interface GroupedSearchItem<T = unknown> {
   /** Icono ionicons cuando no hay avatar. */
   icon?: string | null;
   avatar?: { name: string; seed?: string | null; imageUrl?: string | null } | null;
+  /** Insignia corta junto a la etiqueta (p. ej. "Client"). */
+  badge?: string | null;
+  /** Se puede quitar (X al pasar o Supr con la sugerencia resaltada) → `(itemRemoved)`. */
+  removable?: boolean;
   data: T;
 }
 
@@ -20,6 +24,8 @@ export interface GroupedSearchGroup<T = unknown> {
   id: string;
   label: string;
   items: readonly GroupedSearchItem<T>[];
+  /** Botón de texto en la cabecera del grupo (p. ej. "Clear") → `(groupAction)`. */
+  action?: string | null;
 }
 
 /** Lo que devuelve la función de búsqueda: grupos y si alguno sigue en camino. */

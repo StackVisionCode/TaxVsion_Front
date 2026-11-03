@@ -102,6 +102,39 @@ describe('MailService: filtros de servidor y reenvío', () => {
     expect(params('/search')).toEqual({ q: 'factura', limit: '5' });
   });
 
+  it('/search ampliado (B1): campos, carpeta, rango cerrado y solo los grupos pedidos; q vacío no viaja', () => {
+    service
+      .search('', 50, {
+        from: ' ana@x.com ',
+        to: 'bob',
+        subject: 'w-2',
+        folder: 'Sent',
+        fromUtc: '2026-10-01T04:00:00.000Z',
+        toUtc: '2026-11-01T03:59:59.999Z',
+        groups: ['emails', 'people'],
+      })
+      .subscribe();
+    expect(params('/search')).toEqual({
+      limit: '50',
+      from: 'ana@x.com',
+      to: 'bob',
+      subject: 'w-2',
+      folder: 'Sent',
+      fromUtc: '2026-10-01T04:00:00.000Z',
+      toUtc: '2026-11-01T03:59:59.999Z',
+      groups: 'emails,people',
+    });
+
+    // Campos vacíos y lista de grupos vacía no viajan.
+    service.search('factura', 5, { from: '  ', subject: null, folder: null, groups: [] }).subscribe();
+    expect(params('/search')).toEqual({ q: 'factura', limit: '5' });
+  });
+
+  it('/threads: `toUtc` del rango personalizado viaja', () => {
+    service.listInboxThreads({ toUtc: '2026-11-01T03:59:59.999Z' }, 1, 50).subscribe();
+    expect(params('/threads')['toUtc']).toBe('2026-11-01T03:59:59.999Z');
+  });
+
   it('Sent/Drafts/Trash: alcance + q, adjuntos y fecha (Drafts también filtra por adjuntos)', () => {
     const filters = { q: 'factura', hasAttachments: true, fromUtc: '2026-10-04T12:00:00.000Z' };
     service.listDrafts({ kind: 'unlinked' }, 1, 50, filters).subscribe();

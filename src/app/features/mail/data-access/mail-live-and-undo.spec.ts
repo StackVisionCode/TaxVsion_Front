@@ -224,7 +224,13 @@ describe('MailStore: Undo, estado en vivo y búsqueda', () => {
       unread: false,
       notClient: false,
       date: 'any' as const,
+      dateFrom: null,
+      dateTo: null,
       folder: 'inbox' as const,
+      from: '',
+      to: '',
+      subject: '',
+      searchFolder: null,
     });
 
     /** El boot de cuentas habilita las cargas; antes la URL solo deja los filtros guardados. */

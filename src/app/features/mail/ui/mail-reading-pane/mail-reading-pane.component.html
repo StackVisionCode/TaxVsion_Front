@@ -139,7 +139,12 @@
 
             <span *ngIf="message.hasAttachments" class="mt-1 flex items-center gap-1 text-[0.6875rem] text-gray-400">
               <ion-icon name="attach-outline" class="text-sm"></ion-icon>
-              {{ message.attachmentCount }} {{ message.attachmentCount === 1 ? 'attachment' : 'attachments' }}
+              <!-- Abierto desde la búsqueda no trae la cantidad (0): solo se dice que hay adjuntos -->
+              @if (message.attachmentCount > 0) {
+                {{ message.attachmentCount }} {{ message.attachmentCount === 1 ? 'attachment' : 'attachments' }}
+              } @else {
+                Attachments
+              }
             </span>
           </span>
 

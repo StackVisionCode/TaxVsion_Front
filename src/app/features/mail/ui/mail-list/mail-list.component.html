@@ -7,13 +7,17 @@
 
   <!-- Listado -->
   <div *ngIf="!error && !(loading && filteredRows().length === 0)" #listScroll
-    class="relative flex flex-1 min-h-0 flex-col gap-1 overflow-y-auto" role="list">
+    class="relative flex flex-1 min-h-0 flex-col gap-1 overflow-y-auto">
     <!-- Pill deslizante de la fila seleccionada -->
     <div *ngIf="indicatorReady()"
       class="mail-list-indicator absolute rounded-2xl bg-brand-bold pointer-events-none"
       [style.top.px]="indicatorTop()" [style.left.px]="indicatorLeft()" [style.width.px]="indicatorWidth()"
       [style.height.px]="indicatorHeight()"></div>
 
+    <!-- Contenido extra del llamador arriba de las filas (bloques de la pestaña All) -->
+    <ng-content select="[mailListHeader]"></ng-content>
+
+    <div role="list" class="flex flex-col gap-1" [attr.aria-label]="listLabel || null">
     <div *ngFor="let row of filteredRows(); trackBy: trackByRowId" class="relative z-10" role="listitem">
     <button #rowButton type="button" (click)="select(row.id)"
       [attr.aria-current]="row.id === selectedId ? 'true' : null" [attr.aria-label]="rowLabel(row)"
@@ -90,11 +94,15 @@
       </button>
     </div>
     </div>
+    </div>
 
     <app-state-block *ngIf="filteredRows().length === 0" [empty]="true" variant="inline" icon="mail-outline"
       [emptyTitle]="emptyText" [emptyMessage]="emptyHint"></app-state-block>
 
     <!-- Paginación incremental del listado activo -->
     <app-load-more class="pb-1" [hasMore]="hasMore" [loading]="loading || loadingMore" (load)="loadMoreRequested.emit()"></app-load-more>
+
+    <!-- Contenido extra del llamador debajo de las filas -->
+    <ng-content select="[mailListFooter]"></ng-content>
   </div>
 </div>

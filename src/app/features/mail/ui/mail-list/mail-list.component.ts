@@ -104,6 +104,8 @@ export class MailListComponent implements OnChanges, AfterViewInit {
   @Input() showTrashActions = false;
   /** Texto de apoyo bajo el estado vacío (p. ej. qué probar en una búsqueda sin resultados). */
   @Input() emptyHint = '';
+  /** Nombre accesible de la lista de filas (p. ej. "Emails" en la pestaña All). */
+  @Input() listLabel = '';
 
   @Output() rowSelected = new EventEmitter<string>();
   @Output() retryRequested = new EventEmitter<void>();

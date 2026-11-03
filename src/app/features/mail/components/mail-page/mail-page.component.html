@@ -396,16 +396,33 @@
     <!-- Message list -->
     <div class="bg-white rounded-[1.5rem] p-5 lg:col-span-4 lg:flex flex-col min-h-0 border border-gray-100 shadow-sm"
       [ngClass]="detailOpen() ? 'hidden' : 'flex'">
-      <!-- Buscador único (correos, archivos y clientes) + chips. Elegir un cliente lo vuelve chip y filtra. -->
+      <!-- Buscador único (correos, archivos, personas y clientes) + chips. Elegir un cliente lo vuelve chip y
+           filtra; elegir una persona pone "From:" y busca; los operadores (from: in:sent…) se vuelven chips. -->
       <app-grouped-search class="shrink-0" [search]="suggestFn" [value]="store.query()" [chips]="searchChips()"
-        [idleGroups]="idleGroups()" [placeholder]="searchPlaceholder()" ariaLabel="Search mail, files and clients"
+        [idleGroups]="idleGroups()" [placeholder]="searchPlaceholder()" ariaLabel="Search mail, people, files and clients"
         (picked)="onSearchPick($event)" (submitted)="onSearchSubmit($event)" (cleared)="onSearchCleared()"
-        (chipRemoved)="onSearchChipRemoved($event)"></app-grouped-search>
+        (chipRemoved)="onSearchChipRemoved($event)" (itemRemoved)="onSuggestionRemoved($event)"
+        (groupAction)="onSuggestionGroupAction($event)">
+        <button gsTrailing #filtersTrigger type="button" (click)="toggleFilters()" aria-haspopup="dialog"
+          [attr.aria-expanded]="filtersOpen()"
+          [attr.aria-label]="advancedCount() ? 'Search filters, ' + advancedCount() + ' active' : 'Search filters'"
+          class="relative grid h-7 w-7 shrink-0 place-items-center rounded-full transition-colors"
+          [ngClass]="filtersOpen() ? 'bg-brand-bold/10 text-brand-bold' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'">
+          <ion-icon name="options-outline" class="text-base" aria-hidden="true"></ion-icon>
+          <span *ngIf="advancedCount()" aria-hidden="true"
+            class="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-brand-bold ring-2 ring-white"></span>
+        </button>
+      </app-grouped-search>
+
+      <!-- Búsqueda avanzada: se porta al body bajo el buscador (pantalla completa en móvil) -->
+      <app-mail-search-filters [open]="filtersOpen()" [anchor]="searchAnchor()" [ignore]="filtersTrigger"
+        [value]="advancedValue()" (search)="onAdvancedSearch($event)" (cleared)="onAdvancedCleared()"
+        (closed)="closeFilters()"></app-mail-search-filters>
 
       <div class="mt-3 flex shrink-0 flex-wrap items-center gap-2">
         <app-filter-chips size="sm" [multiple]="true" [options]="chipOptions()" [values]="activeChips()"
           ariaLabel="Filters" (valuesChange)="onChipsChange($event)"></app-filter-chips>
-        <app-filter-chips size="sm" [collapseAfter]="1" [options]="dateOptions" [value]="dateChip()"
+        <app-filter-chips size="sm" [collapseAfter]="1" [options]="dateOptions()" [value]="dateChip()"
           ariaLabel="Date" (valueChange)="onDateChange($event)"></app-filter-chips>
         <button *ngIf="hasAnyFilter()" type="button" (click)="clearAllFilters()"
           class="ml-auto text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors">
@@ -413,13 +430,17 @@
         </button>
       </div>
 
-      <!-- Modo resultados (Enter): todas las carpetas, pestañas Emails | Files -->
-      <div *ngIf="store.resultsMode()" class="mt-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
+      <!-- Modo resultados (Enter): todas las carpetas, pestañas All | Emails | People | Files (desplazables en móvil) -->
+      <div *ngIf="store.resultsMode()" class="mt-3 flex shrink-0 flex-col gap-2">
         <p class="min-w-0 truncate text-xs text-gray-500">
-          Results for <span class="font-semibold text-gray-800">"{{ store.query() }}"</span> in all folders
+          Results
+          <ng-container *ngIf="resultsSummary().term as term">for <span class="font-semibold text-gray-800">{{ term }}</span></ng-container>
+          {{ resultsSummary().where }}
         </p>
-        <app-segmented [options]="searchTabs()" [value]="store.searchTab()" ariaLabel="Result type"
-          (valueChange)="setSearchTab($event)"></app-segmented>
+        <div class="no-scrollbar -mx-1 overflow-x-auto px-1">
+          <app-segmented [options]="searchTabs()" [value]="store.searchTab()" ariaLabel="Result type"
+            controls="mail-search-results" (valueChange)="setSearchTab($event)"></app-segmented>
+        </div>
       </div>
       <p *ngIf="!store.resultsMode() && store.query()" class="mt-3 shrink-0 truncate text-xs text-gray-500">
         Showing matches for <span class="font-semibold text-gray-800">"{{ store.query() }}"</span> in this folder ·
@@ -428,13 +449,84 @@
         </button>
       </p>
 
-      <app-mail-list class="mt-3 flex-1 min-h-0" [rows]="rows()" [selectedId]="selectedRowId()" [loading]="listLoading()"
-        [error]="listError()" [hasMore]="listHasMore()" [emptyText]="listEmptyText()" [emptyHint]="listEmptyHint()"
-        [showTrashActions]="!store.resultsMode() && store.activeFolderId() === 'trash'"
-        (rowSelected)="selectRow($event)" (retryRequested)="retryList()"
-        [canManage]="can.canManage()"
-        (restoreRequested)="restoreTrash($event)" (purgeRequested)="purgeTrash($event)"
-        (loadMoreRequested)="loadMoreList()"></app-mail-list>
+      <div [attr.id]="store.resultsMode() ? 'mail-search-results' : null" [attr.role]="store.resultsMode() ? 'tabpanel' : null"
+        [attr.aria-label]="store.resultsMode() ? 'Search results' : null" class="mt-3 flex min-h-0 flex-1 flex-col">
+        @if (store.resultsMode() && store.searchTab() === 'people') {
+          <!-- Pestaña People: corresponsales; la fila filtra From, el menú From/To, escribir o abrir la ficha -->
+          <app-mail-people-list class="min-h-0 flex-1 overflow-y-auto" [people]="store.searchPeople()"
+            [clientNames]="store.customerIndex()" [canCompose]="canCompose() && can.canCompose()" [showClientLink]="!embedded()"
+            [loading]="store.searchLoading()" [error]="store.searchError()" [emptyText]="listEmptyText()"
+            [emptyHint]="listEmptyHint()" (filterFrom)="filterByPerson($event, 'from')" (filterTo)="filterByPerson($event, 'to')"
+            (compose)="composeToPerson($event)" (openClient)="openPersonClient($event)"
+            (retryRequested)="retryList()"></app-mail-people-list>
+        } @else {
+          <app-mail-list class="flex-1 min-h-0" [rows]="rows()" [selectedId]="selectedRowId()" [loading]="listLoading()"
+            [error]="listError()" [hasMore]="listHasMore()" [emptyText]="listEmptyText()" [emptyHint]="listEmptyHint()"
+            [listLabel]="allTab() ? 'Emails' : ''"
+            [showTrashActions]="!store.resultsMode() && store.activeFolderId() === 'trash'"
+            (rowSelected)="selectRow($event)" (retryRequested)="retryList()"
+            [canManage]="can.canManage()"
+            (restoreRequested)="restoreTrash($event)" (purgeRequested)="purgeTrash($event)"
+            (loadMoreRequested)="loadMoreList()">
+            @if (allTab()) {
+              <!-- Pestaña All: personas (3) arriba de los correos, cada bloque con "See all" -->
+              <div mailListHeader class="flex flex-col gap-1">
+                @if (store.searchPeople().length > 0) {
+                  <section aria-labelledby="mail-all-people" class="pb-2">
+                    <div class="flex items-center justify-between gap-2 px-3 pb-1">
+                      <h3 id="mail-all-people" class="text-[0.625rem] font-semibold uppercase tracking-wide text-gray-400">People</h3>
+                      <button type="button" (click)="setSearchTab('people')"
+                        class="text-xs font-medium text-brand-bold hover:underline">See all</button>
+                    </div>
+                    <app-mail-people-list [people]="store.searchPeople()" [limit]="allTabBlock"
+                      [clientNames]="store.customerIndex()" [canCompose]="canCompose() && can.canCompose()" [showClientLink]="!embedded()"
+                      (filterFrom)="filterByPerson($event, 'from')" (filterTo)="filterByPerson($event, 'to')"
+                      (compose)="composeToPerson($event)" (openClient)="openPersonClient($event)"></app-mail-people-list>
+                  </section>
+                }
+                @if (store.searchEmails().length > 0 && (store.searchPeople().length > 0 || store.searchFiles().length > 0)) {
+                  <div class="flex items-center justify-between gap-2 px-3 pb-1">
+                    <h3 class="text-[0.625rem] font-semibold uppercase tracking-wide text-gray-400">Emails</h3>
+                    <button type="button" (click)="setSearchTab('emails')"
+                      class="text-xs font-medium text-brand-bold hover:underline">See all</button>
+                  </div>
+                }
+              </div>
+            }
+            @if (allTab() && allFiles().length > 0) {
+              <!-- Pestaña All: archivos (3) debajo de los correos -->
+              <section mailListFooter aria-labelledby="mail-all-files" class="mt-2 border-t border-gray-100 pt-3">
+                <div class="flex items-center justify-between gap-2 px-3 pb-1">
+                  <h3 id="mail-all-files" class="text-[0.625rem] font-semibold uppercase tracking-wide text-gray-400">Files</h3>
+                  <button type="button" (click)="setSearchTab('files')"
+                    class="text-xs font-medium text-brand-bold hover:underline">See all</button>
+                </div>
+                <ul role="list" class="flex flex-col gap-1" aria-label="Files">
+                  @for (file of allFiles(); track file.source + file.attachmentId; let index = $index) {
+                    @let info = fileSummary(file);
+                    <li>
+                      <button type="button" (click)="previewAllFile(index)"
+                        [attr.aria-label]="file.filename + ', ' + info.party + ', ' + info.size + ', ' + info.time"
+                        class="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-gray-50">
+                        <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gray-100 text-gray-500">
+                          <ion-icon aria-hidden="true" [name]="info.icon" class="text-lg"></ion-icon>
+                        </span>
+                        <span class="min-w-0 flex-1">
+                          <span class="flex items-center justify-between gap-2">
+                            <span class="truncate text-sm font-semibold text-gray-900">{{ file.filename }}</span>
+                            <span class="shrink-0 text-[0.6875rem] text-gray-400">{{ info.time }}</span>
+                          </span>
+                          <span class="block truncate text-xs text-gray-600">{{ info.party }} · {{ info.size }}</span>
+                        </span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              </section>
+            }
+          </app-mail-list>
+        }
+      </div>
     </div>
 
     <!-- Reading pane / compose editor -->

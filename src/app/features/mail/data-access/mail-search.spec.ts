@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Subject, of, throwError } from 'rxjs';
-import { MailSearchFilters, MailStore, MailSuggestions } from './mail.store';
+import { MailSearchFilters, MailStore, MailSuggestions, hasValidSearchCriteria } from './mail.store';
 import { InboxThreadsQuery, MailListFilters, MailService } from './mail.service';
 import { MailSocketService } from './mail-socket.service';
 import { MailUnreadStore } from './mail-unread.store';
@@ -22,6 +22,7 @@ import {
   MailSearchResult,
   MessageSummary,
   PagedResult,
+  PersonSearchHit,
   ThreadSummary,
 } from './mail.model';
 
@@ -92,7 +93,13 @@ const filters = (over: Partial<MailSearchFilters> = {}): MailSearchFilters => ({
   unread: false,
   notClient: false,
   date: 'any',
+  dateFrom: null,
+  dateTo: null,
   folder: null,
+  from: '',
+  to: '',
+  subject: '',
+  searchFolder: null,
   ...over,
 });
 
@@ -353,14 +360,14 @@ describe('MailStore: búsqueda unificada', () => {
       };
 
       store.applySearchState(filters({ q: 'factura', results: true }));
-      expect(service['search']).toHaveBeenLastCalledWith('factura', 50, {});
+      expect(service['search']).toHaveBeenLastCalledWith('factura', 50, { groups: ['emails'] });
       expect(store.resultsMode()).toBe(true);
       // Se pinta lo que devolvió el servidor, sin filtrar.
       expect(store.searchEmails().length).toBe(2);
       expect(store.searchFiles().length).toBe(1);
 
       store.applySearchState(filters({ q: 'factura', results: true, notClient: true }));
-      expect(service['search']).toHaveBeenLastCalledWith('factura', 50, { unlinked: true });
+      expect(service['search']).toHaveBeenLastCalledWith('factura', 50, { unlinked: true, groups: ['emails'] });
 
       store.applySearchState(
         filters({ q: 'factura', results: true, hasAttachments: true, unread: true }),
@@ -368,17 +375,11 @@ describe('MailStore: búsqueda unificada', () => {
       expect(service['search']).toHaveBeenLastCalledWith('factura', 50, {
         hasAttachments: true,
         unreadOnly: true,
+        groups: ['emails'],
       });
 
       store.applySearchState(filters({ q: 'factura', results: true, clientId: 'c1' }));
-      expect(service['search']).toHaveBeenLastCalledWith('factura', 50, { customerId: 'c1' });
-
-      // Cambiar de pestaña no vuelve a buscar.
-      const calls = service['search'].mock.calls.length;
-      store.applySearchState(
-        filters({ q: 'factura', results: true, clientId: 'c1', tab: 'files' }),
-      );
-      expect(service['search'].mock.calls.length).toBe(calls);
+      expect(service['search']).toHaveBeenLastCalledWith('factura', 50, { customerId: 'c1', groups: ['emails'] });
     });
 
     it('elegir carpeta sale del modo resultados y conserva el término', () => {
@@ -475,7 +476,7 @@ describe('MailStore: búsqueda unificada', () => {
       page: 1,
       size: 5,
     });
-    expect(service['search']).toHaveBeenCalledWith('fac', 5, {});
+    expect(service['search']).toHaveBeenCalledWith('fac', 5, { groups: ['emails', 'files', 'people'] });
     expect(emitted.at(-1)).toMatchObject({ pending: true, emails: [] });
     expect(emitted.at(-1)?.clients.map((item) => item.id)).toEqual(['c1']);
 
@@ -483,5 +484,143 @@ describe('MailStore: búsqueda unificada', () => {
     expect(emitted.at(-1)).toMatchObject({ pending: false });
     expect(emitted.at(-1)?.emails.length).toBe(1);
     expect(emitted.at(-1)?.files.length).toBe(1);
+  });
+
+  describe('F1–F3: pestañas, personas y filtros de campo', () => {
+    const person = (over: Partial<PersonSearchHit> = {}): PersonSearchHit => ({
+      address: 'ana@x.com',
+      displayName: 'Ana',
+      customerId: 'c7',
+      messageCount: 3,
+      lastContactAtUtc: '2026-11-01T10:00:00',
+      direction: 'From',
+      ...over,
+    });
+
+    it('All pide los tres grupos; ir a una pestaña ya cargada no vuelve a pedir', () => {
+      const store = setup();
+      store.applySearchState(filters({ q: 'factura', results: true, tab: 'all' }));
+      expect(service['search']).toHaveBeenLastCalledWith('factura', 50, { groups: ['emails', 'files', 'people'] });
+      const calls = service['search'].mock.calls.length;
+      store.applySearchState(filters({ q: 'factura', results: true, tab: 'files' }));
+      store.applySearchState(filters({ q: 'factura', results: true, tab: 'people' }));
+      expect(service['search'].mock.calls.length).toBe(calls);
+      expect(store.searchTab()).toBe('people');
+    });
+
+    it('entrar directo a People pide solo `people`; pasar a Emails pide solo `emails`', () => {
+      const store = setup();
+      store.applySearchState(filters({ q: 'factura', results: true, tab: 'people' }));
+      expect(service['search']).toHaveBeenLastCalledWith('factura', 50, { groups: ['people'] });
+      store.applySearchState(filters({ q: 'factura', results: true, tab: 'emails' }));
+      expect(service['search']).toHaveBeenLastCalledWith('factura', 50, { groups: ['emails'] });
+      expect(store.searchGroups()).toEqual(['emails']);
+    });
+
+    it('un backend sin `people` no rompe: la lista queda vacía; con `people` se pinta', () => {
+      const store = setup();
+      searchResult = { emails: [email()], files: [] };
+      store.applySearchState(filters({ q: 'factura', results: true, tab: 'all' }));
+      expect(store.searchPeople()).toEqual([]);
+      expect(store.searchEmails().length).toBe(1);
+
+      searchResult = { emails: [], files: [], people: [person()] };
+      store.applySearchState(filters({ q: 'factura2', results: true, tab: 'all' }));
+      expect(store.searchPeople().map((item) => item.address)).toEqual(['ana@x.com']);
+    });
+
+    it('From/To/Subject/carpeta van a `/search`; con un campo, `q` puede ir vacío', () => {
+      const store = setup();
+      store.applySearchState(filters({ results: true, from: 'ana@x.com', tab: 'all' }));
+      expect(store.resultsMode()).toBe(true);
+      expect(service['search']).toHaveBeenLastCalledWith('', 50, {
+        from: 'ana@x.com',
+        groups: ['emails', 'files', 'people'],
+      });
+
+      store.applySearchState(
+        filters({
+          q: 'w-2',
+          results: true,
+          from: 'ana@x.com',
+          to: 'bob',
+          subject: 'tax',
+          searchFolder: 'sent',
+          tab: 'all',
+        }),
+      );
+      expect(service['search']).toHaveBeenLastCalledWith('w-2', 50, {
+        from: 'ana@x.com',
+        to: 'bob',
+        subject: 'tax',
+        folder: 'Sent',
+        groups: ['emails', 'files', 'people'],
+      });
+      // Los filtros de campo no tocan los listados de carpeta (no existen allí).
+      expect(inboxQueries.every((query) => !('from' in query))).toBe(true);
+
+      // Cambiar solo la carpeta del filtro vuelve a buscar.
+      const calls = service['search'].mock.calls.length;
+      store.applySearchState(
+        filters({ q: 'w-2', results: true, from: 'ana@x.com', to: 'bob', subject: 'tax', searchFolder: 'inbox', tab: 'all' }),
+      );
+      expect(service['search'].mock.calls.length).toBe(calls + 1);
+    });
+
+    it('un filtro de campo de 1 letra no es criterio: no entra en modo resultados', () => {
+      const store = setup();
+      store.applySearchState(filters({ results: true, from: 'a' }));
+      expect(store.resultsMode()).toBe(false);
+      expect(service['search']).not.toHaveBeenCalled();
+      expect(hasValidSearchCriteria({ q: 'w-2', from: 'a', to: '', subject: '' })).toBe(false);
+      expect(hasValidSearchCriteria({ q: '', from: '', to: 'bo', subject: '' })).toBe(true);
+    });
+
+    it('rango personalizado: `fromUtc` y `toUtc` en `/search` y en los hilos', () => {
+      const store = setup();
+      store.applySearchState(
+        filters({ q: 'factura', results: true, date: 'custom', dateFrom: '2026-10-01', dateTo: '2026-10-31' }),
+      );
+      const from = new Date(2026, 9, 1).toISOString();
+      const to = new Date(2026, 9, 31, 23, 59, 59, 999).toISOString();
+      expect(service['search'].mock.calls.at(-1)?.[2]).toMatchObject({ fromUtc: from, toUtc: to });
+      expect(inboxQueries.at(-1)).toMatchObject({ fromUtc: from, toUtc: to });
+      const calls = service['search'].mock.calls.length;
+      store.applySearchState(
+        filters({ q: 'factura', results: true, date: 'custom', dateFrom: '2026-10-01', dateTo: '2026-10-15' }),
+      );
+      expect(service['search'].mock.calls.length).toBe(calls + 1);
+    });
+
+    it('las sugerencias entienden operadores: filtros al servidor y solo el texto libre al directorio', () => {
+      const store = setup();
+      const emitted: MailSuggestions[] = [];
+      searchResult = { emails: [], files: [], people: [person()] };
+      store.suggest('from:ana fac').subscribe((value) => emitted.push(value));
+      expect(directorySearch).toHaveBeenLastCalledWith({ term: 'fac', status: 'NotArchived', page: 1, size: 5 });
+      expect(service['search']).toHaveBeenLastCalledWith('fac', 5, {
+        from: 'ana',
+        groups: ['emails', 'files', 'people'],
+      });
+      expect(emitted.at(-1)?.people.map((item) => item.address)).toEqual(['ana@x.com']);
+
+      directorySearch.mockClear();
+      store.suggest('in:sent from:"ana perez"').subscribe();
+      expect(directorySearch).not.toHaveBeenCalled();
+      expect(service['search']).toHaveBeenLastCalledWith('', 5, {
+        from: 'ana perez',
+        folder: 'Sent',
+        groups: ['emails', 'files', 'people'],
+      });
+    });
+
+    it('escribirle a una persona que es cliente archiva la redacción en ese cliente (si no hay filtro)', () => {
+      const store = setup();
+      store.openCompose('ana@x.com', 'c7');
+      expect(store.compose()).toMatchObject({ open: true, initialTo: 'ana@x.com', customerId: 'c7' });
+      store.applySearchState(filters({ clientId: 'c1' }));
+      store.openCompose('ana@x.com', 'c7');
+      expect(store.compose().customerId).toBe('c1');
+    });
   });
 });

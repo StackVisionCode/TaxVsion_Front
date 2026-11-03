@@ -6,13 +6,19 @@ import { MailSearchFilters } from '../data-access/mail.store';
 const base: MailSearchFilters = {
   q: '',
   results: false,
-  tab: 'emails',
+  tab: 'all',
   clientId: null,
   hasAttachments: false,
   unread: false,
   notClient: false,
   date: 'any',
+  dateFrom: null,
+  dateTo: null,
   folder: null,
+  from: '',
+  to: '',
+  subject: '',
+  searchFolder: null,
 };
 
 describe('Búsqueda de /email en la URL', () => {
@@ -62,6 +68,12 @@ describe('Búsqueda de /email en la URL', () => {
       unread: null,
       nc: null,
       date: null,
+      since: null,
+      until: null,
+      from: null,
+      rcpt: null,
+      subject: null,
+      folder: null,
     });
     expect(toMailSearchParams({ ...base, q: 'w-2', folder: 'trash' }).in).toBe('trash');
     // Sin término no hay carpeta en la URL (la carpeta sin búsqueda nunca vivió ahí).
@@ -85,5 +97,71 @@ describe('Búsqueda de /email en la URL', () => {
       Object.fromEntries(Object.entries(written).filter(([, value]) => value !== null)),
     );
     expect(sameMailSearch(parseMailSearchParams(params), state)).toBe(true);
+  });
+
+  it('sin `tab` es All; un `tab` desconocido también', () => {
+    expect(parseMailSearchParams(convertToParamMap({ q: 'w-2' })).tab).toBe('all');
+    expect(parseMailSearchParams(convertToParamMap({ q: 'w-2', tab: 'events' })).tab).toBe('all');
+    expect(parseMailSearchParams(convertToParamMap({ q: 'w-2', tab: 'people' })).tab).toBe('people');
+    expect(toMailSearchParams({ ...base, q: 'w-2', results: true, tab: 'all' }).tab).toBeNull();
+  });
+
+  it('filtros de campo: sin `q` también es modo resultados (B1); con `in` se ignoran', () => {
+    expect(
+      parseMailSearchParams(convertToParamMap({ from: 'ana@x.com', rcpt: 'bob', subject: 'w-2', folder: 'sent' })),
+    ).toEqual({
+      ...base,
+      results: true,
+      from: 'ana@x.com',
+      to: 'bob',
+      subject: 'w-2',
+      searchFolder: 'sent',
+    });
+    expect(parseMailSearchParams(convertToParamMap({ q: 'w-2', in: 'inbox', from: 'ana' }))).toMatchObject({
+      results: false,
+      from: '',
+      searchFolder: null,
+    });
+    // Un texto de 1 letra no es criterio válido (400 en el backend).
+    expect(parseMailSearchParams(convertToParamMap({ from: 'a' })).results).toBe(false);
+    // Fuera del modo resultados no se escriben.
+    expect(toMailSearchParams({ ...base, from: 'ana', searchFolder: 'sent' })).toMatchObject({ from: null, folder: null });
+  });
+
+  it('rango personalizado: `since`/`until` válidos; sin ninguno vuelve a Any time', () => {
+    expect(
+      parseMailSearchParams(convertToParamMap({ date: 'custom', since: '2026-10-01', until: '2026-10-31' })),
+    ).toMatchObject({ date: 'custom', dateFrom: '2026-10-01', dateTo: '2026-10-31' });
+    expect(parseMailSearchParams(convertToParamMap({ date: 'custom', since: 'ayer' }))).toMatchObject({
+      date: 'any',
+      dateFrom: null,
+    });
+    expect(parseMailSearchParams(convertToParamMap({ date: '7d', since: '2026-10-01' })).dateFrom).toBeNull();
+    expect(toMailSearchParams({ ...base, date: 'custom', dateFrom: '2026-10-01', dateTo: null })).toMatchObject({
+      date: 'custom',
+      since: '2026-10-01',
+      until: null,
+    });
+  });
+
+  it('ida y vuelta con filtros de campo, pestaña y rango', () => {
+    const state: MailSearchFilters = {
+      ...base,
+      q: 'factura',
+      results: true,
+      tab: 'people',
+      from: 'ana perez',
+      to: 'bob@y.com',
+      subject: 'w-2',
+      searchFolder: 'archived',
+      date: 'custom',
+      dateFrom: '2026-10-01',
+      dateTo: '2026-10-31',
+    };
+    const written = toMailSearchParams(state);
+    const params = convertToParamMap(
+      Object.fromEntries(Object.entries(written).filter(([, value]) => value !== null)),
+    );
+    expect(parseMailSearchParams(params)).toEqual(state);
   });
 });
