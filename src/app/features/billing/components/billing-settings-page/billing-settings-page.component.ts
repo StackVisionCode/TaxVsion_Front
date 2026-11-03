@@ -12,8 +12,8 @@ import { AdminCapabilities } from '@core/access/admin-capabilities';
 /**
  * Configuración de cobro de facturación (accedida desde Settings → "Invoices"): SOLO los proveedores
  * de pago (Stripe/PayPal/…). Los datos de la empresa (identidad legal, logo y marca) NO se duplican
- * acá — viven en Company settings (/company/settings), que es la fuente que además usa la factura
- * (issuer-profile). Reusa el BillingStore.
+ * acá — viven en Company settings (/company/settings, perfil de Tenant), del que Billing toma lo que
+ * estampa en la factura. Reusa el BillingStore.
  */
 @Component({
   selector: 'app-billing-settings-page',

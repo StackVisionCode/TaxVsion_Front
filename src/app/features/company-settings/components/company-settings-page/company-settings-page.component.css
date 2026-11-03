@@ -15,16 +15,6 @@
   }
 }
 
-.cs-input-error {
-  border-color: rgb(248 113 113);
-}
-
-/* ---- Vista previa de factura: papel con un poco de profundidad ---- */
-.cs-paper {
-  background: linear-gradient(180deg, #ffffff 0%, #fbfaf7 100%);
-  box-shadow: 0 1px 2px rgb(60 45 20 / 0.04), 0 18px 36px -24px rgb(60 45 20 / 0.25);
-}
-
 /* ---- Barra de guardado flotante ---- */
 .cs-savebar {
   animation: cs-savebar-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;

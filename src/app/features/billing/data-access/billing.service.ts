@@ -69,8 +69,8 @@ export class BillingService {
 
   /**
    * `POST /billing/invoices`. Convierte el borrador de la UI (dólares y %) al contrato
-   * (centavos y puntos básicos). `issuer: null` a propósito: Billing estampa solo el perfil de
-   * empresa guardado en `/billing/issuer-profile`.
+   * (centavos y puntos básicos). `issuer: null` a propósito: Billing estampa su proyección del perfil
+   * de la oficina (`/billing/issuer-profile`, que viene de Tenant).
    */
   createInvoice(
     customer: CustomerSummary,
@@ -192,42 +192,16 @@ export class BillingService {
     });
   }
 
-  // ---------- Perfil del emisor ----------
+  // ---------- Perfil del emisor (solo lectura: proyección del perfil de Tenant) ----------
 
   getIssuerProfile(): Observable<IssuerProfile> {
     return this.http.get<IssuerProfile>(`${this.base}/billing/issuer-profile`);
-  }
-
-  /** `PUT /billing/issuer-profile` → 204. Solo `name` es obligatorio; el resto viaja como null. */
-  saveIssuerProfile(profile: IssuerProfile): Observable<unknown> {
-    return this.http.put(`${this.base}/billing/issuer-profile`, {
-      name: profile.name.trim(),
-      taxId: profile.taxId || null,
-      line1: profile.line1 || null,
-      city: profile.city || null,
-      state: profile.state || null,
-      zip: profile.zip || null,
-      country: profile.country || 'US',
-      phone: profile.phone || null,
-      email: profile.email || null,
-      website: profile.website || null,
-      defaultCurrency: profile.defaultCurrency || 'USD',
-    });
   }
 
   // ---------- Marca del PDF ----------
 
   getBranding(): Observable<InvoiceBranding> {
     return this.http.get<InvoiceBranding>(`${this.base}/documents/branding`);
-  }
-
-  saveBranding(branding: InvoiceBranding): Observable<unknown> {
-    return this.http.put(`${this.base}/documents/branding`, {
-      displayName: branding.displayName || null,
-      logoDataUri: branding.logoDataUri || null,
-      brandColorHex: branding.brandColorHex || null,
-      footerText: branding.footerText || null,
-    });
   }
 
   // ---------- Proveedor de cobro ----------

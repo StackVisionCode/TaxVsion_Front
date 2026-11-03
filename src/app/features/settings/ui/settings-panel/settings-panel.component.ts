@@ -48,8 +48,8 @@ interface PanelConfig {
  * endpoint y el botón "Save changes" solo encendía un chip "Saved" durante 2s.
  *
  * Ningún campo de este panel persiste nada: los datos de identidad de la firma
- * (nombre, EIN, dirección, logo) sí tienen backend, pero viven en
- * /company/settings (Billing `/billing/issuer-profile` y `/tenants/{id}/...`),
+ * (nombre, zona horaria, EIN, dirección, logo) sí tienen backend, pero viven en
+ * /company/settings (Tenant `/tenants/current`, `/tenants/current/profile` y `/tenants/{id}/...`),
  * así que aquí se enlaza esa pantalla en vez de duplicar un formulario que no
  * guardaría nada. Los colores de marca son fijos (azul del brandbook) y ya no
  * se editan desde ningún lado.
@@ -60,11 +60,11 @@ const PANELS: Record<string, PanelConfig> = {
       icon: 'business-outline',
       label: 'Open office settings',
       description:
-        'Firm name, EIN, address, contact details, logo and favicon are stored with your office profile.',
+        'Office name, time zone, legal name, EIN, address, contact details, logo and favicon are stored with your office profile.',
       routerLink: '/company/settings',
     },
+    // La zona horaria ya se edita en /company/settings (PUT /tenants/current): dejó de ser "pending".
     fields: [
-      { kind: 'pending', key: 'timezone', control: 'select', label: 'Default timezone', description: 'Will set the timezone used for due dates and reminders' },
       { kind: 'pending', key: 'compactSidebar', control: 'toggle', label: 'Compact sidebar by default', description: 'Will start every session with the sidebar collapsed' },
     ],
   },

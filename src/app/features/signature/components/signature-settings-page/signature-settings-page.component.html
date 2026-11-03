@@ -309,14 +309,26 @@
             class="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-sm" aria-label="Pages per document" />
         </div>
 
+        <!-- Retención: solo lectura; la fija la oficina en Cumplimiento (el mínimo del plan sigue siendo el piso) -->
         <div class="flex items-start justify-between gap-4 py-4">
           <div class="min-w-0">
-            <p class="text-sm font-semibold text-gray-900">Keep completed requests (years)</p>
-            <p class="mt-0.5 text-xs text-gray-500">Your plan requires at least {{ d.planConstraints.minRetentionYears }} years.</p>
+            <p id="retention-years-label" class="text-sm font-semibold text-gray-900">Keep completed requests (years)</p>
+            <p class="mt-0.5 text-xs text-gray-500">
+              @if (d.retentionYearsSource === 'Office') {
+                Set in
+              } @else {
+                Default until your office sets it in
+              }
+              @if (canOpenCompliance()) {
+                <a routerLink="/company/settings" fragment="compliance" class="font-semibold text-blue-600 hover:underline">Office settings → Compliance</a>.
+              } @else {
+                Office settings → Compliance.
+              }
+              Your plan requires at least {{ d.planConstraints.minRetentionYears }} years.
+            </p>
           </div>
-          <input type="number" [min]="d.planConstraints.minRetentionYears" [max]="limits()?.maxRetentionYears ?? null"
-            [ngModel]="d.retentionYears" (ngModelChange)="setRetentionYears($event)"
-            class="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-sm" aria-label="Retention in years" />
+          <span class="shrink-0 rounded-lg bg-gray-50 px-3 py-1.5 text-sm font-semibold tabular-nums text-gray-900"
+            aria-labelledby="retention-years-label" data-testid="retention-years">{{ d.retentionYears }} years</span>
         </div>
 
         <div class="flex items-start justify-between gap-4 py-4">

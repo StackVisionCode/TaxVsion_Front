@@ -1,0 +1,164 @@
+<app-cs-section-header icon="shield-checkmark-outline" heading="Compliance" titleId="compliance-title" [loading]="loading()"
+  description="IRS e-file and FTC Safeguards details. Only office admins see this section.">
+  <span class="pf-badge pf-badge--warn"><ion-icon name="lock-closed-outline"></ion-icon>Admins only</span>
+</app-cs-section-header>
+
+@if (error(); as err) {
+  <p class="mt-4 flex items-center gap-2 text-sm text-red-600" role="alert">
+    <ion-icon name="alert-circle-outline" class="text-base"></ion-icon>{{ err }}
+  </p>
+}
+
+<!-- ===== EFIN ===== -->
+<div class="mt-6 rounded-2xl border border-gray-100 p-4">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="min-w-0">
+      <p id="efin-label" class="text-sm font-semibold text-gray-900">EFIN</p>
+      <p class="mt-0.5 text-xs text-gray-500">Your IRS Electronic Filing Identification Number. Stored encrypted; each reveal is logged.</p>
+    </div>
+
+    @switch (form().efinAction) {
+      @case ('keep') {
+        @if (compliance()?.hasEfin) {
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="rounded-lg bg-gray-50 px-3 py-1.5 font-mono text-sm tracking-widest text-gray-900" aria-labelledby="efin-label"
+              aria-live="polite">{{ revealedEfin() ?? compliance()?.efinMasked }}</span>
+            @if (revealedEfin()) {
+              <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm" (click)="hide.emit()">
+                <ion-icon name="eye-off-outline"></ion-icon>Hide
+              </button>
+            } @else {
+              <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm" (click)="reveal.emit()" [disabled]="revealing() || disabled()">
+                <ion-icon name="eye-outline"></ion-icon>{{ revealing() ? 'Revealing…' : 'Reveal' }}
+              </button>
+            }
+            <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm" (click)="startEfinChange()" [disabled]="disabled()">Change</button>
+            <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm pf-btn--danger" (click)="removeEfin()" [disabled]="disabled()">Remove</button>
+          </div>
+        } @else {
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-400">Not on file</span>
+            <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm" (click)="startEfinChange()" [disabled]="disabled() || loading()">
+              <ion-icon name="add-outline"></ion-icon>Add EFIN
+            </button>
+          </div>
+        }
+      }
+      @case ('change') {
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center gap-2">
+            <input type="text" inputmode="numeric" autocomplete="off" class="pf-input pf-input--code w-36" [value]="form().efin"
+              (input)="efinInput($event)" (blur)="touched.emit('efin')" maxlength="6" placeholder="123456" aria-labelledby="efin-label"
+              [class.border-red-400]="!!errors().efin" [attr.aria-invalid]="!!errors().efin" />
+            <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm" (click)="keepEfin()">Cancel</button>
+          </div>
+          @if (errors().efin; as err) {
+            <span class="text-xs text-red-600" role="alert">{{ err }}</span>
+          }
+        </div>
+      }
+      @case ('clear') {
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-red-600">Will be removed when you save</span>
+          <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm" (click)="keepEfin()">
+            <ion-icon name="arrow-undo-outline"></ion-icon>Undo
+          </button>
+        </div>
+      }
+    }
+  </div>
+</div>
+
+<div class="mt-6 grid gap-4 sm:grid-cols-2">
+  <!-- ===== Responsable de seguridad ===== -->
+  <label class="pf-field sm:col-span-2">
+    <span class="pf-field__label">Security coordinator</span>
+    <select class="pf-input" (change)="set('securityCoordinatorUserId', $event)" [disabled]="disabled() || !canListStaff()"
+      [class.border-red-400]="!!errors().securityCoordinator" aria-describedby="coordinator-hint">
+      <option value="" [selected]="!form().securityCoordinatorUserId">Not assigned</option>
+      @for (option of coordinatorOptions(); track option.userId) {
+        <option [value]="option.userId" [selected]="option.userId === form().securityCoordinatorUserId">{{ option.label }}</option>
+      }
+    </select>
+    @if (errors().securityCoordinator; as err) {
+      <span class="text-xs text-red-600" role="alert">{{ err }}</span>
+    } @else if (!canListStaff()) {
+      <span id="coordinator-hint" class="text-xs text-gray-500">You need access to Users to choose a team member.</span>
+    } @else {
+      <span id="coordinator-hint" class="text-xs text-gray-500">The team member who runs your information security program (FTC Safeguards Rule).</span>
+    }
+  </label>
+
+  <!-- ===== WISP ===== -->
+  <label class="pf-field">
+    <span class="pf-field__label">WISP adopted on</span>
+    <input type="date" class="pf-input tabular-nums" [value]="form().wispAdoptedOn" (input)="set('wispAdoptedOn', $event)"
+      (blur)="touched.emit('wispAdoptedOn')" [max]="today()" [disabled]="disabled()"
+      [class.border-red-400]="!!errors().wispAdoptedOn" [attr.aria-invalid]="!!errors().wispAdoptedOn" />
+    @if (errors().wispAdoptedOn; as err) {
+      <span class="text-xs text-red-600" role="alert">{{ err }}</span>
+    } @else {
+      <span class="text-xs text-gray-500">Written Information Security Plan.</span>
+    }
+  </label>
+  <div class="pf-field">
+    <span class="flex flex-wrap items-center gap-2">
+      <label for="wisp-last-reviewed" class="pf-field__label">WISP last reviewed on</label>
+      @if (reviewDue()) {
+        <span class="pf-badge pf-badge--warn"><ion-icon name="alert-circle-outline"></ion-icon>Review due</span>
+      }
+      <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm ml-auto" (click)="markReviewedToday()" [disabled]="!canMarkReviewedToday()">
+        <ion-icon name="checkmark-outline"></ion-icon>Mark reviewed today
+      </button>
+    </span>
+    <input id="wisp-last-reviewed" type="date" class="pf-input tabular-nums" [value]="form().wispLastReviewedOn" (input)="set('wispLastReviewedOn', $event)"
+      (blur)="touched.emit('wispLastReviewedOn')" [min]="form().wispAdoptedOn" [max]="today()" [disabled]="disabled()"
+      [class.border-red-400]="!!errors().wispLastReviewedOn" [attr.aria-invalid]="!!errors().wispLastReviewedOn" />
+    @if (errors().wispLastReviewedOn; as err) {
+      <span class="text-xs text-red-600" role="alert">{{ err }}</span>
+    } @else if (reviewDue()) {
+      <span class="text-xs text-amber-700">More than 12 months ago. Review the plan at least once a year.</span>
+    } @else {
+      <span class="text-xs text-gray-500">Review it at least once a year.</span>
+    }
+  </div>
+
+  <!-- ===== Contacto ante incidentes ===== -->
+  <label class="pf-field">
+    <span class="pf-field__label">Incident contact email</span>
+    <input type="email" class="pf-input" [value]="form().incidentContactEmail" (input)="set('incidentContactEmail', $event)"
+      (blur)="touched.emit('incidentEmail')" [disabled]="disabled()" placeholder="security@yourfirm.com"
+      [class.border-red-400]="!!errors().incidentEmail" [attr.aria-invalid]="!!errors().incidentEmail" />
+    @if (errors().incidentEmail; as err) {
+      <span class="text-xs text-red-600" role="alert">{{ err }}</span>
+    } @else {
+      <span class="text-xs text-gray-500">Who to reach if client data is exposed.</span>
+    }
+  </label>
+  <label class="pf-field">
+    <span class="pf-field__label">Incident contact phone</span>
+    <input type="tel" class="pf-input" [value]="form().incidentContactPhone" (input)="set('incidentContactPhone', $event)"
+      (blur)="touched.emit('incidentPhone')" [disabled]="disabled()" placeholder="(202) 555-0112"
+      [class.border-red-400]="!!errors().incidentPhone" [attr.aria-invalid]="!!errors().incidentPhone" />
+    @if (errors().incidentPhone; as err) {
+      <span class="text-xs text-red-600" role="alert">{{ err }}</span>
+    }
+  </label>
+
+  <!-- ===== Retención ===== -->
+  <label class="pf-field">
+    <span class="pf-field__label">Record retention</span>
+    <select class="pf-input" (change)="set('retentionYears', $event)" [disabled]="disabled()"
+      [class.border-red-400]="!!errors().retentionYears">
+      <option value="" [selected]="!form().retentionYears">Not set</option>
+      @for (years of retentionOptions; track years) {
+        <option [value]="'' + years" [selected]="'' + years === form().retentionYears">{{ years }} years</option>
+      }
+    </select>
+    @if (errors().retentionYears; as err) {
+      <span class="text-xs text-red-600" role="alert">{{ err }}</span>
+    } @else {
+      <span class="text-xs text-gray-500">How long you keep client records and returns.</span>
+    }
+  </label>
+</div>

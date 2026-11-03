@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
+import { AdminCapabilities } from '@core/access/admin-capabilities';
 import { SignatureStore } from '../../data-access/signature.store';
 import { SignatureCapabilities } from '../../data-access/signature-permissions';
 import { SignatureProfileListComponent } from '../../ui/signature-profile-list/signature-profile-list.component';
@@ -27,6 +28,8 @@ export class SignatureSettingsPageComponent {
   private readonly store = inject(SignatureStore);
   private readonly toast = inject(ToastService);
   readonly caps = inject(SignatureCapabilities);
+  /** Los años de retención se fijan en Office settings → Compliance: enlace solo si puede abrir esa sección. */
+  readonly canOpenCompliance = inject(AdminCapabilities).canManageCompliance;
 
   /** Rangos vigentes (techos del plan + invariantes del dominio); null mientras cargan. */
   readonly limits = this.store.limits;
@@ -114,15 +117,6 @@ export class SignatureSettingsPageComponent {
     }
   }
 
-  setRetentionYears(raw: number | string): void {
-    const n = Math.round(Number(raw));
-    const d = this.draft();
-    const limits = this.limits();
-    if (Number.isFinite(n) && d && limits) {
-      this.patch('retentionYears', Math.min(limits.maxRetentionYears, Math.max(d.planConstraints.minRetentionYears, n)));
-    }
-  }
-
   patchDelivery<K extends keyof DeliveryPolicy>(key: K, value: DeliveryPolicy[K]): void {
     const d = this.draft();
     if (d) this.draft.set({ ...d, delivery: { ...d.delivery, [key]: value } });
@@ -190,7 +184,7 @@ export class SignatureSettingsPageComponent {
         maxPdfBytes: d.maxPdfBytes,
         maxPagesPerDocument: d.maxPagesPerDocument,
       },
-      retentionPolicy: { retentionYears: d.retentionYears, allowPurge: d.allowPurge },
+      retentionPolicy: { allowPurge: d.allowPurge },
       defaultReminderIntervalHours: d.defaultReminderIntervalHours,
       allowEmployeeOwnSignature: d.allowEmployeeOwnSignature,
       sendPartialCopyDefault: d.sendPartialCopyDefault,

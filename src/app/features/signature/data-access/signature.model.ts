@@ -96,6 +96,8 @@ export interface SignatureProfilesResult {
   canManageOwnSignature: boolean;
 }
 
+export type RetentionYearsSource = 'Office' | 'Signature';
+
 /** Subconjunto de la configuración de firma del tenant que la UI de gobernanza necesita round-tripear. */
 export interface SignatureSettings {
   allowedVerificationChannels: string[];
@@ -107,7 +109,10 @@ export interface SignatureSettings {
   allowEmployeeOwnSignature: boolean;
   maxPdfBytes: number;
   maxPagesPerDocument: number;
+  /** Retención efectiva: la de la oficina (Cumplimiento) o la de Signature, nunca bajo el mínimo del plan. */
   retentionYears: number;
+  /** De dónde salen los años: `Office` = Office settings → Compliance; `Signature` = default de Signature. */
+  retentionYearsSource: RetentionYearsSource;
   allowPurge: boolean;
   /** Techos vigentes (plan + excepción de PlatformAdmin): hasta dónde puede llegar la oficina. */
   planConstraints: SignaturePlanCeilings;
@@ -218,7 +223,8 @@ export interface SignatureSettingsUpdate {
   remindersEnabledByDefault: boolean;
   generateCertificateByDefault: boolean;
   documentLimits: { maxPdfBytes: number; maxPagesPerDocument: number };
-  retentionPolicy: { retentionYears: number; allowPurge: boolean };
+  /** Solo la purga: los años los fija la oficina en Cumplimiento (el backend ignora `retentionYears`). */
+  retentionPolicy: { allowPurge: boolean };
   defaultReminderIntervalHours: number;
   allowEmployeeOwnSignature: boolean;
   sendPartialCopyDefault?: boolean | null;

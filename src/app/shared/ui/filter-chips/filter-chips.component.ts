@@ -26,6 +26,8 @@ export type FilterChipsSize = 'md' | 'sm';
  *   sola píldora con el mismo estilo (etiqueta seleccionada + chevron) que abre un `app-dropdown-menu`
  *   con todas las opciones (scroll si son muchas). Con la opción "All" (id `all`/`All`) seleccionada
  *   la píldora se pinta inactiva; con cualquier otra, activa. `[collapseAfter]="null"` = siempre chips.
+ * - `multiple`: chips independientes que se encienden y apagan (Has attachments, Unread…). Usa
+ *   `[values]` / `(valuesChange)` en vez de `value`; nunca colapsa.
  */
 @Component({
   selector: 'app-filter-chips',
@@ -33,7 +35,18 @@ export type FilterChipsSize = 'md' | 'sm';
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   host: { class: 'flex flex-wrap items-center gap-2', role: 'group' },
   template: `
-    @if (collapsed) {
+    @if (multiple) {
+      @for (option of options; track option.id) {
+        <button type="button" (click)="toggle(option.id)" [attr.aria-pressed]="isOn(option.id)"
+          class="rounded-full px-4 text-sm font-medium transition-colors"
+          [ngClass]="[size === 'sm' ? 'py-1.5' : 'py-2', isOn(option.id) ? 'bg-brand-bold text-white' : 'border border-gray-200 text-gray-500 hover:bg-gray-100']">
+          {{ option.label }}
+          @if (option.count !== null && option.count !== undefined) {
+            <span class="ml-1 opacity-70">{{ option.count }}</span>
+          }
+        </button>
+      }
+    } @else if (collapsed) {
       <app-dropdown-menu align="left" panelClass="min-w-[12.5rem]" [ariaLabel]="ariaLabel">
         <button menuTrigger type="button" aria-haspopup="menu"
           class="flex items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors"
@@ -81,9 +94,21 @@ export class FilterChipsComponent<T extends string | number = string> {
   /** Etiqueta accesible del dropdown cuando está colapsado. */
   @Input() ariaLabel = 'Filter';
   @Output() readonly valueChange = new EventEmitter<T>();
+  /** Modo de selección múltiple (chips que se encienden y apagan). */
+  @Input() multiple = false;
+  @Input() values: readonly T[] = [];
+  @Output() readonly valuesChange = new EventEmitter<T[]>();
 
   get collapsed(): boolean {
-    return this.collapseAfter !== null && this.options.length > this.collapseAfter;
+    return !this.multiple && this.collapseAfter !== null && this.options.length > this.collapseAfter;
+  }
+
+  isOn(id: T): boolean {
+    return this.values.includes(id);
+  }
+
+  toggle(id: T): void {
+    this.valuesChange.emit(this.isOn(id) ? this.values.filter(value => value !== id) : [...this.values, id]);
   }
 
   get selected(): FilterChipOption<T> | undefined {

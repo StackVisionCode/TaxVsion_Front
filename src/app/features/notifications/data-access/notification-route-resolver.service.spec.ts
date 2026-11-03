@@ -52,6 +52,18 @@ describe('NotificationRouteResolver', () => {
     });
   });
 
+  it('un aviso de no entrega a quien no es cliente abre la conversación sin customerId', () => {
+    expect(
+      resolver.resolve(
+        notification({
+          kind: 'correspondence.delivery_failed',
+          resourceId: 'thread-9',
+          resourceContext: { accountId: 'account-1', deliveryNoticeId: 'notice-1' },
+        }),
+      ),
+    ).toEqual({ commands: ['/email'], queryParams: { accountId: 'account-1', threadId: 'thread-9' } });
+  });
+
   it('F8b: "added you to a group" abre el chat con el parámetro que lee la página', () => {
     expect(resolver.resolve(notification({ resourceType: 'conversation', resourceId: 'g1', resourceContext: {} }))).toEqual({
       commands: ['/chat'],
@@ -116,5 +128,16 @@ describe('NotificationRouteResolver', () => {
     expect(resolver.resolveResource('document', 'd-1', {})).toEqual({ commands: ['/documents'], queryParams: { fileId: 'd-1' } });
     expect(resolver.resolveResource('customer_documents', 'f-2', {})).toEqual({ commands: ['/documents'], queryParams: { fileId: 'f-2' } });
     expect(resolver.resolveResource('storage_settings', null, {})).toEqual({ commands: ['/storage'] });
+  });
+
+  it('el recordatorio del WISP abre Office settings en la sección de cumplimiento', async () => {
+    expect(resolver.resolveResource('compliance_settings', 'tenant-1', { section: 'compliance' })).toEqual({
+      commands: ['/company/settings'],
+      fragment: 'compliance',
+    });
+
+    const router = TestBed.inject(Router) as unknown as { navigate: ReturnType<typeof vi.fn> };
+    await resolver.navigate(notification({ resourceType: 'compliance_settings', resourceId: 'tenant-1' }));
+    expect(router.navigate).toHaveBeenCalledWith(['/company/settings'], { queryParams: undefined, fragment: 'compliance' });
   });
 });

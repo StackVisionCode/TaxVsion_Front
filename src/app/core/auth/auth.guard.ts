@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
 
 const CLIENT_PORTAL_ACTOR = 'CustomerPortal';
+const PLATFORM_ADMIN_ACTOR = 'PlatformAdmin';
 
 /**
  * Protege el shell autenticado del CRM (canActivateChild en la ruta del AppShell).
@@ -28,8 +29,15 @@ export const authGuard: CanActivateChildFn = (_route, state) => {
     return router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } });
   }
 
-  if (actorTypeFromToken(tokenService.getAccessToken()) === CLIENT_PORTAL_ACTOR) {
+  const actorType = actorTypeFromToken(tokenService.getAccessToken());
+  if (actorType === CLIENT_PORTAL_ACTOR) {
     return rejectClientPortal(auth);
+  }
+  // El PlatformAdmin no usa el CRM (entra por la app de plataforma): se cierra la sesión local sin
+  // explicar el motivo, para no revelar qué tipo de cuenta era.
+  if (actorType === PLATFORM_ADMIN_ACTOR) {
+    auth.logoutLocal();
+    return router.createUrlTree(['/login']);
   }
 
   // Staff: gate de Términos. Se publicó una versión nueva del ToS post-onboarding → hay que

@@ -132,6 +132,7 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
 
   @ViewChild('bodyEditor') private bodyEditor?: ElementRef<HTMLDivElement>;
   @ViewChild('linkInput') private linkInput?: ElementRef<HTMLInputElement>;
+  @ViewChild('toInput') private toInput?: ElementRef<HTMLInputElement>;
 
   readonly to = signal('');
   readonly cc = signal('');
@@ -191,6 +192,23 @@ export class MailComposeComponent implements OnChanges, AfterViewChecked {
     }
     if (draft.draftId !== this.prefilledDraftId) {
       this.prefill(draft.draftId);
+      // "Fix address and resend": el foco va al destinatario que falló, ya seleccionado para corregirlo.
+      const bad = this.state.highlightRecipient ? this.state.resendTo : null;
+      if (bad) {
+        setTimeout(() => this.selectRecipient(bad));
+      }
+    }
+  }
+
+  private selectRecipient(address: string): void {
+    const el = this.toInput?.nativeElement;
+    if (!el) {
+      return;
+    }
+    el.focus();
+    const at = el.value.toLowerCase().indexOf(address.toLowerCase());
+    if (at >= 0) {
+      el.setSelectionRange(at, at + address.length);
     }
   }
 

@@ -26,6 +26,10 @@ export class PushNotificationOpenPageComponent implements OnInit {
       resourceId,
       customerId ? { customerId } : {},
     );
-    void this.router.navigate([...target.commands], { queryParams: target.queryParams, replaceUrl: true });
+    void this.router.navigate([...target.commands], {
+      queryParams: target.queryParams,
+      fragment: target.fragment,
+      replaceUrl: true,
+    });
   }
 }

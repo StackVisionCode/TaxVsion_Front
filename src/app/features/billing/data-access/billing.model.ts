@@ -199,11 +199,17 @@ export interface VoidInvoiceRequest {
 
 // ---------- Billing: perfil del emisor ----------
 
-/** Espejo de `IssuerProfileResponse` / `UpsertIssuerProfileRequest`. Solo `name` es obligatorio. */
+/**
+ * Espejo de `GET /billing/issuer-profile` (solo lectura): la proyección que Billing arma del perfil de la
+ * oficina de Tenant y estampa en cada factura (`name` = nombre legal, o DBA, o nombre de la oficina).
+ * Se edita en /company/settings (`/tenants/current/profile`).
+ */
 export interface IssuerProfile {
   name: string;
   taxId: string;
   line1: string;
+  /** Suite / unidad. */
+  line2: string;
   city: string;
   state: string;
   zip: string;
@@ -219,6 +225,7 @@ export const EMPTY_ISSUER_PROFILE: IssuerProfile = {
   name: '',
   taxId: '',
   line1: '',
+  line2: '',
   city: '',
   state: '',
   zip: '',

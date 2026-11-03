@@ -215,35 +215,47 @@ describe('MailStore: Undo, estado en vivo y búsqueda', () => {
   });
 
   describe('búsqueda en el servidor', () => {
-    it('manda lo tecleado tras una pausa y descarta la respuesta de una búsqueda anterior', () => {
-      vi.useFakeTimers();
+    const filters = (q: string) => ({
+      q,
+      results: false,
+      tab: 'emails' as const,
+      clientId: null,
+      hasAttachments: false,
+      unread: false,
+      notClient: false,
+      date: 'any' as const,
+      folder: 'inbox' as const,
+    });
+
+    /** El boot de cuentas habilita las cargas; antes la URL solo deja los filtros guardados. */
+    const ready = (store: MailStore) => (store as unknown as { listsReady: boolean }).listsReady = true;
+
+    it('el término confirmado filtra la carpeta en el servidor y descarta la respuesta de una búsqueda anterior', () => {
       const store = setup();
+      ready(store);
       const slow = new Subject<PagedResult<ThreadSummary>>();
       inboxResponses.push(slow, of(page([thread({ threadId: 't2', subject: 'W-2 corrected' })])));
 
-      store.searchThreads('w');
-      vi.advanceTimersByTime(300);
-      store.searchThreads('w-2');
-      vi.advanceTimersByTime(300);
+      store.applySearchState(filters('w'));
+      store.applySearchState(filters('w-2'));
       slow.next(page([thread({ threadId: 'stale' })]));
 
       expect(inboxQueries.map(query => query.search)).toEqual(['w', 'w-2']);
       expect(store.threads().map(item => item.threadId)).toEqual(['t2']);
-      expect(store.threadSearch()).toBe('w-2');
+      expect(store.query()).toBe('w-2');
     });
 
-    it('cambiar de carpeta vacía la búsqueda y vuelve al listado normal', () => {
-      vi.useFakeTimers();
+    it('cambiar de carpeta conserva el término (busca en esa carpeta) y no recarga los hilos', () => {
       const store = setup();
-      store.searchThreads('w-2');
-      vi.advanceTimersByTime(300);
+      ready(store);
+      store.applySearchState(filters('w-2'));
       inboxQueries = [];
 
       store.selectFolder('archived');
-      vi.advanceTimersByTime(300);
 
-      expect(store.threadSearch()).toBe('');
-      expect(inboxQueries.map(query => query.search)).toEqual(['']);
+      expect(store.query()).toBe('w-2');
+      expect(store.resultsMode()).toBe(false);
+      expect(inboxQueries).toEqual([]);
     });
   });
 });

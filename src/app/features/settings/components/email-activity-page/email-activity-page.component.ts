@@ -13,6 +13,8 @@ import {
   EmailActivityFilter,
   EmailActivityItem,
   laneLabel,
+  SENT_STATUS_HINT,
+  statusHint,
   statusLabel,
   statusTone,
 } from '@core/postmaster/email-activity.model';
@@ -47,6 +49,8 @@ export class EmailActivityPageComponent implements OnInit {
   readonly engagementHint = ENGAGEMENT_HINT;
   readonly statusTone = statusTone;
   readonly statusLabel = statusLabel;
+  readonly statusHint = statusHint;
+  readonly sentStatusHint = SENT_STATUS_HINT;
   readonly laneLabel = laneLabel;
 
   ngOnInit(): void {

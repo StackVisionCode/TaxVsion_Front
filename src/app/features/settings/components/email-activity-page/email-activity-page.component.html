@@ -5,7 +5,7 @@
         <a routerLink="/settings" class="text-xs font-medium text-gray-500 hover:text-gray-700">← Settings</a>
         <h2 class="mt-1 text-xl font-bold text-gray-900">Email activity</h2>
         <p class="mt-1 text-sm text-gray-500">
-          What happened with every email sent from your office: delivered, bounced or marked as spam.
+          What happened with every email sent from your office: delivered, delayed, bounced, blocked or marked as spam.
         </p>
       </div>
       <button type="button" (click)="store.load()" [disabled]="store.loading()"
@@ -20,6 +20,12 @@
       <app-search-input placeholder="Search recipient" widthClass="w-64" ariaLabel="Search by recipient"
         [debounceMs]="300" [value]="store.recipient()" (valueChange)="store.setRecipient($event)" />
     </div>
+    @if (store.status() === 'Sent') {
+      <p class="mt-3 flex items-start gap-1.5 text-xs text-gray-500" data-role="sent-hint">
+        <ion-icon name="information-circle-outline" class="mt-px shrink-0 text-sm"></ion-icon>
+        {{ sentStatusHint }}
+      </p>
+    }
 
     <app-state-block class="mt-5 block" icon="paper-plane-outline" loadingText="Loading email activity…"
       [loading]="store.loading()" [error]="store.error()" [empty]="store.items().length === 0"
@@ -46,7 +52,7 @@
                 <td class="py-3.5 pr-4 text-gray-600">{{ laneLabel(item.lane) }}</td>
                 <td class="py-3.5 pr-4">
                   <span class="flex items-center gap-2">
-                    <app-status-pill [tone]="statusTone(item.status)">{{ statusLabel(item.status) }}</app-status-pill>
+                    <app-status-pill [tone]="statusTone(item.status)" [attr.title]="statusHint(item.status)">{{ statusLabel(item.status) }}</app-status-pill>
                     @if (item.opened || item.clicked) {
                       <span class="text-xs text-gray-400" [attr.title]="engagementHint">
                         {{ item.clicked ? 'Clicked' : 'Opened' }}

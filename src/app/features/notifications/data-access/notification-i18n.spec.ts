@@ -27,6 +27,24 @@ describe('notificationText', () => {
     });
   });
 
+  it('traduce el aviso de no entrega con el destinatario', () => {
+    const payload = {
+      title: "Email to ana@x.com couldn't be delivered",
+      body: 'Open the conversation to see why and fix it.',
+      titleKey: 'notif.correspondence.delivery_failed.title',
+      bodyKey: 'notif.correspondence.delivery_failed.body',
+      params: { recipient: 'ana@x.com', category: 'invalid_address' },
+    };
+
+    expect(notificationText(payload, 'en')).toEqual({
+      title: "Email to ana@x.com couldn't be delivered",
+      body: 'Open the conversation to see why and fix it.',
+    });
+    expect(notificationText({ ...payload, titleKey: null, bodyKey: null, kind: 'correspondence.delivery_failed' }, 'es').title).toBe(
+      'No se pudo entregar el correo a ana@x.com',
+    );
+  });
+
   it('uses backend fallback copy for unknown keys', () => {
     expect(
       notificationText(

@@ -50,6 +50,8 @@ export interface MailAccount {
    */
   isOffice: boolean;
   ownerUserId: string | null;
+  /** Permisos que el servicio pide hoy y la conexión OAuth no aceptó: no vacío = "Update permissions". */
+  missingScopes: string[];
 }
 
 /** POST /connectors/accounts — el frontend REDIRIGE el navegador a authorizationUrl (no es fetch). */
@@ -122,13 +124,241 @@ export interface ThreadSummary {
   lastMessageAtUtc: string;
   /** Correos inbound no leídos del hilo (estado compartido por el tenant). 0 = todo leído. */
   unreadCount: number;
-  /** Cliente del hilo. Ausente solo en el hilo sintético de un enviado suelto. */
-  customerId?: string;
+  /** Cliente del hilo; null = "Not a client" (hilo nacido de un aviso de no entrega). */
+  customerId?: string | null;
   /** Último remitente entrante y su vista previa; null si el hilo solo tiene enviados. */
   lastSenderAddress?: string | null;
   lastSenderName?: string | null;
   snippet?: string | null;
   hasAttachments?: boolean;
+  /** Aviso de entrega más reciente del hilo; null si no hay. */
+  latestDeliveryNotice?: DeliveryNoticeSummary | null;
+}
+
+// ---------- Avisos y estado de entrega ----------
+
+/** Resultado de un aviso: Delayed (sigue intentando) o NotDelivered. */
+export type DeliveryNoticeOutcome = 'Delayed' | 'NotDelivered';
+
+/** Estado de entrega de un enviado / destinatario. null en la API = enviado, sin noticias. */
+export type DeliveryStatus = 'Delivered' | 'Delayed' | 'NotDelivered';
+
+/** Motivo estable del aviso (Postmaster): decide el texto y las acciones de la tarjeta. */
+export type DeliveryReasonCode =
+  | 'invalid_address'
+  | 'domain_not_found'
+  | 'mailbox_full'
+  | 'rejected'
+  | 'too_large'
+  | 'delayed'
+  | 'other';
+
+/** Tarjeta de aviso de entrega (en la conversación y en la fila del Inbox). */
+export interface DeliveryNoticeSummary {
+  deliveryNoticeId: string;
+  /** Borrador (enviado) original que no se entregó. */
+  draftId: string;
+  recipient: string;
+  outcome: DeliveryNoticeOutcome;
+  category: string | null;
+  reasonCode: DeliveryReasonCode | string;
+  statusCode: string | null;
+  /** Respuesta técnica del servidor: oculta por defecto. */
+  diagnostic: string | null;
+  /** La dirección quedó bloqueada para futuros envíos (rebote duro). */
+  suppressed: boolean;
+  /** Se puede pedir el aviso original (GET /delivery-notices/{id}/original). */
+  canViewOriginal: boolean;
+  isRead: boolean;
+  occurredAtUtc: string;
+  receivedAtUtc: string;
+}
+
+/** Estado de entrega de UN destinatario de un enviado. */
+export interface RecipientDelivery {
+  address: string;
+  type: 'To' | 'Cc' | 'Bcc' | string;
+  status: DeliveryStatus | null;
+  category: string | null;
+  updatedAtUtc: string | null;
+}
+
+/** GET /correspondence/delivery-notices/{id}/original — el aviso tal cual llegó (en vivo). */
+export interface DeliveryNoticeOriginal {
+  htmlBody: string | null;
+  textBody: string | null;
+  headers: Record<string, string>;
+}
+
+/** Tipo de fila del hilo: correo normal o tarjeta de aviso de entrega. */
+export type ThreadMessageKind = 'Email' | 'DeliveryNotice';
+
+/** Tono de la píldora de estado (filas y conversación). */
+export type DeliveryTone = 'green' | 'red' | 'amber' | 'gray';
+
+/** Copia en inglés por motivo: titular, motivo y qué hacer. */
+export interface DeliveryNoticeCopy {
+  title: string;
+  reason: string;
+  hint: string;
+  /** Acción principal sugerida. */
+  primary: 'fix' | 'resend' | 'view' | 'edit' | 'none';
+  /** Etiqueta corta para la fila del Inbox. */
+  chip: string;
+  tone: DeliveryTone;
+}
+
+/** Texto claro por motivo del aviso (lo que ve el preparador, sin jerga técnica). */
+export function deliveryNoticeCopy(notice: Pick<DeliveryNoticeSummary, 'reasonCode' | 'outcome' | 'recipient'>): DeliveryNoticeCopy {
+  if (notice.outcome === 'Delayed' || notice.reasonCode === 'delayed') {
+    return {
+      title: 'Delayed — still trying',
+      reason: 'Delivery is delayed. The server will keep trying.',
+      hint: 'Nothing to do yet. If it fails, you will see it here.',
+      primary: 'none',
+      chip: 'Delayed',
+      tone: 'gray',
+    };
+  }
+  const domain = notice.recipient.includes('@') ? notice.recipient.slice(notice.recipient.indexOf('@')) : 'this domain';
+  switch (notice.reasonCode) {
+    case 'invalid_address':
+      return {
+        title: "Not delivered — the address doesn't exist",
+        reason: "This email address doesn't exist.",
+        hint: 'Check the address for typos, fix it and resend.',
+        primary: 'fix',
+        chip: 'Not delivered',
+        tone: 'red',
+      };
+    case 'domain_not_found':
+      return {
+        title: "Not delivered — the domain doesn't exist",
+        reason: `The domain ${domain} doesn't exist. Check for typos.`,
+        hint: 'Fix the part after the @ and resend.',
+        primary: 'fix',
+        chip: 'Not delivered',
+        tone: 'red',
+      };
+    case 'mailbox_full':
+      return {
+        title: 'Mailbox full — try again later',
+        reason: "The recipient's mailbox is full.",
+        hint: 'Wait a while and resend. The address is not blocked.',
+        primary: 'resend',
+        chip: 'Mailbox full',
+        tone: 'amber',
+      };
+    case 'rejected':
+      return {
+        title: 'Not delivered — rejected by the recipient',
+        reason: "The recipient's server rejected the email.",
+        hint: 'Look at the original notice for the reason, or ask the recipient for another address.',
+        primary: 'view',
+        chip: 'Not delivered',
+        tone: 'red',
+      };
+    case 'too_large':
+      return {
+        title: 'Not delivered — the email is too large',
+        reason: 'The email is too large for the recipient.',
+        hint: 'Remove or shrink the attachments and resend.',
+        primary: 'edit',
+        chip: 'Not delivered',
+        tone: 'red',
+      };
+    default:
+      return {
+        title: "Not delivered",
+        reason: "The email couldn't be delivered.",
+        hint: 'Check the address and resend, or look at the original notice.',
+        primary: 'fix',
+        chip: 'Not delivered',
+        tone: 'red',
+      };
+  }
+}
+
+/** Píldora de un enviado según su peor estado (null = sin noticias → "Sent"). */
+export function deliveryStatusPill(status: DeliveryStatus | null | undefined): { label: string; tone: DeliveryTone } {
+  switch (status) {
+    case 'Delivered':
+      return { label: 'Delivered', tone: 'green' };
+    case 'NotDelivered':
+      return { label: 'Not delivered', tone: 'red' };
+    case 'Delayed':
+      return { label: 'Delayed', tone: 'amber' };
+    default:
+      return { label: 'Sent', tone: 'gray' };
+  }
+}
+
+/** Detalle por destinatario para el tooltip de la píldora ("ana@x.com: Delivered"). */
+export function deliveryDetail(deliveries: readonly RecipientDelivery[] | null | undefined): string {
+  return (deliveries ?? [])
+    .map(item => `${item.address}: ${deliveryStatusPill(item.status).label}`)
+    .join('\n');
+}
+
+/**
+ * El aviso sigue siendo lo último del hilo (nada se envió ni llegó después): solo entonces la fila
+ * lo muestra. Un rebote viejo seguido de una respuesta no debe marcar el hilo para siempre.
+ */
+export function isCurrentDeliveryNotice(thread: Pick<ThreadSummary, 'lastMessageAtUtc' | 'latestDeliveryNotice'>): boolean {
+  const notice = thread.latestDeliveryNotice;
+  if (!notice) {
+    return false;
+  }
+  const noticeAt = Math.max(parseUtcDate(notice.occurredAtUtc).getTime() || 0, parseUtcDate(notice.receivedAtUtc).getTime() || 0);
+  const last = parseUtcDate(thread.lastMessageAtUtc).getTime() || 0;
+  // Margen de 1 s: el hilo sube con la hora del aviso y las fechas pueden venir truncadas.
+  return noticeAt + 1000 >= last;
+}
+
+// ---------- Búsqueda unificada (`GET /correspondence/search`) ----------
+
+export type MailSearchFolder = 'Inbox' | 'Archived' | 'Sent' | 'Drafts' | 'Trash';
+
+/** Un correo que coincide. `messageId` null = solo coincidió el asunto de la conversación. */
+export interface EmailSearchHit {
+  source: 'Thread' | 'Incoming' | 'Outgoing';
+  folder: MailSearchFolder;
+  threadId: string | null;
+  messageId: string | null;
+  customerId: string | null;
+  subject: string;
+  matchedField: 'Subject' | 'From' | 'Snippet' | 'To' | string;
+  occurredAtUtc: string;
+  fromAddress: string | null;
+  fromName: string | null;
+  toAddresses: string[];
+  snippet: string | null;
+  hasAttachments: boolean;
+  /** Conversación con algo sin leer / entrante sin leer; enviados y borradores = false. */
+  isUnread?: boolean;
+}
+
+/** Un adjunto cuyo nombre coincide. Entrante: se baja por mensaje+adjunto; saliente: `fileId` en CloudStorage. */
+export interface FileSearchHit {
+  source: 'Incoming' | 'Outgoing';
+  attachmentId: string;
+  messageId: string;
+  threadId: string | null;
+  customerId: string | null;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  occurredAtUtc: string;
+  fromAddress: string | null;
+  fromName: string | null;
+  toAddresses: string[];
+  fileId: string | null;
+  downloadStatus: AttachmentDownloadStatus | string | null;
+}
+
+export interface MailSearchResult {
+  emails: EmailSearchHit[];
+  files: FileSearchHit[];
 }
 
 /** GET /correspondence/unread-count: hilos con algo sin leer y mensajes sin leer (badges). */
@@ -165,6 +395,14 @@ export interface MessageSummary {
   isRead: boolean;
   /** Veredicto de autenticación del remitente. Solo inbound; null en outbound. */
   senderTrust: SenderTrust | null;
+  /** "DeliveryNotice" = tarjeta de aviso (messageId = id del aviso). Ausente = Email (backend anterior). */
+  kind?: ThreadMessageKind;
+  /** Solo outbound: peor estado de entrega; null = sin noticias. */
+  deliveryStatus?: DeliveryStatus | null;
+  /** Solo outbound: estado por destinatario. */
+  deliveries?: RecipientDelivery[] | null;
+  /** Solo kind = DeliveryNotice. */
+  deliveryNotice?: DeliveryNoticeSummary | null;
 }
 
 /** Veredicto de autenticación del remitente (el front lo traduce a lenguaje simple). */
@@ -238,6 +476,9 @@ export interface SentMessageListItem {
   attachmentCount: number;
   /** Cliente en el que se archivó; null = enviado a alguien que no es cliente. */
   customerId?: string | null;
+  /** Peor estado de entrega (NotDelivered > Delayed > Delivered); null = sin noticias. */
+  deliveryStatus?: DeliveryStatus | null;
+  deliveries?: RecipientDelivery[] | null;
 }
 
 /** Fila lean de GET /correspondence/drafts?customerId= ("retomar un autoguardado"). */
@@ -250,6 +491,8 @@ export interface DraftListItem {
   lastAutoSavedAtUtc: string | null;
   /** Cliente del borrador; null = para alguien que no es cliente. */
   customerId?: string | null;
+  /** El borrador tiene adjuntos (para el clip de la fila). */
+  hasAttachments?: boolean;
 }
 
 /** Destinatario dentro de DraftDetail — `type` serializa como string To/Cc/Bcc. */

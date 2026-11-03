@@ -197,6 +197,17 @@ export class AuthService {
       );
   }
 
+  /**
+   * Refleja en la sesión el nuevo nombre de la oficina tras renombrarla (`PUT /tenants/current`). Se aplica
+   * en local: `/auth/me` lo lee de una proyección que se actualiza por evento y podría llegar después.
+   */
+  applyTenantName(name: string): void {
+    const user = this._currentUser();
+    if (user) {
+      this._currentUser.set({ ...user, tenant: { ...user.tenant, name } });
+    }
+  }
+
   logout(): Observable<void> {
     if (environment.authMock) {
       return defer(() => {
@@ -371,7 +382,8 @@ export class AuthService {
   private handleLoginResponse(res: LoginResponse): LoginOutcome {
     // Superficie equivocada: el CRM es solo para staff. Un cliente se rechaza ANTES de tocar la
     // sesión — sin takeover (no se le revoca la del portal) y sin persistir tokens.
-    if (res.actorType === 'CustomerPortal') {
+    // El PlatformAdmin tampoco entra (opera desde la app de plataforma): mismo aviso neutral.
+    if (res.actorType === 'CustomerPortal' || res.actorType === 'PlatformAdmin') {
       return { kind: 'wrong-portal' };
     }
     // Sesión única: ya hay una sesión activa. Sin tokens todavía — el componente muestra el

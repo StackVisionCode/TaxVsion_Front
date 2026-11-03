@@ -60,6 +60,7 @@ describe('acciones ofrecidas por rol', () => {
     'roles.manage',
     'seats.manage',
     'branding.manage',
+    'settings.manage',
     'invoicing.issuer.manage',
     'payment_client.config.manage',
     'payment_client.payment_link.manage',
@@ -105,7 +106,8 @@ describe('acciones ofrecidas por rol', () => {
       'users: roles': users.canManageRoles(),
       'users: comprar puestos': users.canManageSeats(),
       'empresa: marca': admin.canManageBranding(),
-      'empresa: perfil legal': admin.canManageIssuerProfile(),
+      'empresa: perfil de la oficina': admin.canManageOfficeProfile(),
+      'cobro: ajustes de factura': admin.canManageInvoiceSettings(),
       'cobro: proveedores': admin.canManagePaymentProviders(),
       'cobro: links de pago': admin.canManagePaymentLinks(),
     };
@@ -133,7 +135,8 @@ describe('acciones ofrecidas por rol', () => {
       'users: roles': false,
       'users: comprar puestos': false,
       'empresa: marca': false,
-      'empresa: perfil legal': false,
+      'empresa: perfil de la oficina': false,
+      'cobro: ajustes de factura': false,
       'cobro: proveedores': false,
       'cobro: links de pago': false,
     });
@@ -174,12 +177,20 @@ describe('acciones ofrecidas por rol', () => {
     expect(conBorrado['documents: papelera']).toBe(false);
   });
 
-  it('el perfil legal no viene con las facturas', () => {
-    // `invoicing.manage` deja emitir facturas; cambiar el EIN y la razón social que se estampan en
-    // todas es `invoicing.issuer.manage`.
+  it('el perfil de la oficina y los ajustes de factura no vienen con las facturas', () => {
+    // `invoicing.manage` deja emitir facturas; el perfil (EIN, razón social) es `settings.manage` y los
+    // ajustes de factura, `invoicing.issuer.manage`.
     const conFacturas = snapshot([...EMPLEADO, 'invoicing.manage', 'invoicing.view']);
 
-    expect(conFacturas['empresa: perfil legal']).toBe(false);
+    expect(conFacturas['empresa: perfil de la oficina']).toBe(false);
+    expect(conFacturas['cobro: ajustes de factura']).toBe(false);
+  });
+
+  it('el emisor de Billing ya no edita el perfil de la oficina', () => {
+    const soloEmisor = snapshot([...EMPLEADO, 'invoicing.issuer.manage']);
+
+    expect(soloEmisor['empresa: perfil de la oficina']).toBe(false);
+    expect(soloEmisor['cobro: ajustes de factura']).toBe(true);
   });
 
   it('invitar no habilita suspender ni tocar roles', () => {

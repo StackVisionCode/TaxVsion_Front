@@ -191,7 +191,7 @@ export class InvoiceFormPanelComponent implements OnChanges {
     if (!issuer?.name.trim()) {
       return null;
     }
-    const address = [issuer.line1, issuer.city, [issuer.state, issuer.zip].filter(Boolean).join(' ')]
+    const address = [issuer.line1, issuer.line2, issuer.city, [issuer.state, issuer.zip].filter(Boolean).join(' ')]
       .filter(part => part && part.trim())
       .join(', ');
     return { name: issuer.name, email: issuer.email, address };

@@ -785,7 +785,9 @@ export class BillingStore {
     });
   }
 
-  // ---------- Empresa: emisor + marca del PDF ----------
+  // ---------- Empresa: emisor + marca del PDF (solo lectura; se editan en /company/settings) ----------
+  // El emisor se lee de Billing y no de `/tenants/current/profile`: es exactamente lo que se estampa en la
+  // factura (con el nombre ya resuelto) y trae `defaultCurrency`, que el perfil de Tenant no tiene.
 
   private readonly _issuer = signal<IssuerProfile>({ ...EMPTY_ISSUER_PROFILE });
   private readonly _branding = signal<InvoiceBranding>({
@@ -794,11 +796,9 @@ export class BillingStore {
     brandColorHex: null,
     footerText: null,
   });
-  private readonly _savingCompany = signal(false);
 
   readonly issuer = this._issuer.asReadonly();
   readonly branding = this._branding.asReadonly();
-  readonly savingCompany = this._savingCompany.asReadonly();
 
   /** Sin emisor guardado, el PDF sale sin los datos de la firma: lo avisa la pestaña Invoices. */
   readonly hasIssuerProfile = computed(() => this._issuer().name.trim().length > 0);
@@ -811,6 +811,7 @@ export class BillingStore {
           name: profile.name || '',
           taxId: profile.taxId || '',
           line1: profile.line1 || '',
+          line2: profile.line2 || '',
           city: profile.city || '',
           state: profile.state || '',
           zip: profile.zip || '',
@@ -834,30 +835,6 @@ export class BillingStore {
         }),
       error: () => undefined,
     });
-  }
-
-  saveCompany(issuer: IssuerProfile, branding: InvoiceBranding): void {
-    if (!issuer.name.trim()) {
-      this.toast.error('The office name is required.');
-      return;
-    }
-    this._savingCompany.set(true);
-    this.service
-      .saveIssuerProfile(issuer)
-      .pipe(switchMap(() => this.service.saveBranding(branding)))
-      .subscribe({
-        next: () => {
-          this._savingCompany.set(false);
-          this._issuer.set({ ...issuer });
-          this.officeCurrency.set(issuer.defaultCurrency);
-          this._branding.set({ ...branding });
-          this.toast.success('Office details saved. They will appear on the next invoices.');
-        },
-        error: err => {
-          this._savingCompany.set(false);
-          this.toast.error(toUserMessage(err));
-        },
-      });
   }
 
   // ---------- Links de pago ----------

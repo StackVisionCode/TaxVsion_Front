@@ -2,16 +2,23 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
 
-/** Payload de `mail.incoming` (Communication) — solo ids, sin asunto ni cuerpo. */
+/**
+ * Payload de `mail.incoming` (Communication) — solo ids, sin asunto ni cuerpo. Un aviso de no entrega
+ * llega con `kind: 'delivery_notice'`, `incomingEmailId` vacío y `customerId` null si no es cliente.
+ */
 export interface MailIncomingEmailPayload {
-  customerId: string;
+  customerId: string | null;
   emailThreadId: string;
   incomingEmailId: string;
+  kind?: 'delivery_notice' | string;
+  deliveryNoticeId?: string;
+  outcome?: 'Delayed' | 'NotDelivered' | string;
+  category?: string | null;
 }
 
 /** Payload de `mail.thread_state`: estado visible de un hilo tras leerlo, archivarlo o mover un mensaje. */
 export interface MailThreadStatePayload {
-  customerId: string;
+  customerId: string | null;
   emailThreadId: string;
   status: string;
   unreadCount: number;

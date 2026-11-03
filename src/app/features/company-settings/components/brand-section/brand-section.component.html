@@ -1,0 +1,45 @@
+<div class="flex flex-col gap-4 sm:flex-row sm:items-start">
+  <app-cs-section-header class="min-w-0 flex-1" icon="color-palette-outline" heading="Logo & favicon" titleId="brand-title"
+    [loading]="store.brandLoading()"
+    description="Each surface has its own: the Staff CRM is what your team sees, the Client portal what your clients see." />
+  <app-segmented class="self-start" [options]="surfaces" [value]="store.surface()" (valueChange)="selectSurface($event)" />
+</div>
+
+@if (store.brandError(); as err) {
+  <p class="mt-4 flex items-center gap-2 text-sm text-red-600" role="alert">
+    <ion-icon name="alert-circle-outline" class="text-base"></ion-icon>{{ err }}
+  </p>
+}
+
+<div class="mt-6 grid gap-4 md:grid-cols-2">
+  <div class="flex flex-col gap-3">
+    <app-brand-asset-tile kind="logo" title="Office logo" accept="image/png,image/jpeg,image/svg+xml"
+      [hint]="'PNG, JPEG or SVG · up to ' + assetMaxSizeKb + ' KB · wide works best'" [url]="store.logo()?.url ?? null"
+      [processing]="store.assetProcessing() === 'logo'" [busy]="!!store.assetBusy()" [uploading]="store.assetBusy() === 'logo'"
+      [canManage]="can.canManageBranding()" (fileSelected)="uploadAsset('logo', $event)" (rejected)="onAssetRejected()"
+      (remove)="removeAsset('logo')" />
+    @if (logoIsSvg()) {
+      <p class="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <ion-icon name="alert-circle-outline" class="mt-px shrink-0 text-sm"></ion-icon>
+        <span>Email apps can't show SVG, so emails use your office name as text. Upload a PNG or JPEG to show the logo in email too.</span>
+      </p>
+    }
+  </div>
+  <app-brand-asset-tile kind="favicon" title="Favicon" accept="image/png,image/svg+xml" [tabTitle]="officeName()"
+    [hint]="'Browser tab icon for ' + surfaceLabel() + ' · square PNG or SVG · up to ' + assetMaxSizeKb + ' KB'"
+    [url]="store.favicon()?.url ?? null" [processing]="store.assetProcessing() === 'favicon'" [busy]="!!store.assetBusy()"
+    [uploading]="store.assetBusy() === 'favicon'" [canManage]="can.canManageBranding()"
+    (fileSelected)="uploadAsset('favicon', $event)" (rejected)="onAssetRejected()" (remove)="removeAsset('favicon')" />
+</div>
+
+@if (assetFileError() || store.assetError(); as err) {
+  <p class="mt-4 flex items-center gap-2 text-sm text-red-600" role="alert">
+    <ion-icon name="alert-circle-outline" class="text-base"></ion-icon>{{ err }}
+  </p>
+}
+@if (!can.canManageBranding()) {
+  <p class="mt-4 flex items-center gap-2 text-xs text-gray-500">
+    <ion-icon name="lock-closed-outline" class="text-sm text-gray-400"></ion-icon>
+    Only someone who manages branding can change the logo and favicon.
+  </p>
+}

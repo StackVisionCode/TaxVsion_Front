@@ -1,8 +1,4 @@
 <div class="flex flex-col h-full">
-  <!-- Search pill: en el servidor (Inbox/Archived) o sobre lo ya cargado (resto de carpetas) -->
-  <app-search-input class="mb-3 shrink-0" widthClass="w-full" [placeholder]="searchPlaceholder" [value]="search()"
-    (valueChange)="onSearchChange($event)"></app-search-input>
-
   <!-- Carga inicial / error del listado con reintento -->
   <div *ngIf="(loading && filteredRows().length === 0) || (!loading && error)"
     class="flex flex-1 min-h-0 flex-col justify-center">
@@ -23,18 +19,22 @@
       [attr.aria-current]="row.id === selectedId ? 'true' : null" [attr.aria-label]="rowLabel(row)"
       class="relative flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition-colors"
       [ngClass]="[row.id === selectedId ? 'text-white' : 'hover:bg-gray-50 text-gray-700', showTrashActions && canManage ? 'pb-9' : '']">
-      <app-avatar [name]="row.avatarName" size="md" [colorClass]="row.avatarColor"></app-avatar>
+      <app-avatar *ngIf="!row.icon" [name]="row.avatarName" size="md" [colorClass]="row.avatarColor"></app-avatar>
+      <span *ngIf="row.icon" class="grid h-10 w-10 shrink-0 place-items-center rounded-full"
+        [ngClass]="row.id === selectedId ? 'bg-white/15 text-white' : 'bg-gray-100 text-gray-500'">
+        <ion-icon aria-hidden="true" [name]="row.icon" class="text-lg"></ion-icon>
+      </span>
 
       <div class="min-w-0 flex-1">
         <div class="flex items-center justify-between gap-2">
           <span class="flex min-w-0 items-center gap-1.5">
             <!-- Punto de no-leído: solo cuando el hilo tiene correos sin leer y no está seleccionado -->
-            <span *ngIf="row.unreadCount > 0 && row.id !== selectedId"
+            <span *ngIf="isUnread(row) && row.id !== selectedId"
               class="h-2 w-2 shrink-0 rounded-full bg-brand-bold"></span>
             <span class="truncate text-sm"
               [ngClass]="[
                 row.id === selectedId ? 'text-white' : 'text-gray-900',
-                row.unreadCount > 0 ? 'font-bold' : 'font-semibold'
+                isUnread(row) ? 'font-bold' : 'font-semibold'
               ]">{{ row.title }}</span>
           </span>
           <span class="shrink-0 text-[0.6875rem]" [ngClass]="row.id === selectedId ? 'text-gray-300' : 'text-gray-400'">{{ row.time }}</span>
@@ -42,7 +42,7 @@
 
         <div class="mt-0.5 flex items-center justify-between gap-2">
           <span class="truncate text-xs"
-            [ngClass]="row.id === selectedId ? 'text-gray-200' : (row.unreadCount > 0 ? 'font-semibold text-gray-800' : 'text-gray-600')">{{ row.subtitle }}</span>
+            [ngClass]="row.id === selectedId ? 'text-gray-200' : (isUnread(row) ? 'font-semibold text-gray-800' : 'text-gray-600')">{{ row.subtitle }}</span>
           <span class="flex shrink-0 items-center gap-1.5">
             <!-- Clip de adjuntos: icono + número (o solo el icono en un hilo) -->
             <span *ngIf="(row.attachmentCount ?? 0) > 0 || row.hasAttachments"
@@ -57,6 +57,10 @@
             <span *ngIf="row.badge"
               class="rounded-full px-2 py-0.5 text-[0.625rem] font-semibold"
               [ngClass]="row.id === selectedId ? 'bg-white/15 text-white' : 'bg-gray-100 text-gray-500'">{{ row.badge }}</span>
+            <!-- Estado de entrega: aviso de no entrega del hilo o estado del enviado -->
+            <span *ngIf="row.status as status"
+              class="rounded-full px-2 py-0.5 text-[0.625rem] font-semibold"
+              [ngClass]="statusClasses(status, row.id === selectedId)">{{ status.label }}</span>
           </span>
         </div>
 
@@ -68,7 +72,7 @@
               ? 'bg-white/15 text-white'
               : (tag.muted ? 'bg-gray-100 text-gray-500' : 'bg-brand-bold/10 text-brand-bold')">{{ tag.label }}</span>
           <span *ngIf="row.preview" class="truncate text-xs"
-            [ngClass]="row.id === selectedId ? 'text-gray-300' : 'text-gray-400'">{{ row.preview }}</span>
+            [ngClass]="previewClasses(row, row.id === selectedId)">{{ row.preview }}</span>
         </div>
       </div>
     </button>
@@ -88,7 +92,7 @@
     </div>
 
     <app-state-block *ngIf="filteredRows().length === 0" [empty]="true" variant="inline" icon="mail-outline"
-      [emptyTitle]="emptyText"></app-state-block>
+      [emptyTitle]="emptyText" [emptyMessage]="emptyHint"></app-state-block>
 
     <!-- Paginación incremental del listado activo -->
     <app-load-more class="pb-1" [hasMore]="hasMore" [loading]="loading || loadingMore" (load)="loadMoreRequested.emit()"></app-load-more>

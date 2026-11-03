@@ -928,7 +928,7 @@ export class SignatureStore {
           maxPdfBytes: s.maxPdfBytes,
           maxPagesPerDocument: s.maxPagesPerDocument,
         },
-        retentionPolicy: { retentionYears: s.retentionYears, allowPurge: s.allowPurge },
+        retentionPolicy: { allowPurge: s.allowPurge },
         defaultReminderIntervalHours: s.defaultReminderIntervalHours,
         allowEmployeeOwnSignature: allow,
       })

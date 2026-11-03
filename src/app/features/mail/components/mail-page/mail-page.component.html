@@ -225,7 +225,8 @@
             <p class="truncate text-xs text-gray-400">
               {{ account.providerCode }} · {{ account.status }}
               <span *ngIf="account.status === 'Connected'" class="text-amber-600">· not receiving mail yet</span>
-              <span *ngIf="account.status === 'Active'" class="text-emerald-600">· syncing</span>
+              <span *ngIf="account.status === 'Active' && !store.needsPermissionUpdate(account)" class="text-emerald-600">· syncing</span>
+              <span *ngIf="store.needsPermissionUpdate(account)" class="text-amber-600">· syncing, needs one more permission</span>
             </p>
           </div>
           <!-- Acciones solo para quien puede administrar el buzón (oficina→admin; personal→su dueño con
@@ -235,6 +236,11 @@
               [disabled]="!!store.reauthBusyId() || !!store.disconnectBusyId()"
               class="rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
               {{ store.reauthBusyId() === account.id ? 'Retrying…' : (account.status === 'Error' ? 'Reauthorize' : 'Enable sync') }}
+            </button>
+            <button *ngIf="store.needsPermissionUpdate(account)" type="button" (click)="store.updatePermissions(account)"
+              [disabled]="!!store.connectBusy() || !!store.disconnectBusyId()"
+              class="rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+              {{ store.connectBusy() ? 'Opening…' : 'Update permissions' }}
             </button>
             <button *ngIf="canDisconnect(account.status)" type="button" (click)="disconnectAccount(account.id)"
               [disabled]="!!store.disconnectBusyId() || !!store.reauthBusyId()"
@@ -288,6 +294,18 @@
   <!-- Cuentas que no sincronizan de verdad: Error (watch/OAuth roto) o Connected (watch nunca se armó) -->
   <div *ngFor="let account of store.attentionAccounts()"
     class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+    @if (store.needsPermissionUpdate(account)) {
+    <p class="text-sm text-amber-800">
+      <span class="font-semibold">{{ account.emailAddress }}</span>
+      needs one more permission so you can see when a reply you send isn't delivered.
+      Approve it once with {{ account.providerCode === 'Graph' ? 'Microsoft' : 'Google' }}; nothing else changes.
+    </p>
+    <button *ngIf="canManageAccount(account)" type="button" (click)="store.updatePermissions(account)"
+      [disabled]="!!store.connectBusy()"
+      class="shrink-0 rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
+      {{ store.connectBusy() ? 'Opening…' : 'Update permissions' }}
+    </button>
+    } @else {
     <p class="text-sm text-amber-800">
       <span class="font-semibold">{{ account.emailAddress }}</span>
       {{ account.status === 'Error' ? 'stopped syncing.' : "isn't receiving incoming mail yet." }}
@@ -298,6 +316,7 @@
       class="shrink-0 rounded-full bg-brand-bold px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-ink disabled:opacity-50 disabled:hover:bg-brand-bold transition-colors">
       {{ store.reauthBusyId() === account.id ? 'Retrying…' : (account.status === 'Error' ? 'Reconnect' : 'Enable sync') }}
     </button>
+    }
   </div>
 
   <div *ngIf="store.connectError() as connectErr"
@@ -323,25 +342,10 @@
       </a>
 
       <div class="mt-4">
-        <app-mail-folder-list [folders]="folders()" [activeFolderId]="store.activeFolderId()"
+        <app-mail-folder-list [folders]="folders()" [activeFolderId]="store.resultsMode() ? '' : store.activeFolderId()"
           [composeDisabled]="!canCompose()" (folderSelected)="selectFolder($event)"
           [canCompose]="can.canCompose()"
           (composeClicked)="openCompose()"></app-mail-folder-list>
-      </div>
-
-      <!-- Filtros opcionales: sin cliente, el Inbox es el de toda la oficina. "Not a client" solo existe
-           en lo que uno manda o redacta (no entra correo de quien no es cliente). Nunca en el perfil. -->
-      <div *ngIf="!embedded()" class="mt-5">
-        <label class="px-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Filter by client</label>
-        <app-customer-picker class="mt-2" [selected]="store.selectedCustomer()"
-          placeholder="All clients" (selectedChange)="onCustomerChange($event)"></app-customer-picker>
-        <ng-container *ngIf="showOutgoingFilter() && !store.selectedCustomerId()">
-          <app-segmented class="mt-3 w-full" [options]="outgoingFilterOptions" [value]="outgoingFilter()"
-            (valueChange)="setOutgoingFilter($event)"></app-segmented>
-          <p *ngIf="store.unlinkedView()" class="mt-2 px-1 text-xs leading-relaxed text-gray-500">
-            Mail you sent to people who aren't clients. Their replies stay in your mailbox, not here.
-          </p>
-        </ng-container>
       </div>
 
       <!-- Ayuda de atajos (solo con teclado físico: en pantallas chicas no aplica) -->
@@ -392,11 +396,41 @@
     <!-- Message list -->
     <div class="bg-white rounded-[1.5rem] p-5 lg:col-span-4 lg:flex flex-col min-h-0 border border-gray-100 shadow-sm"
       [ngClass]="detailOpen() ? 'hidden' : 'flex'">
-      <app-mail-list class="flex-1 min-h-0" [rows]="rows()" [selectedId]="selectedRowId()" [loading]="listLoading()"
-        [error]="listError()" [hasMore]="listHasMore()" [emptyText]="listEmptyText()"
-        [showTrashActions]="store.activeFolderId() === 'trash'" [serverSearch]="threadFolder()"
-        [searchPlaceholder]="threadFolder() ? 'Search mail' : 'Search loaded mail'"
-        [searchResetKey]="store.activeFolderId()" (serverSearchChange)="store.searchThreads($event)"
+      <!-- Buscador único (correos, archivos y clientes) + chips. Elegir un cliente lo vuelve chip y filtra. -->
+      <app-grouped-search class="shrink-0" [search]="suggestFn" [value]="store.query()" [chips]="searchChips()"
+        [idleGroups]="idleGroups()" [placeholder]="searchPlaceholder()" ariaLabel="Search mail, files and clients"
+        (picked)="onSearchPick($event)" (submitted)="onSearchSubmit($event)" (cleared)="onSearchCleared()"
+        (chipRemoved)="onSearchChipRemoved($event)"></app-grouped-search>
+
+      <div class="mt-3 flex shrink-0 flex-wrap items-center gap-2">
+        <app-filter-chips size="sm" [multiple]="true" [options]="chipOptions()" [values]="activeChips()"
+          ariaLabel="Filters" (valuesChange)="onChipsChange($event)"></app-filter-chips>
+        <app-filter-chips size="sm" [collapseAfter]="1" [options]="dateOptions" [value]="dateChip()"
+          ariaLabel="Date" (valueChange)="onDateChange($event)"></app-filter-chips>
+        <button *ngIf="hasAnyFilter()" type="button" (click)="clearAllFilters()"
+          class="ml-auto text-xs font-medium text-gray-400 hover:text-gray-700 transition-colors">
+          Clear all
+        </button>
+      </div>
+
+      <!-- Modo resultados (Enter): todas las carpetas, pestañas Emails | Files -->
+      <div *ngIf="store.resultsMode()" class="mt-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <p class="min-w-0 truncate text-xs text-gray-500">
+          Results for <span class="font-semibold text-gray-800">"{{ store.query() }}"</span> in all folders
+        </p>
+        <app-segmented [options]="searchTabs()" [value]="store.searchTab()" ariaLabel="Result type"
+          (valueChange)="setSearchTab($event)"></app-segmented>
+      </div>
+      <p *ngIf="!store.resultsMode() && store.query()" class="mt-3 shrink-0 truncate text-xs text-gray-500">
+        Showing matches for <span class="font-semibold text-gray-800">"{{ store.query() }}"</span> in this folder ·
+        <button type="button" (click)="onSearchSubmit(store.query())" class="font-medium text-brand-bold hover:underline">
+          Search all folders
+        </button>
+      </p>
+
+      <app-mail-list class="mt-3 flex-1 min-h-0" [rows]="rows()" [selectedId]="selectedRowId()" [loading]="listLoading()"
+        [error]="listError()" [hasMore]="listHasMore()" [emptyText]="listEmptyText()" [emptyHint]="listEmptyHint()"
+        [showTrashActions]="!store.resultsMode() && store.activeFolderId() === 'trash'"
         (rowSelected)="selectRow($event)" (retryRequested)="retryList()"
         [canManage]="can.canManage()"
         (restoreRequested)="restoreTrash($event)" (purgeRequested)="purgeTrash($event)"
@@ -424,6 +458,9 @@
           [expandedId]="store.expandedMessageId()" [reply]="store.reply()" [loading]="store.messagesLoading()"
           [error]="store.messagesError()" [hasMore]="store.messagesHasMore()" [archiving]="store.archiving()"
           [canReply]="!!store.activeAccountId()" [customer]="threadCustomer()" [showCustomerLink]="!embedded()"
+          [canResend]="canResendNotice()" [canUnblock]="can.canUnblockAddresses()" [noticeBusyId]="store.noticeBusyId()"
+          (noticeResendRequested)="resendNotice($event)" (noticeOriginalRequested)="viewNoticeOriginal($event)"
+          (noticeUnblockRequested)="unblockNotice($event)"
           (messageToggled)="toggleMessage($event)"
           (bodyRetryRequested)="retryBody($event)" (attachmentsRetryRequested)="retryAttachments($event)"
           (attachmentDownloadRequested)="downloadAttachment($event)" (attachmentPreviewRequested)="previewAttachment($event)" (replyStarted)="startReply($event)"
@@ -452,6 +489,38 @@
     </ng-container>
   </dl>
   <p class="mt-5 text-xs text-gray-400">Shortcuts don't work while you're typing in a field.</p>
+</app-modal>
+
+<!-- "View original notice": el aviso técnico tal cual llegó (para soporte) -->
+<app-modal [isOpen]="!!store.noticeOriginal()" heading="Original delivery notice" size="lg" (closed)="store.closeNoticeOriginal()">
+  @if (store.noticeOriginal(); as view) {
+    <p class="text-xs text-gray-500">
+      Sent back by the recipient's mail server for <span class="font-medium text-gray-700">{{ view.notice.recipient }}</span>.
+    </p>
+    @if (view.loading) {
+      <div class="flex items-center gap-2 py-8 text-sm text-gray-400">
+        <app-infinity-loader size="sm" /> Fetching the notice from the mailbox…
+      </div>
+    } @else if (view.error) {
+      <p class="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{{ view.error }}</p>
+    } @else if (view.original; as original) {
+      <!-- HTML del proveedor: Angular lo sanea al bindear [innerHTML] (sin scripts ni handlers). -->
+      <div *ngIf="original.htmlBody" class="mt-4 max-h-[50vh] overflow-auto rounded-2xl border border-gray-100 p-4 text-sm text-gray-700"
+        [innerHTML]="original.htmlBody"></div>
+      <pre *ngIf="!original.htmlBody && original.textBody"
+        class="mt-4 max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-2xl border border-gray-100 p-4 font-mono text-xs text-gray-700">{{ original.textBody }}</pre>
+      <p *ngIf="!original.htmlBody && !original.textBody" class="mt-4 text-sm text-gray-400">This notice has no readable content.</p>
+      <details *ngIf="noticeOriginalHeaders().length > 0" class="mt-4 text-xs">
+        <summary class="cursor-pointer select-none font-medium text-gray-500 hover:text-gray-700">Headers</summary>
+        <dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-[0.6875rem]">
+          <ng-container *ngFor="let header of noticeOriginalHeaders()">
+            <dt class="text-gray-400">{{ header.name }}</dt>
+            <dd class="break-all text-gray-600">{{ header.value }}</dd>
+          </ng-container>
+        </dl>
+      </details>
+    }
+  }
 </app-modal>
 
 <!-- Visor global de adjuntos -->

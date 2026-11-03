@@ -262,7 +262,7 @@
       <div class="grid grid-cols-2 gap-3">
         <label class="flex h-11 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
           <span class="text-sm text-gray-400">Language</span>
-          <select [ngModel]="language()" name="language" (ngModelChange)="language.set($event)"
+          <select [ngModel]="language()" name="language" (ngModelChange)="pickLanguage($event)"
             class="h-full w-full bg-transparent text-sm text-gray-700 focus:outline-none">
             <option *ngFor="let l of languages" [value]="l.value">{{ l.label }}</option>
           </select>

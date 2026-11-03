@@ -18,6 +18,7 @@ describe('defaultRules — preselección de los defaults del despacho (B5)', () 
     maxPdfBytes: 10_000_000,
     maxPagesPerDocument: 50,
     retentionYears: 7,
+    retentionYearsSource: 'Signature',
     allowPurge: false,
     planConstraints: {
       maxDocumentsPerRequest: 20,

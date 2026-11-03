@@ -11,6 +11,9 @@ export const CorrespondencePermissions = {
   Manage: 'correspondence.manage',
 } as const;
 
+/** Permiso de Postmaster que administra la lista de supresión (`DELETE /postmaster/suppression/{address}`). */
+export const PostmasterSuppressionWrite = 'postmaster.suppression.write';
+
 /**
  * B6 — qué puede hacer el usuario con el correo.
  *
@@ -35,4 +38,7 @@ export class CorrespondenceCapabilities {
 
   /** Papelera, restaurar, archivar y borrar para siempre. */
   readonly canManage: Signal<boolean> = computed(() => this.access.can(CorrespondencePermissions.Manage));
+
+  /** D-8: "Unblock" de una dirección suprimida por rebote duro, desde la tarjeta del aviso. */
+  readonly canUnblockAddresses: Signal<boolean> = computed(() => this.access.can(PostmasterSuppressionWrite));
 }
