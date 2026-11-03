@@ -336,6 +336,9 @@ export interface EmailSearchHit {
   hasAttachments: boolean;
   /** Conversación con algo sin leer / entrante sin leer; enviados y borradores = false. */
   isUnread?: boolean;
+  /** Solo enviados/borradores: copia y copia oculta. */
+  ccAddresses?: string[] | null;
+  bccAddresses?: string[] | null;
 }
 
 /** Un adjunto cuyo nombre coincide. Entrante: se baja por mensaje+adjunto; saliente: `fileId` en CloudStorage. */
@@ -432,6 +435,9 @@ export interface MessageSummary {
   deliveries?: RecipientDelivery[] | null;
   /** Solo kind = DeliveryNotice. */
   deliveryNotice?: DeliveryNoticeSummary | null;
+  /** Solo outbound: copia y copia oculta (la oficina ve el Bcc de lo que envió). */
+  ccAddresses?: string[] | null;
+  bccAddresses?: string[] | null;
 }
 
 /** Veredicto de autenticación del remitente (el front lo traduce a lenguaje simple). */
@@ -508,6 +514,8 @@ export interface SentMessageListItem {
   /** Peor estado de entrega (NotDelivered > Delayed > Delivered); null = sin noticias. */
   deliveryStatus?: DeliveryStatus | null;
   deliveries?: RecipientDelivery[] | null;
+  ccAddresses?: string[] | null;
+  bccAddresses?: string[] | null;
 }
 
 /** Fila lean de GET /correspondence/drafts?customerId= ("retomar un autoguardado"). */

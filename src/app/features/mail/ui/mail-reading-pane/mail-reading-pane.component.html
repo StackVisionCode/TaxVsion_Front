@@ -132,7 +132,9 @@
               <span class="shrink-0 text-[0.6875rem] text-gray-400">{{ timeFor(message.occurredAtUtc) }}</span>
             </span>
 
-            <span class="mt-0.5 block truncate text-xs text-gray-400">{{ addressLabel(message) }}</span>
+            <!-- Abierto: destinatarios completos (To · Cc · Bcc); cerrado: una línea con el detalle al pasar el ratón -->
+            <span class="mt-0.5 block text-xs text-gray-400" [class.truncate]="expandedId !== message.messageId"
+              [class.break-words]="expandedId === message.messageId" [attr.title]="addressLabel(message)">{{ addressLabel(message) }}</span>
 
             <span *ngIf="expandedId !== message.messageId && message.snippet"
               class="mt-0.5 block truncate text-xs text-gray-500">{{ message.snippet }}</span>

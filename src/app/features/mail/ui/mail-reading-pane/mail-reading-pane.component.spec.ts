@@ -195,4 +195,17 @@ describe('MailReadingPaneComponent · avisos de entrega', () => {
       (fixture.nativeElement.querySelector('app-status-pill') as HTMLElement).textContent?.trim(),
     ).toBe('Sent');
   });
+
+  it('el enviado muestra To, Cc y Bcc; sin copias solo el To', () => {
+    const fixture = render([
+      { ...sent, deliveries: [], deliveryStatus: null, ccAddresses: ['ana@x.com'], bccAddresses: ['jefe@x.com'] },
+    ]);
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('To maria@x.con, juan@x.com · Cc ana@x.com · Bcc jefe@x.com');
+
+    const plain = render([{ ...sent, deliveries: [], deliveryStatus: null }]);
+    const plainText = (plain.nativeElement as HTMLElement).textContent ?? '';
+    expect(plainText).toContain('To maria@x.con, juan@x.com');
+    expect(plainText).not.toContain('Cc ');
+  });
 });

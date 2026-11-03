@@ -168,10 +168,19 @@ export class MailReadingPaneComponent implements OnChanges {
   }
 
   /** Línea secundaria: dirección del remitente (inbound) o destinatarios (outbound). */
+  /** Enviado: "To … · Cc … · Bcc …" (solo las partes que tienen direcciones); recibido: el remitente. */
   addressLabel(message: MessageSummary): string {
     if (message.direction === 'Outbound') {
-      const to = message.toAddresses ?? [];
-      return to.length > 0 ? `To ${to.join(', ')}` : 'Sent';
+      const parts = [
+        ['To', message.toAddresses],
+        ['Cc', message.ccAddresses],
+        ['Bcc', message.bccAddresses],
+      ] as const;
+      const label = parts
+        .filter(([, addresses]) => (addresses?.length ?? 0) > 0)
+        .map(([kind, addresses]) => `${kind} ${addresses!.join(', ')}`)
+        .join(' · ');
+      return label || 'Sent';
     }
     return message.from ?? '';
   }
