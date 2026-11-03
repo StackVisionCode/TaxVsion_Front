@@ -816,7 +816,7 @@ describe('ActiveMeetingService (adjuntos del chat de la sala)', () => {
 });
 
 describe('ActiveMeetingService.joinAsGuest (F6, D-47)', () => {
-  it('entra como guest (userId = invitationId) con el ICE del ack, sin pedir ICE ni historial por HTTP', async () => {
+  it('entra como guest (userId = el del ticket) con el ICE del ack, sin pedir ICE ni historial por HTTP', async () => {
     const youRemoved = new Subject<unknown>();
     const snapshot = soloSnapshot({ hostUserId: 'host', conversationId: 'c1' });
     snapshot.participants = [{ ...snapshot.participants[0], userId: 'inv-1', displayName: 'Externo Uno', role: 'Attendee', actorType: 'Guest' }];
@@ -831,7 +831,7 @@ describe('ActiveMeetingService.joinAsGuest (F6, D-47)', () => {
     const ice = TestBed.inject(CallsService) as { getIceServers: () => unknown };
     const iceSpy = vi.spyOn(ice, 'getIceServers');
 
-    await service.joinAsGuest('m1', 'Consulta', 'inv-1', { audio: true, video: false });
+    await service.joinAsGuest('m1', 'Consulta', { guestUserId: 'inv-1', invitationId: 'inv-1' }, { audio: true, video: false });
 
     expect(service.phase()).toBe('joined');
     expect(service.isGuest()).toBe(true);
@@ -863,16 +863,46 @@ describe('ActiveMeetingService.joinAsGuest (F6, D-47)', () => {
       chatHistory: vi.fn().mockResolvedValue({ items: [dto('m2', 'second', '2026-10-31T21:01:00Z'), dto('m1', 'first', '2026-10-31T21:00:00Z')] }),
     };
     const { service } = configureWith(rtc);
-    await service.joinAsGuest('m1', 'Consulta', 'inv-1', { audio: true, video: false });
+    await service.joinAsGuest('m1', 'Consulta', { guestUserId: 'inv-1', invitationId: 'inv-1' }, { audio: true, video: false });
     await vi.waitFor(() => expect(service.chatMessages().map(m => m.text)).toEqual(['first', 'second']));
   });
 
   it('el guest respeta la sala de espera forzada por la oficina', async () => {
     const rtc = fakeRtc({ requiresAdmission: true, snapshot: soloSnapshot() });
     const { service } = configureWith(rtc);
-    await service.joinAsGuest('m1', 'Consulta', 'inv-2');
+    await service.joinAsGuest('m1', 'Consulta', { guestUserId: 'inv-2', invitationId: 'inv-2' });
     expect(service.phase()).toBe('waiting');
     expect(service.myUserId()).toBe('inv-2');
+  });
+
+  it('D-68: por el enlace de la reunión es guest con la identidad del ticket y sin invitación', async () => {
+    const rtc = fakeRtc({ requiresAdmission: true, snapshot: soloSnapshot() });
+    const { service } = configureWith(rtc);
+    await service.joinAsGuest('m1', 'Consulta', { guestUserId: 'g-1', invitationId: null });
+    expect(service.phase()).toBe('waiting');
+    expect(service.isGuest()).toBe(true);
+    expect(service.myUserId()).toBe('g-1');
+    expect(rtc.join).toHaveBeenCalledWith('m1', undefined);
+  });
+});
+
+describe('ActiveMeetingService — rechazo de otro participante (MNT-01)', () => {
+  it('el host deja de ver en espera al rechazado (Deny o externos apagados); el aviso a uno mismo no cambia', async () => {
+    const denied = new Subject<unknown>();
+    const snapshot = soloSnapshot();
+    snapshot.participants = [
+      ...snapshot.participants,
+      { ...snapshot.participants[0], userId: 'g-1', displayName: 'Luis', role: 'Attendee', status: 'Waiting', actorType: 'Guest' },
+    ];
+    const rtc = { ...fakeRtc({ requiresAdmission: false, snapshot }), onParticipantDenied: () => denied };
+    const { service } = configureWith(rtc);
+    await service.join('m1', 'Consulta', { audio: true, video: false });
+    expect(service.waitingParticipants().map(p => p.userId)).toEqual(['g-1']);
+
+    denied.next({ meetingId: 'm1', participantUserId: 'g-1', deniedByUserId: 'me', deniedAtUtc: 'x' });
+
+    expect(service.waitingParticipants()).toEqual([]);
+    expect(service.phase()).toBe('joined');
   });
 });
 
@@ -898,6 +928,20 @@ describe('ActiveMeetingService (F7 — grabación en servidor, límites y errore
     };
     return { rtc, consent, state, limit };
   }
+
+  it('D-71: el "Ready" tardío de la grabación anterior no apaga el REC de la nueva', async () => {
+    const ev = withRecording();
+    const { service } = configureWith(ev.rtc);
+    await service.join('m1', 'Consulta');
+    ev.state.next({ meetingId: 'm1', state: 'Processing', updatedAtUtc: '', captureMode: 'Server', recordingId: 'r1' });
+    ev.state.next({ meetingId: 'm1', state: 'Recording', updatedAtUtc: '', captureMode: 'Server', startedAtUtc: null, recordingId: 'r2' });
+
+    ev.state.next({ meetingId: 'm1', state: 'Ready', updatedAtUtc: '', captureMode: 'Server', recordingId: 'r1' });
+
+    expect(service.recordingState()).toBe('Recording');
+    ev.state.next({ meetingId: 'm1', state: 'Stopping', updatedAtUtc: '', captureMode: 'Server', reason: 'User', recordingId: 'r2' });
+    expect(service.recordingState()).toBe('Stopping');
+  });
 
   it('Server: el navegador no mezcla ni sube; REC cuenta contra el servidor con restante; avisos de límite y Processing', async () => {
     vi.useFakeTimers();

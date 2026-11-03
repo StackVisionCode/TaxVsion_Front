@@ -16,13 +16,26 @@ import { MeetingRemoteAudioComponent } from '@core/communication/ui/remote-audio
 import { MeetingRoomComponent } from '@features/meetings/ui/meeting-room/meeting-room.component';
 import { parseUtcDate } from '@shared/utils/utc-date.util';
 import { GuestMeetingService } from './data-access/guest-meeting.service';
-import { GUESTS_NOT_ALLOWED_CODE, GuestJoinByTokenResponse, GuestMeetingContext } from './data-access/guest-meeting.model';
+import { GUESTS_NOT_ALLOWED_CODE, GuestJoinByTokenResponse, GuestMeetingContext, MEETING_LOCKED_CODE } from './data-access/guest-meeting.model';
 
 /**
  * Pantallas de la página. `room` delega en `app-meeting-room` (sala de espera / dentro / fin);
- * `left` = me fui (Rejoin); `revoked` = el host revocó mi invitación; `failed` = no se pudo entrar (Try again).
+ * `left` = me fui (Rejoin); `revoked` = el host revocó mi invitación; `locked` = reunión bloqueada (enlace,
+ * Try again); `failed` = no se pudo entrar (Try again).
  */
-export type GuestPageState = 'loading' | 'invalid' | 'guests-off' | 'ended' | 'name' | 'lobby' | 'connecting' | 'room' | 'left' | 'revoked' | 'failed';
+export type GuestPageState =
+  | 'loading'
+  | 'invalid'
+  | 'guests-off'
+  | 'ended'
+  | 'name'
+  | 'lobby'
+  | 'connecting'
+  | 'room'
+  | 'left'
+  | 'revoked'
+  | 'locked'
+  | 'failed';
 
 const MAX_NAME_LENGTH = 80;
 
@@ -144,6 +157,10 @@ export class GuestMeetingPageComponent implements OnInit {
       this.state.set('ended');
       return;
     }
+    if (ctx.viaMeetingLink && ctx.isLocked) {
+      this.state.set('locked');
+      return;
+    }
     this.displayName.set((ctx.inviteeName ?? '').trim());
     this.state.set('name');
   }
@@ -174,6 +191,15 @@ export class GuestMeetingPageComponent implements OnInit {
   /** "Rejoin": con el socket vivo reutiliza el ticket; si cayó, pide uno nuevo (el token lo permite mientras siga en gracia). */
   async rejoin(): Promise<void> {
     await this.connectAndJoin(!this.realtime.connected() || !this.joined);
+  }
+
+  /** Reunión bloqueada (enlace): al reintentar se vuelve a leer el contexto por si el host la desbloqueó. */
+  checkAgain(): void {
+    this.state.set('loading');
+    this.service.context(this.token).subscribe({
+      next: ctx => this.applyContext(ctx),
+      error: () => this.state.set('invalid'),
+    });
   }
 
   /** "Try again" tras un fallo: vuelve al lobby para elegir dispositivos de nuevo. */
@@ -208,7 +234,8 @@ export class GuestMeetingPageComponent implements OnInit {
     if (this.destroyed || !this.joined) {
       return;
     }
-    await this.meeting.joinAsGuest(this.joined.meetingId, ctx.meetingTitle, this.joined.invitationId, this.lastLobbyOptions);
+    const guest = { guestUserId: this.joined.guestUserId, invitationId: this.joined.invitationId };
+    await this.meeting.joinAsGuest(this.joined.meetingId, ctx.meetingTitle, guest, this.lastLobbyOptions);
     if (this.destroyed) {
       return;
     }
@@ -221,7 +248,7 @@ export class GuestMeetingPageComponent implements OnInit {
     this.state.set('room');
   }
 
-  /** 404 uniforme → enlace no válido; 403 GuestsNotAllowed → oficina sin invitados; resto → reintentable. */
+  /** 404 uniforme → enlace no válido; 403 GuestsNotAllowed → sin invitados; 403 Locked → bloqueada; resto → reintentable. */
   private stateForJoinError(err: unknown): GuestPageState {
     if (err instanceof HttpErrorResponse) {
       if (err.status === 404) {
@@ -229,6 +256,9 @@ export class GuestMeetingPageComponent implements OnInit {
       }
       if (err.status === 403 && toApiError(err).code === GUESTS_NOT_ALLOWED_CODE) {
         return 'guests-off';
+      }
+      if (err.status === 403 && toApiError(err).code === MEETING_LOCKED_CODE) {
+        return 'locked';
       }
       this.failure.set(toApiError(err).message);
       return 'failed';

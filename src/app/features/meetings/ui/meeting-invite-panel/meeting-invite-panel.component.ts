@@ -9,7 +9,15 @@ import { ClickOutsideDirective } from '@shared/directives/click-outside.directiv
 import { ClipboardService } from '@shared/services/clipboard.service';
 import { toApiError } from '@core/models/api-error.model';
 import { InviteeSearchResult, MeetingsStore } from '../../data-access/meetings.store';
-import { CreatedMeetingInvitation, MeetingInvitationListItem, MeetingInviteeDraft } from '../../data-access/meeting.model';
+import {
+  CreatedMeetingInvitation,
+  MeetingGuestAccess,
+  MeetingInvitationListItem,
+  MeetingInviteeDraft,
+  recognizedInviteesNotice,
+  skippedInviteesNotice,
+} from '../../data-access/meeting.model';
+import { MeetingGuestAccessComponent } from '../meeting-guest-access/meeting-guest-access.component';
 import {
   InvitationState,
   canRevokeInvitation,
@@ -35,6 +43,8 @@ const CREATE_ERROR_COPY: Record<string, string> = {
  *    externos por email con nombre opcional.
  *  - "Send": `POST /meetings/{id}/invitations`; los `joinUrl` solo existen en esa respuesta, así que
  *    "Copy link" se ofrece sobre los recién emitidos (una vez). "Copy code" copia el `shortCode`.
+ *  - D-68/D-69: "Allow external guests" y el enlace de la reunión (`app-meeting-guest-access`); con
+ *    externos apagados no se agregan por email. MNT-01: quien ya estaba invitado se avisa y no se reenvía.
  *  - Lista `GET /meetings/{id}/invitations` con estado `active|used|revoked|expired|closed`
  *    (utils/invitation-state) y "Revoke" (`DELETE`; si el guest está dentro, lo expulsa).
  *
@@ -45,7 +55,16 @@ const CREATE_ERROR_COPY: Record<string, string> = {
  */
 @Component({
   selector: 'app-meeting-invite-panel',
-  imports: [FormsModule, DrawerComponent, AvatarComponent, AvatarUrlPipe, StatusPillComponent, InfinityLoaderComponent, ClickOutsideDirective],
+  imports: [
+    FormsModule,
+    DrawerComponent,
+    AvatarComponent,
+    AvatarUrlPipe,
+    StatusPillComponent,
+    InfinityLoaderComponent,
+    ClickOutsideDirective,
+    MeetingGuestAccessComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meeting-invite-panel.component.html',
 })
@@ -77,6 +96,11 @@ export class MeetingInvitePanelComponent implements OnChanges {
   /** Links recién emitidos: única vez que se ven. */
   readonly newLinks = signal<CreatedMeetingInvitation[]>([]);
   readonly copiedKey = signal<string | null>(null);
+  /** MNT-01: aviso tras enviar (ya invitados / reconocidos como equipo o cliente). */
+  readonly notice = signal<string | null>(null);
+  /** D-69: acceso de externos de la reunión; null hasta cargarlo (no se bloquea mientras tanto). */
+  readonly guestAccess = signal<MeetingGuestAccess | null>(null);
+  readonly externalsAllowed = computed(() => this.guestAccess()?.guestsAllowed ?? true);
 
   readonly externalCandidate = computed<string | null>(() => {
     const raw = this.inviteeSearch().trim();
@@ -126,7 +150,7 @@ export class MeetingInvitePanelComponent implements OnChanges {
 
   addExternal(): void {
     const email = this.externalCandidate();
-    if (email) {
+    if (email && this.externalsAllowed()) {
       const name = this.externalName().trim() || email.split('@')[0];
       this.addInvitee({ kind: 'external', userId: null, email, name });
       this.externalName.set('');
@@ -147,6 +171,14 @@ export class MeetingInvitePanelComponent implements OnChanges {
     this.inviteeSearch.set('');
     this.inviteeResults.set({ employees: [], customers: [] });
     this.isInviteeOpen.set(false);
+  }
+
+  /** Con externos apagados, los externos elegidos y no enviados ya no pueden entrar: fuera de la lista. */
+  onGuestAccessChange(access: MeetingGuestAccess): void {
+    this.guestAccess.set(access);
+    if (!access.guestsAllowed) {
+      this.invitees.update(list => list.filter(invitee => invitee.kind !== 'external'));
+    }
   }
 
   removeInvitee(index: number): void {
@@ -174,8 +206,11 @@ export class MeetingInvitePanelComponent implements OnChanges {
     }
     this.busy.set(true);
     this.error.set(null);
+    this.notice.set(null);
     this.store.createInvitations(meetingId, drafts).subscribe({
-      next: created => {
+      next: ({ invitations: created, skipped }) => {
+        const notices = [skippedInviteesNotice(skipped), recognizedInviteesNotice(drafts, created)].filter(Boolean);
+        this.notice.set(notices.length ? notices.join(' ') : null);
         this.newLinks.update(list => [...created, ...list]);
         this.invitees.set([]);
         this.busy.set(false);
@@ -292,6 +327,7 @@ export class MeetingInvitePanelComponent implements OnChanges {
     this.newLinks.set([]);
     this.error.set(null);
     this.copiedKey.set(null);
+    this.notice.set(null);
     this.busy.set(false);
     this.revokingId.set(null);
   }

@@ -15,6 +15,11 @@
       </div>
     }
 
+    <!-- D-68/D-69: externos de esta reunión + enlace compartible -->
+    @if (isOpen && meetingId) {
+      <app-meeting-guest-access [meetingId]="meetingId" (accessChange)="onGuestAccessChange($event)" />
+    }
+
     <!-- Picker (equipo / clientes) + externo por email -->
     <div class="relative" appClickOutside [clickOutsideEnabled]="isInviteeOpen()" (appClickOutside)="isInviteeOpen.set(false)">
       <div class="flex h-10 items-center rounded-full border border-gray-200 bg-white transition-colors focus-within:border-gray-300">
@@ -45,7 +50,11 @@
               </button>
             }
           }
-          @if (externalCandidate(); as email) {
+          @if (externalCandidate() && !externalsAllowed()) {
+            <p class="border-t border-gray-100 px-4 py-3 text-xs text-gray-500" data-role="externals-off">
+              External guests are turned off for this meeting.
+            </p>
+          } @else if (externalCandidate(); as email) {
             <div class="flex flex-col gap-2 border-t border-gray-100 px-4 py-3" data-role="external-candidate">
               <p class="text-xs text-gray-500">Invite <span class="font-medium text-gray-700">{{ email }}</span> as an external guest</p>
               <div class="flex items-center gap-2">
@@ -84,6 +93,10 @@
         <ion-icon name="send-outline" class="text-sm"></ion-icon>
         {{ busy() ? 'Sending…' : 'Send invitations' }}
       </button>
+    }
+
+    @if (notice(); as text) {
+      <p class="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700" role="status" data-role="invite-notice">{{ text }}</p>
     }
 
     @if (error(); as err) {

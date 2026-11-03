@@ -110,4 +110,11 @@ describe('NotificationRouteResolver', () => {
 
     expect(fromPush).toEqual(fromInApp);
   });
+
+  it('los avisos de archivo van a Documents (también le llegan a empleados); el límite de almacenamiento, a Storage', () => {
+    expect(resolver.resolveResource('file', 'f-1', {})).toEqual({ commands: ['/documents'], queryParams: { fileId: 'f-1' } });
+    expect(resolver.resolveResource('document', 'd-1', {})).toEqual({ commands: ['/documents'], queryParams: { fileId: 'd-1' } });
+    expect(resolver.resolveResource('customer_documents', 'f-2', {})).toEqual({ commands: ['/documents'], queryParams: { fileId: 'f-2' } });
+    expect(resolver.resolveResource('storage_settings', null, {})).toEqual({ commands: ['/storage'] });
+  });
 });

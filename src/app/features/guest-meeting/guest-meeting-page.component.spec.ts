@@ -45,7 +45,7 @@ function context(overrides: Partial<GuestMeetingContext> = {}): GuestMeetingCont
 function setup(ctx: GuestMeetingContext | HttpErrorResponse, token = 'tok-1') {
   const service = {
     context: vi.fn().mockReturnValue(ctx instanceof HttpErrorResponse ? throwError(() => ctx) : of(ctx)),
-    joinByToken: vi.fn().mockReturnValue(of({ shortLivedJoinTicket: 'ticket', meetingId: 'm1', shortCode: 'ABC123', tenantId: 't', invitationId: 'inv-1' })),
+    joinByToken: vi.fn().mockReturnValue(of({ shortLivedJoinTicket: 'ticket', meetingId: 'm1', shortCode: 'ABC123', tenantId: 't', invitationId: 'inv-1', guestUserId: 'inv-1' })),
   };
   const phase = signal<'idle' | 'joining' | 'waiting' | 'joined' | 'ended'>('idle');
   const meeting = {
@@ -135,7 +135,7 @@ describe('GuestMeetingPageComponent (F6, D-47)', () => {
     expect(speaker.primeAudioContext).toHaveBeenCalled();
     expect(service.joinByToken).toHaveBeenCalledWith('tok-1', 'Bob');
     expect(realtime.connectAsGuest).toHaveBeenCalledWith('ticket');
-    expect(meeting.joinAsGuest).toHaveBeenCalledWith('m1', 'Tax review', 'inv-1', { audio: true, video: false });
+    expect(meeting.joinAsGuest).toHaveBeenCalledWith('m1', 'Tax review', { guestUserId: 'inv-1', invitationId: 'inv-1' }, { audio: true, video: false });
     expect(component.state()).toBe('room');
     expect(el.querySelector('[data-role="room-stub"]')).not.toBeNull();
   });
@@ -154,6 +154,18 @@ describe('GuestMeetingPageComponent (F6, D-47)', () => {
     await component.joinFromLobby({ audio: true, video: true });
     await flush(fixture);
     expect(component.state()).toBe('invalid');
+
+    component.state.set('lobby');
+    service.joinByToken.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403, error: { code: 'Meeting.Locked', message: 'locked' } })));
+    await component.joinFromLobby({ audio: true, video: true });
+    await flush(fixture);
+    expect(component.state()).toBe('locked');
+  });
+
+  it('D-68: enlace de la reunión bloqueada → "This meeting is locked" sin pedir nombre', () => {
+    const { el, component } = setup(context({ viaMeetingLink: true, isLocked: true }));
+    expect(component.state()).toBe('locked');
+    expect(el.textContent).toContain('This meeting is locked');
   });
 
   it('Leave → "You left the meeting" con Rejoin (socket vivo: vuelve a entrar sin pedir otro ticket)', async () => {

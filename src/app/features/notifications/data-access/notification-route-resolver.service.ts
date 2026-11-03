@@ -91,10 +91,12 @@ export class NotificationRouteResolver {
               commands: ['/clients', context['customerId']],
               queryParams: compact({ tab: 'documents', fileId: context['fileId'] ?? id }),
             }
-          : { commands: ['/storage'], queryParams: compact({ fileId: id }) };
+          : { commands: ['/documents'], queryParams: compact({ fileId: id }) };
+      // Los avisos de archivo llegan también a empleados: van al gestor de archivos (Documents);
+      // /storage es la administración del almacenamiento (solo settings.manage).
       case 'file':
       case 'document':
-        return { commands: ['/storage'], queryParams: compact({ fileId: id }) };
+        return { commands: ['/documents'], queryParams: compact({ fileId: id }) };
       case 'storage_settings':
         // No hay pagina dedicada: el gestor de almacenamiento es /storage.
         return { commands: ['/storage'] };

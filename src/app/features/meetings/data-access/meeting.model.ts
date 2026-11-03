@@ -92,6 +92,8 @@ export interface CreateMeetingRequest {
   transcriptLanguage?: string | null;
   /** F3 — informativa (≤ máximo de la oficina; 400 `Meeting.InvalidDuration` si lo supera). El corte real es `endsAtUtc`. */
   scheduledDurationMinutes?: number;
+  /** D-69 — admite invitados externos; ausente = lo que permita la oficina (nunca por encima). */
+  guestsAllowed?: boolean;
 }
 
 export interface CreateMeetingResponse {
@@ -114,6 +116,19 @@ export interface MeetingLimits {
   defaultDurationMinutes: number;
   maxParticipants: number;
   guestsAllowed: boolean;
+}
+
+/**
+ * MNT-01 — GET /communication/meetings/code/{shortCode}: "Join with code" del staff. Solo busca en la
+ * oficina del usuario (otro código → 404) y trae el id real para entrar por el lobby normal.
+ */
+export interface MeetingCodeResolution {
+  meetingId: string;
+  title: string;
+  hostDisplayName: string;
+  status: ApiMeetingStatus;
+  requiresPasscode: boolean;
+  isLocked: boolean;
 }
 
 /** Pasos habituales del selector de duración; se recortan al máximo de la oficina. */
@@ -167,10 +182,57 @@ export interface CreatedMeetingInvitation {
   expiresAt: string;
   inviteeEmail: string | null;
   joinUrl: string;
+  /** MNT-01 — tipo con que quedó: un "externo" con email de alguien de la oficina se invita como tal. */
+  inviteeKind?: 'Employee' | 'Customer' | 'External';
+}
+
+/** MNT-01 — invitado que no se volvió a invitar porque ya tiene una invitación abierta en la reunión. */
+export interface SkippedMeetingInvitee {
+  email: string | null;
+  name: string | null;
+  reason: 'AlreadyInvited';
 }
 
 export interface CreateMeetingInvitationsResponse {
   invitations: CreatedMeetingInvitation[];
+  skipped?: SkippedMeetingInvitee[];
+}
+
+/** Aviso para los invitados omitidos ("Already invited: …"); null si no hubo. */
+export function skippedInviteesNotice(skipped: readonly SkippedMeetingInvitee[] | undefined): string | null {
+  if (!skipped?.length) {
+    return null;
+  }
+  const names = skipped.map(item => item.name || item.email || 'Guest');
+  return `Already invited, not sent again: ${names.join(', ')}.`;
+}
+
+/** MNT-01 — aviso de quien se invitó como empleado o cliente aunque se agregó como externo; null si nadie. */
+export function recognizedInviteesNotice(
+  drafts: readonly MeetingInviteeDraft[],
+  created: readonly CreatedMeetingInvitation[],
+): string | null {
+  const externals = new Set(drafts.filter(d => d.kind === 'external' && d.email).map(d => d.email!.toLowerCase()));
+  const recognized = created.filter(
+    link => link.inviteeKind && link.inviteeKind !== 'External' && !!link.inviteeEmail && externals.has(link.inviteeEmail.toLowerCase()),
+  );
+  if (recognized.length === 0) {
+    return null;
+  }
+  return recognized
+    .map(link => `${link.inviteeEmail} was invited as ${link.inviteeKind === 'Employee' ? 'a team member' : 'a client'}.`)
+    .join(' ');
+}
+
+/**
+ * D-68/D-69 — GET/PUT /meetings/{id}/guest-access y POST/DELETE /meetings/{id}/guest-link (host/cohost).
+ * `guestLinkUrl` null = enlace apagado; el token se deriva en el servidor y nunca se guarda.
+ */
+export interface MeetingGuestAccess {
+  guestsAllowed: boolean;
+  /** La oficina (o el plan) no admite externos: la reunión no puede abrirse a ellos. */
+  officeAllowsGuests: boolean;
+  guestLinkUrl: string | null;
 }
 
 /**
@@ -252,6 +314,8 @@ export interface MeetingFormValue {
   transcriptLanguage: string | null;
   /** F3 — duración programada, informativa; null = que el backend aplique la de la oficina. */
   scheduledDurationMinutes: number | null;
+  /** D-69 — admite invitados externos (siempre esperan a que los admitan). */
+  guestsAllowed: boolean;
 }
 
 /** Fila de la lista, derivada de MeetingListItemResponse + usuario actual. */

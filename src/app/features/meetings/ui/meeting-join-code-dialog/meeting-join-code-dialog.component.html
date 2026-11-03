@@ -1,0 +1,23 @@
+<app-modal [isOpen]="isOpen" heading="Join with code" subheading="Enter the meeting code shared by the host" size="sm" (closed)="close()">
+  <form class="mt-4 flex flex-col gap-3" (ngSubmit)="submit()">
+    <div class="flex h-11 items-center rounded-full border border-gray-200 bg-white transition-colors focus-within:border-gray-300">
+      <input type="text" name="meetingCode" placeholder="e.g. HFQGK4MQK" [ngModel]="code()" (ngModelChange)="code.set($event)"
+        maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Meeting code" data-role="meeting-code-input"
+        class="h-full w-full rounded-full bg-transparent px-4 font-mono text-sm uppercase tracking-widest text-gray-800 placeholder:font-sans placeholder:normal-case placeholder:tracking-normal placeholder-gray-400 focus:outline-none" />
+    </div>
+
+    @if (error(); as message) {
+      <p class="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700" role="alert" data-role="join-code-error">{{ message }}</p>
+    }
+
+    <div class="flex justify-end gap-2">
+      <button type="button" (click)="close()"
+        class="rounded-full px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100">Cancel</button>
+      <button type="submit" [disabled]="!canSubmit()" data-role="join-code-submit"
+        class="flex items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:opacity-50">
+        <ion-icon name="videocam-outline" class="text-sm"></ion-icon>
+        {{ busy() ? 'Checking…' : 'Join' }}
+      </button>
+    </div>
+  </form>
+</app-modal>

@@ -36,7 +36,7 @@ import { MediaControlsComponent, ScreenShareRequest } from '@core/communication/
 import { DevicePanelComponent } from '@core/communication/ui/device-panel/device-panel.component';
 import { RecordingConsentComponent } from '@core/communication/ui/recording-consent/recording-consent.component';
 import { RecordingBadgeComponent } from '@core/communication/ui/recording-badge/recording-badge.component';
-import { isRecordingBusy } from '@core/communication/recording-status';
+import { isRecordingTransitioning } from '@core/communication/recording-status';
 import { LobbyJoinOptions, MediaLobbyComponent } from '@core/communication/ui/media-lobby/media-lobby.component';
 import { MeetingParticipantTileComponent, ParticipantTileHostAction } from '@core/communication/ui/participant-tile/participant-tile.component';
 import { MeetingParticipantsPanelComponent } from '@core/communication/ui/participants-panel/participants-panel.component';
@@ -188,6 +188,8 @@ export class MeetingRoomComponent {
   readonly recordingRemainingLabel = this.meeting.recordingRemainingLabel;
   readonly recordingConsentFrom = this.meeting.recordingConsentFrom;
   readonly isRecordingRequester = this.meeting.isRecordingRequester;
+  /** MNT-01: host o cohost (o quien la pidió) pueden detener la grabación, aunque hayan salido y vuelto. */
+  readonly canStopRecording = this.meeting.canStopRecording;
   /** F5 — mi fila del roster con mi estado local encima (tile "You"). */
   readonly self = this.meeting.selfParticipant;
   readonly nowMs = this.meeting.nowMs;
@@ -332,9 +334,10 @@ export class MeetingRoomComponent {
       (this.perms.has('communication.meeting.record')),
   );
   readonly isRecording = computed(() => this.recordingState() === 'Recording');
-  readonly isRecordingBusy = computed(() => isRecordingBusy(this.recordingState()));
+  /** Pedida o deteniéndose: el botón espera. Componiendo una anterior ya no bloquea (D-71). */
+  readonly isRecordingBusy = computed(() => isRecordingTransitioning(this.recordingState()));
   readonly showRecordButton = computed(
-    () => this.phase() === 'joined' && this.canRecord() && this.recordingState() === 'Idle',
+    () => this.phase() === 'joined' && this.canRecord() && this.meeting.canStartRecording(),
   );
   /** Nombre del que pidió grabar (para el modal de consentimiento), desde el roster. */
   readonly recordingRequesterName = computed(() => {
@@ -622,9 +625,9 @@ export class MeetingRoomComponent {
   }
 
   toggleRecording(): void {
-    if (this.isRecording() && this.isRecordingRequester()) {
+    if (this.isRecording() && this.canStopRecording()) {
       void this.meeting.stopRecording();
-    } else if (this.recordingState() === 'Idle') {
+    } else if (this.meeting.canStartRecording()) {
       this.meeting.requestRecording();
     }
   }

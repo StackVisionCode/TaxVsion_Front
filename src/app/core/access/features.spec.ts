@@ -117,4 +117,9 @@ describe('registro de features', () => {
       expect(feature.label, `"${feature.label}" parece un id, no una etiqueta`).not.toMatch(/^[a-z-]+$/);
     }
   });
+
+  it('Storage es administración: pide settings.manage (los archivos de un empleado están en Documents)', () => {
+    expect(FEATURES.find(feature => feature.id === 'storage')?.anyOf).toEqual(['cloudstorage.settings.manage']);
+    expect(FEATURES.find(feature => feature.id === 'documents')?.anyOf).toEqual(['cloudstorage.file.view']);
+  });
 });

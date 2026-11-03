@@ -1,0 +1,63 @@
+<section class="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-gray-50/60 p-3" aria-label="External guests" data-role="guest-access">
+  @if (access(); as a) {
+    <div class="flex items-center justify-between gap-3">
+      <span class="flex min-w-0 flex-col">
+        <span class="text-sm font-medium text-gray-800">Allow external guests</span>
+        <span class="text-xs text-gray-400">
+          {{ a.officeAllowsGuests ? 'People outside your office can join. They always wait to be admitted.' : "Your office doesn't allow external guests." }}
+        </span>
+      </span>
+      <app-switch [checked]="a.guestsAllowed" [disabled]="!a.officeAllowsGuests" [busy]="busy() === 'access'"
+        (checkedChange)="setAllowed($event)" ariaLabel="Allow external guests" data-role="guests-allowed" />
+    </div>
+
+    @if (a.guestsAllowed) {
+      <div class="flex flex-col gap-2 border-t border-gray-100 pt-3" data-role="guest-link">
+        <span class="flex flex-col">
+          <span class="text-sm font-medium text-gray-800">Meeting link</span>
+          <span class="text-xs text-gray-400">Anyone with the link can ask to join. Locking the meeting stops new requests.</span>
+        </span>
+        @if (a.guestLinkUrl; as url) {
+          <div class="flex min-w-0 items-center gap-2 rounded-full border border-gray-200 bg-white py-1 pl-3 pr-1">
+            <span class="min-w-0 flex-1 truncate text-xs text-gray-500" data-role="guest-link-url">{{ url }}</span>
+            <button type="button" (click)="copyLink()" data-role="copy-guest-link"
+              class="flex shrink-0 items-center gap-1 rounded-full bg-brand-bold px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-ink">
+              <ion-icon [name]="copied() ? 'checkmark-outline' : 'copy-outline'" class="text-sm"></ion-icon>
+              {{ copied() ? 'Copied' : 'Copy' }}
+            </button>
+          </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <button type="button" (click)="rotateLink()" [disabled]="busy() !== null" data-role="rotate-guest-link"
+              class="flex items-center gap-1 text-xs font-medium text-gray-600 transition-colors hover:text-gray-900 disabled:opacity-50">
+              <ion-icon name="refresh-outline" class="text-sm"></ion-icon> New link
+            </button>
+            <button type="button" (click)="turnOffLink()" [disabled]="busy() !== null" data-role="disable-guest-link"
+              class="flex items-center gap-1 text-xs font-medium text-red-400 transition-colors hover:text-red-600 disabled:opacity-50">
+              <ion-icon name="close-circle-outline" class="text-sm"></ion-icon> Turn off
+            </button>
+            @if (busy() === 'link') {
+              <span class="text-xs text-gray-400">Updating…</span>
+            }
+          </div>
+        } @else {
+          <button type="button" (click)="createLink()" [disabled]="busy() !== null" data-role="create-guest-link"
+            class="flex items-center gap-1.5 self-start rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50">
+            <ion-icon name="link-outline" class="text-sm"></ion-icon>
+            {{ busy() === 'link' ? 'Creating…' : 'Create meeting link' }}
+          </button>
+        }
+      </div>
+    }
+  } @else if (loading()) {
+    <p class="text-xs text-gray-400">Loading guest settings…</p>
+  }
+
+  @if (error(); as err) {
+    <div class="flex items-center justify-between gap-3 rounded-xl bg-red-50 px-3 py-2" role="alert" data-role="guest-access-error">
+      <p class="text-xs text-red-600">{{ err }}</p>
+      @if (!access()) {
+        <button type="button" (click)="load()" class="shrink-0 text-xs font-semibold text-red-600 transition-colors hover:text-red-800">Retry</button>
+      }
+    </div>
+  }
+</section>

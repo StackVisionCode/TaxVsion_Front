@@ -120,6 +120,20 @@
           </div>
         }
 
+        @case ('locked') {
+          <div class="flex flex-col items-center gap-3 py-4 text-center">
+            <span class="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+              <ion-icon name="lock-closed-outline" class="text-3xl"></ion-icon>
+            </span>
+            <h1 class="text-lg font-bold text-gray-900">This meeting is locked</h1>
+            <p class="text-sm text-gray-500">The host isn't letting new people in right now. Try again in a moment.</p>
+            <button type="button" (click)="checkAgain()" data-role="check-again"
+              class="mt-2 rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50">
+              Try again
+            </button>
+          </div>
+        }
+
         @case ('failed') {
           <div class="flex flex-col items-center gap-3 py-4 text-center">
             <span class="flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-red-500">
