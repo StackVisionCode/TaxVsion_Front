@@ -2,5 +2,7 @@
   <app-settings-module-grid [selectedId]="selectedModuleId()" (moduleSelected)="selectModule($event)">
   </app-settings-module-grid>
 
-  <app-settings-panel [moduleId]="selectedModuleId()" [moduleTitle]="selectedModuleTitle()"></app-settings-panel>
+  @if (selectedModuleId(); as moduleId) {
+    <app-settings-panel [moduleId]="moduleId" [moduleTitle]="selectedModuleTitle()"></app-settings-panel>
+  }
 </div>

@@ -19,10 +19,11 @@ import { SettingsPanelComponent } from '../../ui/settings-panel/settings-panel.c
   templateUrl: './settings-page.component.html',
 })
 export class SettingsPageComponent {
-  readonly selectedModuleId = signal('overview');
+  /** Tarjeta con panel local abierta (las demás navegan); sin elección no se muestra panel. */
+  readonly selectedModuleId = signal<string | null>(null);
 
   readonly selectedModuleTitle = computed(
-    () => SETTINGS_MODULES.find(m => m.id === this.selectedModuleId())?.title ?? 'Overview',
+    () => SETTINGS_MODULES.find(m => m.id === this.selectedModuleId())?.title ?? '',
   );
 
   selectModule(id: string): void {

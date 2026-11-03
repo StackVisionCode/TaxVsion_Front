@@ -55,25 +55,6 @@ interface PanelConfig {
  * se editan desde ningún lado.
  */
 const PANELS: Record<string, PanelConfig> = {
-  overview: {
-    link: {
-      icon: 'business-outline',
-      label: 'Open office settings',
-      description:
-        'Office name, time zone, legal name, EIN, address, contact details, logo and favicon are stored with your office profile.',
-      routerLink: '/company/settings',
-    },
-    // La zona horaria ya se edita en /company/settings (PUT /tenants/current): dejó de ser "pending".
-    fields: [
-      { kind: 'pending', key: 'compactSidebar', control: 'toggle', label: 'Compact sidebar by default', description: 'Will start every session with the sidebar collapsed' },
-    ],
-  },
-  accounts: {
-    fields: [
-      { kind: 'pending', key: 'requireSsn', control: 'toggle', label: 'Require SSN/ITIN on intake', description: 'Will block saving a new client without this field' },
-      { kind: 'pending', key: 'defaultType', control: 'select', label: 'Default client type', description: 'Will be pre-selected when adding a new client' },
-    ],
-  },
   // Documents solo muestra ajustes con backend (enlaces públicos, reglas de compartir, subidas del
   // cliente). Los días de la papelera son de plataforma (PlatformAdmin), no de la oficina.
   documents: {
@@ -85,15 +66,7 @@ const PANELS: Record<string, PanelConfig> = {
       { kind: 'pending', key: 'autoReminders', control: 'toggle', label: 'Auto-reminders for unpaid invoices', description: 'Will send a reminder after the due date' },
     ],
   },
-  mail: {
-    // `emailNotifs` se movió a su propia página ruteada (/settings/notifications) — mismo
-    // criterio que signature: cuando hay backend, el panel inline se reemplaza por una pantalla
-    // dedicada. Los otros 2 campos siguen pendientes (no hay endpoint todavía).
-    fields: [
-      { kind: 'pending', key: 'signature', control: 'toggle', label: 'Signature on outgoing mail', description: "Will append your firm's signature block" },
-      { kind: 'pending', key: 'replyTo', control: 'text', label: 'Default reply-to', description: 'Will be used when clients respond to notifications' },
-    ],
-  },
+  // 'mail' abre el panel de buzones de Mail (la firma y el reply-to no tenían backend).
   // 'signature' se movió a su propia página ruteada (/settings/signature); el card del grid navega
   // en vez de abrir un panel inline, así que ya no hay placeholder acá.
   // 'meetings' pasó a Settings → Communication (F9): el card navega a su página, sin placeholder.
@@ -120,12 +93,12 @@ const PANELS: Record<string, PanelConfig> = {
   templateUrl: './settings-panel.component.html',
 })
 export class SettingsPanelComponent implements OnChanges {
-  @Input() moduleId = 'overview';
-  @Input() moduleTitle = 'Overview';
+  @Input() moduleId = '';
+  @Input() moduleTitle = '';
 
-  readonly fields = signal<SettingField[]>(PANELS['overview'].fields);
-  readonly link = signal<PanelLink | null>(PANELS['overview'].link ?? null);
-  readonly note = signal<string | null>(PANELS['overview'].note ?? null);
+  readonly fields = signal<SettingField[]>([]);
+  readonly link = signal<PanelLink | null>(null);
+  readonly note = signal<string | null>(null);
 
   /** true si en este módulo no hay un solo campo que llegue al backend. */
   readonly allPending = computed(
@@ -136,8 +109,8 @@ export class SettingsPanelComponent implements OnChanges {
   readonly hasPending = computed(() => this.fields().some(field => field.kind === 'pending'));
 
   /**
-   * En los paneles mixtos (hoy solo Overview) cada campo sin respaldo lleva su
-   * propia marca, para que no se confunda con los que sí se aplican de verdad.
+   * En los paneles mixtos cada campo sin respaldo lleva su propia marca, para que no se
+   * confunda con los que sí se aplican de verdad.
    */
   readonly showPendingBadge = computed(() => this.hasPending() && !this.allPending());
 

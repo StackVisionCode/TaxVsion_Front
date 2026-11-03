@@ -218,6 +218,27 @@ export class MailPageComponent implements OnInit, OnDestroy {
     });
   });
 
+  /**
+   * Settings → Mail llega con `?mailboxes=open`: abre el panel de buzones. Sin buzón no hace falta, la
+   * pantalla de conectar ya es ese panel. El parámetro se quita para que recargar no lo reabra.
+   */
+  private readonly mailboxesLinkEffect = effect(() => {
+    if (this.embedded() || this.routeParams().get('mailboxes') !== 'open' || this.store.bootLoading()) return;
+    untracked(() => {
+      if (this.store.hasMailbox()) {
+        this.store.clearManualError();
+        this.showManualForm.set(false);
+        this.showMailboxManager.set(true);
+      }
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { mailboxes: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    });
+  });
+
   /** Draft resaltado en el listado mientras el composer lo carga (GET /drafts/{id} es async). */
   readonly selectedDraftId = signal<string | null>(null);
 
