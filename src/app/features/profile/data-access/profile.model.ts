@@ -1,3 +1,4 @@
+import { actorTypeLabel } from '@core/auth/actor-labels';
 /**
  * Espejos de los DTOs del servicio Auth que consume la página de perfil.
  * Fuente: UsersController / CredentialsController / SessionsController
@@ -152,18 +153,7 @@ export function sessionIsMobile(session: Pick<UserSession, 'userAgent'>): boolea
 
 /** Nombre legible del rol (actorType de /auth/me): "TenantAdmin" no le dice nada a nadie. */
 export function roleDisplayName(actorType: string | null | undefined): string {
-  switch (actorType) {
-    case 'TenantAdmin':
-      return 'Office admin';
-    case 'TenantEmployee':
-      return 'Team member';
-    case 'PlatformAdmin':
-      return 'Platform admin';
-    case 'CustomerPortal':
-      return 'Client';
-    default:
-      return actorType || 'Member';
-  }
+  return actorTypeLabel(actorType);
 }
 
 export type PasswordStrength = 0 | 1 | 2 | 3 | 4;

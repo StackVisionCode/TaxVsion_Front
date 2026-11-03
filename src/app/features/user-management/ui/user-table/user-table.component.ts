@@ -5,6 +5,7 @@ import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-menu/dropdown-menu.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
+import { roleLabel } from '@core/auth/actor-labels';
 import { actorTypeLabel } from '../../data-access/user-management.model';
 
 export type MemberStatus = 'active' | 'invited' | 'suspended' | 'removed';
@@ -93,6 +94,11 @@ export class UserTableComponent {
   /** Etiqueta del actor type (nivel de acceso, no un rol): "Admin" / "Employee" / "Client portal". */
   actorTypeLabel(actorType: string): string {
     return actorTypeLabel(actorType);
+  }
+
+  /** "Tenant Admin" → "Admin"; los roles propios de la oficina quedan igual. */
+  roleLabel(roleName: string): string {
+    return roleLabel(roleName);
   }
 
   /**

@@ -41,7 +41,7 @@
           <button *ngFor="let option of roleOptions()" type="button" (click)="toggleRole(option.id)"
             class="flex w-full flex-col items-start gap-0.5 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors">
             <span class="flex w-full items-center justify-between text-sm font-medium text-gray-900">
-              {{ option.name }}
+              {{ roleLabel(option.name) }}
               <ion-icon *ngIf="isRoleSelected(option.id)" name="checkmark-outline" class="text-sm text-gray-900"></ion-icon>
             </span>
             <span class="text-xs text-gray-500">{{ roleDescription(option) }}</span>

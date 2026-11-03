@@ -71,6 +71,15 @@ describe('UserTableComponent — slot column', () => {
     expect(img?.getAttribute('src')).toContain('/storage/avatars/f-ada');
   });
 
+  it('los roles de sistema se muestran con su nombre legible y los propios quedan igual', () => {
+    const fixture = render([member({ roleNames: ['Tenant Admin', 'Bookkeeper'], actorType: 'TenantAdmin' })], false);
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+    expect(text).toContain('Admin');
+    expect(text).toContain('Bookkeeper');
+    expect(text).not.toContain('Tenant');
+  });
+
   it('sin slotIndex muestra el guión y no el badge', () => {
     const fixture = render([member({ slotIndex: null, isGated: false })], false);
     const slotCell = fixture.nativeElement.querySelector('[data-testid="slot-cell"]');

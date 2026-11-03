@@ -277,21 +277,8 @@ function formatDate(iso: string): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-/** Etiqueta corta del actor type para chips ("Admin" / "Employee"). */
-export function actorTypeLabel(actorType: string): string {
-  switch (actorType) {
-    case 'TenantAdmin':
-      return 'Admin';
-    case 'TenantEmployee':
-      return 'Employee';
-    case 'CustomerPortal':
-      return 'Client portal';
-    case 'PlatformAdmin':
-      return 'Platform';
-    default:
-      return actorType;
-  }
-}
+/** Etiqueta corta del actor type para chips ("Admin" / "Employee"): la misma en todo el CRM. */
+export { actorTypeLabel } from '@core/auth/actor-labels';
 
 /** Fila de la tabla desde GET /auth/users. Sin "last active" en el backend: se muestra la fecha de alta. */
 export function userToTeamMember(user: UserSummary): TeamMember {

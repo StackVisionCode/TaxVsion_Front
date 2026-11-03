@@ -1,3 +1,4 @@
+import { roleLabel } from '@core/auth/actor-labels';
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
@@ -61,6 +62,8 @@ export class UserInvitePanelComponent implements OnChanges {
    * rechazaría con Role.NotAssignableToActorType). Si el rol no trae el dato (backend viejo) no se
    * filtra — fallback seguro.
    */
+  readonly roleLabel = roleLabel;
+
   readonly roleOptions = computed(() => {
     const actorType = this.actorType();
     return this.store
@@ -93,7 +96,7 @@ export class UserInvitePanelComponent implements OnChanges {
     }
     return this.roleOptions()
       .filter(role => selected.includes(role.id))
-      .map(role => role.name)
+      .map(role => roleLabel(role.name))
       .join(', ');
   });
 

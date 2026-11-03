@@ -33,7 +33,7 @@
           <span class="flex flex-wrap gap-1.5">
             <span *ngFor="let role of member.roleNames"
               class="inline-block rounded-full border px-3 py-0.5 text-xs font-medium" [ngClass]="roleChip(role)">
-              {{ role }}
+              {{ roleLabel(role) }}
             </span>
             <span *ngIf="member.roleNames.length === 0" class="text-xs text-gray-400">—</span>
           </span>

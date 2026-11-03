@@ -1,3 +1,4 @@
+import { roleLabel } from '@core/auth/actor-labels';
 import {
   CUSTOM_ELEMENTS_SCHEMA,
   Component,
@@ -53,7 +54,7 @@ export class RoleEditorDrawerComponent implements OnInit {
 
   readonly readOnly = computed(() => this.role?.isSystem === true);
   readonly title = computed(() =>
-    this.role ? (this.readOnly() ? this.role.name : `Edit ${this.role.name}`) : 'New role',
+    this.role ? (this.readOnly() ? roleLabel(this.role.name) : `Edit ${this.role.name}`) : 'New role',
   );
 
   /** Sin catálogo no se puede traducir a ids: guardar dejaría el rol sin permisos. */

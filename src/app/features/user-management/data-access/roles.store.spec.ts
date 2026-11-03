@@ -159,6 +159,16 @@ describe('RolesStore', () => {
     });
   });
 
+  it('duplicar el rol integrado "Tenant Admin" crea "Admin (copy)" (el nombre interno no se muestra)', () => {
+    const { store, http } = setup();
+    store.load();
+    flushLoad(http, [], [permission({ code: 'customers.view' })]);
+
+    store.duplicate(role({ name: 'Tenant Admin', permissionCodes: ['customers.view'] })).subscribe();
+
+    expect(http.expectOne(`${base}/roles`).request.body.name).toBe('Admin (copy)');
+  });
+
   it('sin catálogo NO se guarda: mandaría el rol sin permisos', () => {
     // Sin el catálogo no hay forma de traducir los códigos a ids. Mandar la lista vacía dejaría el
     // rol sin nada, que es peor que fallar.

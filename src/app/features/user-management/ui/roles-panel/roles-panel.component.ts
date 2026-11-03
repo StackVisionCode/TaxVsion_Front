@@ -1,3 +1,4 @@
+import { roleLabel } from '@core/auth/actor-labels';
 import { CUSTOM_ELEMENTS_SCHEMA, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RoleSummary } from '../../data-access/user-management.model';
@@ -33,6 +34,8 @@ export class RolesPanelComponent implements OnInit {
 
   readonly customRoles = this.store.customRoles;
   readonly systemRoles = this.store.systemRoles;
+  /** Los integrados se muestran con su nombre legible ("Admin", no "Tenant Admin"). */
+  readonly roleLabel = roleLabel;
 
   /** Rol a punto de duplicarse cuando la copia NO saldría igual al original. */
   readonly pendingDuplicate = signal<RoleSummary | null>(null);

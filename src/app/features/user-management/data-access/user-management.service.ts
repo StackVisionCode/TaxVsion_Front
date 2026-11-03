@@ -1,3 +1,4 @@
+import { roleLabel } from '@core/auth/actor-labels';
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, catchError, forkJoin, map, of } from 'rxjs';
@@ -143,7 +144,7 @@ export class UserManagementService {
           .map(user => ({
             id: user.id,
             name: `${user.name} ${user.lastName}`.trim() || user.email,
-            subtitle: user.roles[0] ?? actorTypeLabel(user.actorType),
+            subtitle: user.roles[0] ? roleLabel(user.roles[0]) : actorTypeLabel(user.actorType),
           })),
       ),
     );

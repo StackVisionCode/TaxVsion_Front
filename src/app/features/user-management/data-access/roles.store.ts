@@ -1,3 +1,4 @@
+import { roleLabel } from '@core/auth/actor-labels';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, tap, throwError } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
@@ -171,7 +172,8 @@ export class RolesStore {
         .map(permission => permission.code),
     );
     return this.createFromCodes(
-      this.freeCopyName(role.name),
+      // La copia de "Tenant Admin" se llama "Admin (copy)": el nombre interno no se le muestra a nadie.
+      this.freeCopyName(roleLabel(role.name)),
       role.description,
       role.permissionCodes.filter(code => grantable.has(code)),
     );

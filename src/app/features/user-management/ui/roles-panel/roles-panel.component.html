@@ -102,7 +102,7 @@
     @for (role of systemRoles(); track role.id) {
       <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50/60 px-4 py-3">
         <div class="min-w-0 flex-1">
-          <p class="text-sm font-bold text-gray-900">{{ role.name }}</p>
+          <p class="text-sm font-bold text-gray-900">{{ roleLabel(role.name) }}</p>
           <p class="mt-0.5 truncate text-xs text-gray-500">
             {{ role.description || 'Comes with the product' }} · {{ role.permissionCodes.length }} permissions
           </p>

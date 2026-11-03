@@ -19,8 +19,9 @@ describe('profile.model · teléfono', () => {
 
 describe('profile.model · presentación', () => {
   it('traduce el actorType a un rol que se entiende', () => {
-    expect(roleDisplayName('TenantAdmin')).toBe('Office admin');
-    expect(roleDisplayName('TenantEmployee')).toBe('Team member');
+    expect(roleDisplayName('TenantAdmin')).toBe('Admin');
+    expect(roleDisplayName('TenantEmployee')).toBe('Employee');
+    expect(roleDisplayName('CustomerPortal')).toBe('Client');
     expect(roleDisplayName(null)).toBe('Member');
   });
 
