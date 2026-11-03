@@ -17,6 +17,8 @@ export interface InvoiceCheckout {
   /** Etiqueta legible (número de factura) para mostrar en vez del id crudo. */
   purposeDescription?: string | null;
   tenantName: string;
+  /** Subdominio de la oficina: con él se pide su marca (logo) al endpoint público de Tenant. */
+  tenantBrandingKey?: string | null;
   methods: InvoiceCheckoutMethod[];
 }
 

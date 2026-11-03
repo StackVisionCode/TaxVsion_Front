@@ -10,6 +10,7 @@ import {
   CreateInvoiceRequest,
   CreateInvoiceResult,
   CreatePaymentLinkResult,
+  TenantPaymentDetail,
   InvoiceBranding,
   InvoiceDetail,
   InvoiceLineDraft,
@@ -20,6 +21,7 @@ import {
   IssuerProfile,
   NewCatalogItemInput,
   PaymentConfig,
+  PaymentProviderDescriptor,
   PaymentLink,
   PaymentLinkStatus,
   PaymentPurposeKind,
@@ -206,6 +208,23 @@ export class BillingService {
 
   // ---------- Proveedor de cobro ----------
 
+  /**
+   * Catálogo de proveedores con adaptador (`GET /payments-client/config/providers`). Ruta asumida
+   * mientras el backend la confirma: si cambia, se ajusta solo acá.
+   */
+  listPaymentProviders(): Observable<PaymentProviderDescriptor[]> {
+    return this.http.get<PaymentProviderDescriptor[]>(`${this.base}/payments-client/config/providers`);
+  }
+
+  /** Base absoluta de la API del tenant (para armar el webhook que se pega en el proveedor); vacía sin oficina resuelta. */
+  publicApiBase(): string {
+    try {
+      return this.base;
+    } catch {
+      return '';
+    }
+  }
+
   listPaymentConfigs(): Observable<PaymentConfig[]> {
     return this.http.get<PaymentConfig[]>(`${this.base}/payments-client/config`);
   }
@@ -271,6 +290,11 @@ export class BillingService {
       taxpayerId: null,
       ...body,
     });
+  }
+
+  /** `GET /payments-client/payments/{id}` — el pago que cerró un link (estado, proveedor y pagador). */
+  getTenantPayment(tenantPaymentId: string): Observable<TenantPaymentDetail> {
+    return this.http.get<TenantPaymentDetail>(`${this.base}/payments-client/payments/${tenantPaymentId}`);
   }
 
   revokePaymentLink(paymentLinkId: string, reason: string): Observable<unknown> {

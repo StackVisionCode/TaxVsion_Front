@@ -29,6 +29,9 @@ export type EmailActivityFilter =
   | 'Suppressed'
   | 'Complained';
 
+/** `?engagement=`: algún destinatario abrió / hizo clic. Se combina con el estado y el destinatario. */
+export type EmailEngagementFilter = 'Opened' | 'Clicked';
+
 export interface EmailActivityItem {
   id: string;
   subject: string;
@@ -103,6 +106,31 @@ export const SENT_STATUS_HINT =
 
 /** Aperturas y clics son aproximados: algunos clientes de correo abren los mensajes solos. */
 export const ENGAGEMENT_HINT = 'Approximate — some email apps open messages automatically';
+
+/** Filtros de interacción de la barra: se activan/desactivan solos, aparte de las pestañas de estado. */
+export const EMAIL_ENGAGEMENT_FILTERS: readonly SegmentedOption<EmailEngagementFilter>[] = [
+  { id: 'Opened', label: 'Opened', icon: 'eye-outline' },
+  { id: 'Clicked', label: 'Clicked', icon: 'link-outline' },
+];
+
+/** Ícono junto al estado de una fila; `hint` sirve de tooltip y de nombre accesible. */
+export interface EngagementBadge {
+  kind: EmailEngagementFilter;
+  icon: string;
+  hint: string;
+}
+
+export function engagementBadges(
+  item: Pick<EmailActivityItem, 'opened' | 'clicked'>,
+): EngagementBadge[] {
+  return EMAIL_ENGAGEMENT_FILTERS.filter(option =>
+    option.id === 'Opened' ? item.opened : item.clicked,
+  ).map(option => ({
+    kind: option.id,
+    icon: option.icon ?? '',
+    hint: `${option.label}. ${ENGAGEMENT_HINT}`,
+  }));
+}
 
 export function statusTone(status: EmailActivityStatus | string): StatusTone {
   switch (status) {

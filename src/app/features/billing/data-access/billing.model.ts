@@ -256,36 +256,93 @@ export interface PaymentConfig {
   publishableKey: string;
   hasSecretKey: boolean;
   hasWebhookSecret: boolean;
+  /**
+   * Cómo quedó el webhook: lo creó el backend (`Automatic`), lo pegó la oficina (`Manual`), se está
+   * creando (`Pending`) o no se pudo (`Failed`). Null = nunca se intentó.
+   */
+  webhookSetup?: 'Automatic' | 'Manual' | 'Pending' | 'Failed' | null;
   statementDescriptor: string;
   isActive: boolean;
   settledAtUtc?: string | null;
   /** URL/endpoint del proveedor, editable. Null = default del adapter (Stripe no la necesita). */
   apiBaseUrl?: string | null;
+  /** Ya cobró algo: no se puede borrar (el backend responde 409), solo apagar. Falta = false. */
+  hasPayments?: boolean;
 }
 
 /**
- * Proveedores de pago que el tenant puede configurar (espejo de `PaymentProviderCode` del backend).
- * OJO: hoy solo **Stripe** tiene adapter que procesa cobros de verdad; los demás se pueden configurar
- * (guardar claves + URL) pero aún no cobran hasta que exista su adapter (Fase 2).
+ * Proveedor de cobro disponible, tal como lo describe su adaptador en PaymentClient (solo vienen los
+ * que tienen adaptador registrado). El formulario arma etiquetas y campos con esto.
  */
-export const PAYMENT_PROVIDERS: { code: string; name: string }[] = [
-  { code: 'Stripe', name: 'Stripe' },
-  { code: 'Intellipay', name: 'IntelliPay' },
-  { code: 'PayPal', name: 'PayPal' },
-  { code: 'Braintree', name: 'Braintree' },
-  { code: 'Adyen', name: 'Adyen' },
-  { code: 'Square', name: 'Square' },
-  { code: 'Klarna', name: 'Klarna' },
-  { code: 'MercadoPago', name: 'MercadoPago' },
-  { code: 'GoCardless', name: 'GoCardless' },
-  { code: 'Razorpay', name: 'Razorpay' },
-  { code: 'AuthorizeNet', name: 'Authorize.Net' },
-  { code: 'Chargebee', name: 'Chargebee' },
-  { code: 'Paddle', name: 'Paddle' },
-  { code: 'WeChatPay', name: 'WeChat Pay' },
-  { code: 'Alipay', name: 'Alipay' },
-  { code: 'Manual', name: 'Manual' },
-];
+export interface PaymentProviderDescriptor {
+  code: string;
+  displayName: string;
+  publicKeyLabel: string;
+  secretKeyLabel: string;
+  /** Si el proveedor avisa por webhook firmado (Stripe: cobros 3DS; PayPal: reembolsos y disputas). */
+  usesWebhookSecret: boolean;
+  /** Nombre del dato que identifica ese webhook en el proveedor ("Signing secret", "Webhook ID"). */
+  webhookSecretLabel?: string | null;
+  /** El backend crea el webhook solo al guardar las claves (apagado en local, donde el proveedor no llega). */
+  webhookAutoSetup?: boolean;
+  /** Si acepta URL de API propia (PayPal: sandbox / live). */
+  acceptsApiBaseUrl: boolean;
+  apiBaseUrlHelp?: string | null;
+  apiBaseUrlPlaceholder?: string | null;
+  publicKeyPlaceholder?: string | null;
+  secretKeyPlaceholder?: string | null;
+  /** Página del proveedor donde están las claves (opcional mientras el backend lo despliega). */
+  credentialsHelpUrl?: string | null;
+  /** Eventos a marcar al dar de alta el webhook en el proveedor. */
+  webhookEvents?: string[] | null;
+  /** Ruta relativa del webhook ya resuelta para la oficina (`/payments-client/webhooks/{tenantId}/stripe`). */
+  webhookPath?: string | null;
+}
+
+/** URL absoluta del webhook: la ruta del catálogo sobre la base pública de la API ('' si falta alguna). */
+export function webhookUrl(apiBase: string, path: string | null | undefined): string {
+  if (!path) {
+    return '';
+  }
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+  if (!apiBase) {
+    return '';
+  }
+  return `${apiBase.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+}
+
+// ---------- Statement descriptor (mismas reglas que el VO de PaymentClient) ----------
+
+export const STATEMENT_DESCRIPTOR_MIN = 5;
+export const STATEMENT_DESCRIPTOR_MAX = 22;
+const FORBIDDEN_CHARS = /[<>\\'"*]/g;
+
+export type StatementDescriptorError = 'required' | 'length' | 'characters';
+
+/** Valor inicial a partir del nombre de la oficina: sin caracteres prohibidos y recortado a 22; si no llega a 5, vacío. */
+export function defaultStatementDescriptor(officeName: string | null | undefined): string {
+  const cleaned = (officeName ?? '')
+    .replace(FORBIDDEN_CHARS, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, STATEMENT_DESCRIPTOR_MAX)
+    .trim();
+  return cleaned.length >= STATEMENT_DESCRIPTOR_MIN ? cleaned : '';
+}
+
+/** Error del descriptor (sobre el valor recortado, como el backend) o null si es válido. */
+export function statementDescriptorError(value: string): StatementDescriptorError | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return 'required';
+  }
+  if (trimmed.length < STATEMENT_DESCRIPTOR_MIN || trimmed.length > STATEMENT_DESCRIPTOR_MAX) {
+    return 'length';
+  }
+  return /[<>\\'"*]/.test(trimmed) ? 'characters' : null;
+}
 
 // ---------- PaymentClient: links de pago ----------
 
@@ -323,6 +380,38 @@ export interface PaymentLink {
   createdAtUtc: string;
   usedAtUtc: string | null;
   relatedTenantPaymentId: string | null;
+}
+
+/** Espejo de `PaymentStatus` de PaymentClient. */
+export type TenantPaymentStatus =
+  | 'Pending'
+  | 'Processing'
+  | 'RequiresAction'
+  | 'Succeeded'
+  | 'Failed'
+  | 'Cancelled'
+  | 'PartiallyRefunded'
+  | 'Refunded'
+  | 'ChargedBack';
+
+/**
+ * Pago de un link (`GET /payments-client/payments/{id}`). Los datos del pagador solo existen en pagos
+ * nuevos: `receiptEmail` es lo que escribió el cliente; nombre, email y tarjeta los da el proveedor.
+ */
+export interface TenantPaymentDetail {
+  id: string;
+  amountCents: number;
+  currency: string;
+  taxpayerId: string | null;
+  providerCode: string;
+  status: TenantPaymentStatus;
+  failureReason?: string | null;
+  paidAtUtc: string | null;
+  receiptEmail?: string | null;
+  payerName?: string | null;
+  payerEmail?: string | null;
+  cardBrand?: string | null;
+  cardLast4?: string | null;
 }
 
 /** Respuesta de `POST /payments-client/payment-links`. */
@@ -523,6 +612,65 @@ export function invoiceStatusTone(status: InvoiceStatus): StatusTone {
     default:
       return 'neutral';
   }
+}
+
+/** Estado del pago en palabras de la oficina (sin jerga del proveedor). */
+export function tenantPaymentStatusLabel(status: TenantPaymentStatus): string {
+  switch (status) {
+    case 'Succeeded':
+      return 'Paid';
+    case 'PartiallyRefunded':
+      return 'Partially refunded';
+    case 'Refunded':
+      return 'Refunded';
+    case 'ChargedBack':
+      return 'Disputed';
+    case 'Failed':
+      return 'Failed';
+    case 'Cancelled':
+      return 'Cancelled';
+    case 'RequiresAction':
+      return 'Waiting for the client';
+    case 'Pending':
+    case 'Processing':
+      return 'Processing';
+    default:
+      return status;
+  }
+}
+
+export function tenantPaymentStatusTone(status: TenantPaymentStatus): StatusTone {
+  switch (status) {
+    case 'Succeeded':
+      return 'success';
+    case 'PartiallyRefunded':
+    case 'Refunded':
+    case 'Pending':
+    case 'Processing':
+    case 'RequiresAction':
+      return 'warning';
+    case 'ChargedBack':
+    case 'Failed':
+      return 'danger';
+    default:
+      return 'muted';
+  }
+}
+
+/** "visa" → "Visa", "amex" → "American Express"; lo desconocido se capitaliza tal cual. */
+export function cardBrandLabel(brand: string | null | undefined): string {
+  const key = (brand ?? '').trim().toLowerCase();
+  const known: Record<string, string> = {
+    visa: 'Visa',
+    mastercard: 'Mastercard',
+    amex: 'American Express',
+    american_express: 'American Express',
+    discover: 'Discover',
+    diners: 'Diners Club',
+    jcb: 'JCB',
+    unionpay: 'UnionPay',
+  };
+  return known[key] ?? (key ? key.charAt(0).toUpperCase() + key.slice(1).replaceAll('_', ' ') : 'Card');
 }
 
 /** Tono de `app-status-pill` (variante `soft`) por estado del link de pago. */

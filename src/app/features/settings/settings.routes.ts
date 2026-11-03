@@ -12,7 +12,7 @@ export const SETTINGS_ROUTES: Routes = [
     title: 'Settings',
   },
   {
-    // Configuración de facturación (proveedores de cobro + empresa/branding). Vive DENTRO de Settings;
+    // Cobro online (proveedores de pago). Vive DENTRO de Settings;
     // el componente lo posee la feature billing (reusa sus formularios + BillingStore).
     path: 'billing',
     providers: [BillingStore],
@@ -20,7 +20,7 @@ export const SETTINGS_ROUTES: Routes = [
       import('../billing/components/billing-settings-page/billing-settings-page.component').then(
         m => m.BillingSettingsPageComponent,
       ),
-    title: 'Billing settings',
+    title: 'Online payments',
   },
   {
     // Segundo factor de la oficina (empleados / portal de clientes) y dispositivos de confianza. Auth.Api,

@@ -11,8 +11,10 @@ import {
   throwError,
 } from 'rxjs';
 import { toUserMessage } from '@core/errors/error-messages';
+import { toApiError } from '@core/models/api-error.model';
 import { OfficeCurrencyStore } from '@core/billing/office-currency.store';
 import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
+import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { ClipboardService } from '@shared/services/clipboard.service';
 import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
@@ -31,9 +33,11 @@ import {
   IssuerProfile,
   NewCatalogItemInput,
   PaymentConfig,
+  PaymentProviderDescriptor,
   PaymentLink,
   PaymentLinkStatus,
   PaymentPurposeKind,
+  TenantPaymentDetail,
   toCents,
 } from './billing.model';
 
@@ -49,6 +53,16 @@ const LINKS_PAGE_SIZE = 20;
 /** Sondeo del link de cobro y del PDF tras emitir: ambos llegan por eventos, no en la respuesta. */
 const POLL_ATTEMPTS = 8;
 const POLL_INTERVAL_MS = 1500;
+
+/** Modal de detalle de un link: el link, su pago (si se pagó) y el cliente (si se creó para uno). */
+export interface PaymentLinkDetailState {
+  link: PaymentLink;
+  payment: TenantPaymentDetail | null;
+  paymentLoading: boolean;
+  /** No se pudo leer el pago (sin permiso o error): se muestra solo lo del link. */
+  paymentFailed: boolean;
+  clientName: string | null;
+}
 
 /** Filtro de estado del listado; `All` no filtra. */
 export type InvoiceStatusFilter = InvoiceStatus | 'All';
@@ -83,6 +97,7 @@ export class BillingStore {
   private readonly clipboard = inject(ClipboardService);
   /** Moneda de la oficina compartida con catálogo e inventario (que no pueden importar billing). */
   private readonly officeCurrency = inject(OfficeCurrencyStore);
+  private readonly directory = inject(CustomerDirectoryStore);
   /** Cliente fijo cuando el módulo vive en el perfil del cliente (`null` en la página normal). */
   readonly embeddedCustomer = injectEmbeddedCustomer();
 
@@ -683,12 +698,22 @@ export class BillingStore {
   /** Hay cobro online disponible: condiciona el link de pago de las facturas. */
   readonly hasActiveProvider = computed(() => this._paymentConfigs().some(config => config.isActive));
 
-  loadPaymentConfigs(): void {
-    this._configsLoading.set(true);
+  /**
+   * Carga los proveedores. Si alguno tiene el webhook creándose (`Pending`, llega por un comando async del
+   * backend) se relee unas veces en silencio para que la fila pase a "sync automatically" sin recargar.
+   */
+  loadPaymentConfigs(attempt = 0): void {
+    if (attempt === 0) {
+      this._configsLoading.set(true);
+    }
     this.service.listPaymentConfigs().subscribe({
       next: configs => {
         this._paymentConfigs.set(configs ?? []);
         this._configsLoading.set(false);
+        const pending = (configs ?? []).some(c => c.webhookSetup === 'Pending');
+        if (pending && attempt < POLL_ATTEMPTS) {
+          setTimeout(() => this.loadPaymentConfigs(attempt + 1), POLL_INTERVAL_MS * 2);
+        }
       },
       error: () => {
         // Un tenant sin proveedor configurado es normal: no es un error que mostrar.
@@ -698,11 +723,36 @@ export class BillingStore {
     });
   }
 
+  // Catálogo de proveedores con adaptador: arma el select y los campos del formulario.
+  private readonly _providerCatalog = signal<PaymentProviderDescriptor[]>([]);
+  private readonly _catalogLoading = signal(false);
+  private readonly _catalogFailed = signal(false);
+
+  readonly providerCatalog = this._providerCatalog.asReadonly();
+  readonly providerCatalogLoading = this._catalogLoading.asReadonly();
+  readonly providerCatalogFailed = this._catalogFailed.asReadonly();
+
+  loadProviderCatalog(): void {
+    this._catalogLoading.set(true);
+    this._catalogFailed.set(false);
+    this.service.listPaymentProviders().subscribe({
+      next: providers => {
+        this._providerCatalog.set(providers ?? []);
+        this._catalogLoading.set(false);
+      },
+      error: () => {
+        // Sin catálogo no se puede conectar nada: el formulario lo avisa.
+        this._providerCatalog.set([]);
+        this._catalogFailed.set(true);
+        this._catalogLoading.set(false);
+      },
+    });
+  }
+
   /**
    * Alta de un proveedor en tres pasos encadenados, que es como lo exige PaymentClient: crear la
-   * config (clave pública + URL opcional), guardar los secretos y recién ahí activar. Multi-proveedor:
-   * el `providerCode` sale del formulario. OJO: solo Stripe tiene adapter que cobra hoy; los demás
-   * quedan configurados/activos pero no procesan pagos hasta su adapter (Fase 2).
+   * config (clave pública + URL opcional), guardar los secretos y recién ahí activar. El webhook
+   * secret va vacío si el proveedor no lo usa (PayPal): ya no se inventa uno.
    */
   saveProvider(
     input: {
@@ -716,22 +766,24 @@ export class BillingStore {
     },
     onDone: () => void,
   ): void {
-    const provider = input.providerCode.trim() || 'Stripe';
+    const provider = input.providerCode.trim();
     const apiBaseUrl = input.apiBaseUrl.trim() || null;
+    const name = this.providerName(provider);
     this._savingProvider.set(true);
     this.service
       .createPaymentConfig({
         providerCode: provider,
         mode: input.mode.trim() || 'DirectApiKeys',
         publishableKey: input.publishableKey.trim(),
-        statementDescriptor: input.statementDescriptor.trim() || 'TAXVISION',
+        // Sin respaldo: el formulario no deja guardar un descriptor inválido.
+        statementDescriptor: input.statementDescriptor.trim(),
         apiBaseUrl,
       })
       .pipe(
         switchMap(() =>
           this.service.setPaymentSecrets(provider, {
             secretKey: input.secretKey.trim(),
-            webhookSecret: input.webhookSecret.trim() || 'whsec_placeholder',
+            webhookSecret: input.webhookSecret.trim(),
           }),
         ),
         switchMap(() => this.service.activateProvider(provider)),
@@ -739,7 +791,28 @@ export class BillingStore {
       .subscribe({
         next: () => {
           this._savingProvider.set(false);
-          this.toast.success(`${provider} connected and activated.`);
+          this.toast.success(`${name} connected and activated.`);
+          onDone();
+          this.loadPaymentConfigs();
+        },
+        error: err => {
+          this._savingProvider.set(false);
+          this.toast.error(toUserMessage(err));
+        },
+      });
+  }
+
+  /** Reemplaza la clave secreta y el dato del webhook de un proveedor conectado (el backend lo deja activo). */
+  updateProviderKeys(input: { providerCode: string; secretKey: string; webhookSecret: string }, onDone: () => void): void {
+    const provider = input.providerCode.trim();
+    const name = this.providerName(provider);
+    this._savingProvider.set(true);
+    this.service
+      .setPaymentSecrets(provider, { secretKey: input.secretKey.trim(), webhookSecret: input.webhookSecret.trim() })
+      .subscribe({
+        next: () => {
+          this._savingProvider.set(false);
+          this.toast.success(`${name} keys updated.`);
           onDone();
           this.loadPaymentConfigs();
         },
@@ -752,13 +825,29 @@ export class BillingStore {
 
   /** Elimina por completo la config de un proveedor (para corregir un alta errónea). */
   deleteProvider(config: PaymentConfig): void {
+    const name = this.providerName(config.providerCode);
     this.service.deleteProvider(config.providerCode).subscribe({
       next: () => {
-        this.toast.success(`${config.providerCode} removed.`);
+        this.toast.success(`${name} removed.`);
         this.loadPaymentConfigs();
       },
-      error: err => this.toast.error(toUserMessage(err)),
+      error: err => {
+        if (toApiError(err).code === 'TenantPaymentConfig.HasPayments') {
+          // Ya cobró: se marca para que el menú deshabilite "Delete" y se explica la salida.
+          this._paymentConfigs.update(list =>
+            list.map(c => (c.providerCode === config.providerCode ? { ...c, hasPayments: true } : c)),
+          );
+          this.toast.error(`${name} has payments, so it can't be deleted. Turn it off instead.`);
+          return;
+        }
+        this.toast.error(toUserMessage(err));
+      },
     });
+  }
+
+  /** Nombre visible del catálogo; si no está (catálogo sin cargar), el código. */
+  providerName(code: string): string {
+    return this._providerCatalog().find(p => p.code === code)?.displayName ?? code;
   }
 
   /** Edita solo la URL/endpoint de un proveedor ya configurado. */
@@ -772,17 +861,38 @@ export class BillingStore {
     });
   }
 
+  // Proveedor cuyo switch está guardando (el switch pulsa y vuelve atrás si falla).
+  private readonly _togglingProvider = signal<string | null>(null);
+  readonly togglingProvider = this._togglingProvider.asReadonly();
+
   toggleProvider(config: PaymentConfig): void {
+    if (this._togglingProvider()) {
+      return;
+    }
+    this._togglingProvider.set(config.providerCode);
     const operation = config.isActive
       ? this.service.deactivateProvider(config.providerCode, 'Deactivated from billing settings')
       : this.service.activateProvider(config.providerCode);
     operation.subscribe({
       next: () => {
+        // Se refleja ya (mismo tick que busy=false, sin parpadeo del switch) y se recarga la lista.
+        this._paymentConfigs.update(list =>
+          list.map(c => (c.providerCode === config.providerCode ? { ...c, isActive: !config.isActive } : c)),
+        );
+        this._togglingProvider.set(null);
         this.toast.success(config.isActive ? 'Provider deactivated.' : 'Provider activated.');
         this.loadPaymentConfigs();
       },
-      error: err => this.toast.error(toUserMessage(err)),
+      error: err => {
+        this._togglingProvider.set(null);
+        this.toast.error(toUserMessage(err));
+      },
     });
+  }
+
+  /** Base pública de la API del tenant (la misma que usan las llamadas): sobre ella va el webhook del catálogo. */
+  publicApiBase(): string {
+    return this.service.publicApiBase();
   }
 
   // ---------- Empresa: emisor + marca del PDF (solo lectura; se editan en /company/settings) ----------
@@ -908,6 +1018,39 @@ export class BillingStore {
           this.toast.error(toUserMessage(err));
         },
       });
+  }
+
+  // Detalle de un link: el pago que lo cerró (si lo hay) y el nombre del cliente (si se creó para uno).
+  private readonly _linkDetail = signal<PaymentLinkDetailState | null>(null);
+  readonly linkDetail = this._linkDetail.asReadonly();
+
+  openLinkDetail(link: PaymentLink): void {
+    const paymentId = link.relatedTenantPaymentId;
+    this._linkDetail.set({ link, payment: null, paymentLoading: !!paymentId, paymentFailed: false, clientName: null });
+    const isCurrent = () => this._linkDetail()?.link.id === link.id;
+    if (paymentId) {
+      this.service.getTenantPayment(paymentId).subscribe({
+        next: payment => isCurrent() && this._linkDetail.update(s => s && { ...s, payment, paymentLoading: false }),
+        error: () =>
+          isCurrent() && this._linkDetail.update(s => s && { ...s, paymentLoading: false, paymentFailed: true }),
+      });
+    }
+    if (link.taxpayerId) {
+      const taxpayerId = link.taxpayerId;
+      this.directory.byId([taxpayerId]).subscribe({
+        next: found => {
+          const name = found.get(taxpayerId)?.displayName ?? null;
+          if (name && isCurrent()) {
+            this._linkDetail.update(s => s && { ...s, clientName: name });
+          }
+        },
+        error: () => undefined,
+      });
+    }
+  }
+
+  closeLinkDetail(): void {
+    this._linkDetail.set(null);
   }
 
   revokePaymentLink(link: PaymentLink, reason: string): void {

@@ -44,6 +44,22 @@ describe('TenantBrandingService', () => {
     httpMock.expectNone(() => true);
   });
 
+  /** Quien abre un enlace público no tiene oficina resuelta: la base sale de la clave, no de tenantBase(). */
+  it('applyForPublicBrandingKey pide la marca por el subdominio de la clave sin depender de tenantBase', () => {
+    const tenantBaseSpy = vi.spyOn(api, 'tenantBase');
+    vi.spyOn(api, 'officeBase').mockImplementation((slug) => `https://${slug}.taxoffix.io`);
+
+    service.applyForPublicBrandingKey('Manfer.taxoffix.io', 'Portal');
+
+    const request = httpMock.expectOne(
+      'https://manfer.taxoffix.io/tenants/branding/public/manfer?surface=Portal',
+    );
+    request.flush({ primary: '#1', accent: '#2', logoUrl: '/tenants/branding/assets/logo', faviconUrl: null });
+
+    expect(tenantBaseSpy).not.toHaveBeenCalled();
+    expect(service.logoUrl()).toBe('https://manfer.taxoffix.io/tenants/branding/assets/logo?v=1');
+  });
+
   it('carga el logo de plataforma sin reemplazar la marca ni el tema de la oficina', () => {
     service.loadSystemBrandLogo('Crm');
 

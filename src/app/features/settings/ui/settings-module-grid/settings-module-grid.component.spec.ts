@@ -71,6 +71,16 @@ describe('SettingsModuleGridComponent', () => {
     expect(ids).not.toContain('meetings');
   });
 
+  // La tarjeta de cobro dice lo que hace: conectar proveedores, no "Invoices".
+  it('la tarjeta de cobro se llama "Online payments" y lleva a /settings/billing', () => {
+    const fixture = create(['billing']);
+    const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('a[href="/settings/billing"]');
+
+    expect(link?.textContent).toContain('Online payments');
+    expect(link?.textContent).toContain('Connect Stripe or PayPal so clients can pay their invoices online');
+    expect(link?.textContent).not.toContain('Invoices');
+  });
+
   it('toda tarjeta con featureId apunta a una feature del registro', () => {
     const ids = new Set(FEATURES.map(feature => feature.id));
 

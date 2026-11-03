@@ -1,6 +1,11 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { toApiError } from '@core/models/api-error.model';
-import { EmailActivityDetail, EmailActivityFilter, EmailActivityItem } from '@core/postmaster/email-activity.model';
+import {
+  EmailActivityDetail,
+  EmailActivityFilter,
+  EmailActivityItem,
+  EmailEngagementFilter,
+} from '@core/postmaster/email-activity.model';
 import { EmailActivityService } from '@core/postmaster/email-activity.service';
 
 export const EMAIL_ACTIVITY_PAGE_SIZE = 25;
@@ -19,6 +24,7 @@ export class EmailActivityStore {
   private readonly _page = signal(1);
   private readonly _status = signal<EmailActivityFilter>('All');
   private readonly _recipient = signal('');
+  private readonly _engagement = signal<EmailEngagementFilter | null>(null);
   private readonly _loading = signal(false);
   private readonly _error = signal<string | null>(null);
 
@@ -35,6 +41,7 @@ export class EmailActivityStore {
   readonly page = this._page.asReadonly();
   readonly status = this._status.asReadonly();
   readonly recipient = this._recipient.asReadonly();
+  readonly engagement = this._engagement.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
   readonly detail = this._detail.asReadonly();
@@ -57,6 +64,7 @@ export class EmailActivityStore {
       .list({
         status: this._status(),
         recipient: this._recipient(),
+        engagement: this._engagement(),
         page: this._page(),
         size: EMAIL_ACTIVITY_PAGE_SIZE,
       })
@@ -84,6 +92,13 @@ export class EmailActivityStore {
       return;
     }
     this._status.set(status);
+    this._page.set(1);
+    this.load();
+  }
+
+  /** Opened/Clicked se combinan con la pestaña de estado; pulsar el activo lo quita. */
+  toggleEngagement(engagement: EmailEngagementFilter): void {
+    this._engagement.set(this._engagement() === engagement ? null : engagement);
     this._page.set(1);
     this.load();
   }

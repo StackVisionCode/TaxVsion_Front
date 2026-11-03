@@ -29,9 +29,9 @@ export const SETTINGS_MODULES: SettingsModule[] = [
   { id: 'users', featureId: 'users', title: 'Users', description: 'Team members, roles, invitations and seats', icon: 'person-circle-outline', circleClass: 'bg-gray-200 text-gray-700', routerLink: '/company/users' },
   { id: 'accounts', featureId: 'clients', title: 'Accounts', description: 'Client intake defaults and record fields', icon: 'people-outline', circleClass: 'bg-indigo-100 text-indigo-600' },
   { id: 'documents', featureId: 'documents', title: 'Documents', description: 'Sharing rules and client uploads', icon: 'document-text-outline', circleClass: 'bg-indigo-50 text-orange-500' },
-  // Cobro de facturas: proveedores de pago (Stripe/PayPal). La identidad/branding de la empresa NO
-  // se duplica acá — vive en Company (arriba). Reusa el BillingStore de la feature billing.
-  { id: 'invoices', featureId: 'billing', title: 'Invoices', description: 'Payment providers to collect invoices online (Stripe, PayPal…)', icon: 'card-outline', circleClass: 'bg-indigo-100 text-brand-bold', routerLink: '/settings/billing' },
+  // Cobro online de facturas: proveedores de pago. La identidad/branding de la empresa NO se duplica
+  // acá — vive en Company (arriba). Texto fijo: la grilla no puede leer el catálogo de otra feature.
+  { id: 'invoices', featureId: 'billing', title: 'Online payments', description: 'Connect Stripe or PayPal so clients can pay their invoices online', icon: 'card-outline', circleClass: 'bg-indigo-100 text-brand-bold', routerLink: '/settings/billing' },
   { id: 'mail', featureId: 'email', title: 'Mail', description: 'Outgoing signatures and default reply-to', icon: 'mail-outline', circleClass: 'bg-indigo-100 text-indigo-600' },
   // Preferencias de notificación por categoría × canal (FASE 8 del plan). Autoservicio: siempre
   // visible, el backend filtra por UserId del JWT; sin featureId porque no hay módulo que apagar.

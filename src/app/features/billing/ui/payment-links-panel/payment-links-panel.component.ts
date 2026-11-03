@@ -67,6 +67,8 @@ export class PaymentLinksPanelComponent {
   @Output() createRequested = new EventEmitter<CreatePaymentLinkForm>();
   @Output() revokeRequested = new EventEmitter<{ link: PaymentLink; reason: string }>();
   @Output() copyRequested = new EventEmitter<string>();
+  /** Clic en una fila (o en su botón de detalles): quién pagó, cuándo y con qué. */
+  @Output() detailRequested = new EventEmitter<PaymentLink>();
 
   /** Chips de filtro: `null` (sin filtro) viaja como 'All' porque los chips no admiten null. */
   readonly filterOptions: FilterChipOption<PaymentLinkStatus | 'All'>[] = STATUS_FILTERS.map(status => ({

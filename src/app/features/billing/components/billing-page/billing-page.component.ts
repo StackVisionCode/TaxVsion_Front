@@ -36,6 +36,7 @@ import {
 import { AdminCapabilities } from '@core/access/admin-capabilities';
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
 import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
+import { PaymentLinkDetailComponent } from '../../ui/payment-link-detail/payment-link-detail.component';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
@@ -82,6 +83,7 @@ type BillingTab = 'invoices' | 'links';
     RecordPaymentDialogComponent,
     ReceiptDialogComponent,
     PaymentLinksPanelComponent,
+    PaymentLinkDetailComponent,
     ConfirmDialogComponent,
     RouterLink,
     FileViewerComponent,

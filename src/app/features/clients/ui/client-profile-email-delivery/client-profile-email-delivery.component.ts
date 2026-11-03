@@ -2,8 +2,8 @@ import { Component, CUSTOM_ELEMENTS_SCHEMA, Input, OnChanges, inject, signal } f
 import { RouterLink } from '@angular/router';
 import { toApiError } from '@core/models/api-error.model';
 import {
-  ENGAGEMENT_HINT,
   EmailActivityItem,
+  engagementBadges,
   laneLabel,
   statusLabel,
   statusTone,
@@ -35,7 +35,7 @@ export class ClientProfileEmailDeliveryComponent implements OnChanges {
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
 
-  readonly engagementHint = ENGAGEMENT_HINT;
+  readonly engagementBadges = engagementBadges;
   readonly statusTone = statusTone;
   readonly statusLabel = statusLabel;
   readonly laneLabel = laneLabel;
