@@ -136,6 +136,11 @@ export interface SignatureRequest {
   scheduledSendAtUtc?: string | null;
   /** La solicitud manda a los firmantes el sellado y/o el certificado al completarse. */
   deliversToSigners?: boolean;
+  /** Preparador (Form 8879): quién es, si ya firmó y si es el usuario logueado. */
+  preparerUserId?: string | null;
+  preparerDisplayName?: string | null;
+  isPreparerSigned?: boolean;
+  isActorPreparer?: boolean;
 }
 
 /** Deriva el estado global de una solicitud a partir del estado de sus firmantes: todos firmados = completed, algún rechazo = rejected, alguno firmado = in-progress, ninguno = pending. (Solo lo usa el flujo demo del sign-page; el estado real viene del backend.) */

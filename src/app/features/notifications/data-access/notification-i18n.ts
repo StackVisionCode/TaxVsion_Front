@@ -45,6 +45,8 @@ const RESOURCE_LABELS: Readonly<Record<string, readonly [en: string, es: string]
   import_job: ['Import job', 'Importación'],
   support_ticket: ['Support ticket', 'Ticket de soporte'],
   seats: ['Seats', 'Asientos'],
+  campaign: ['Campaign', 'Campaña'],
+  user_management: ['Team members', 'Miembros del equipo'],
 };
 
 export function isNotificationAction(value: string | null | undefined): value is NotificationAction {

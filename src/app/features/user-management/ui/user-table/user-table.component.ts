@@ -6,6 +6,7 @@ import { DropdownMenuComponent, MenuItemDirective } from '@shared/ui/dropdown-me
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
 import { roleLabel } from '@core/auth/actor-labels';
+import { roleTone } from '../roles-panel/role-visuals';
 import { actorTypeLabel } from '../../data-access/user-management.model';
 
 export type MemberStatus = 'active' | 'invited' | 'suspended' | 'removed';
@@ -35,13 +36,6 @@ export interface TeamMember {
   /** SG-8 — asiento add-on impago, por encima del cap efectivo del tenant. */
   isGated?: boolean;
 }
-
-const ROLE_CHIP_PALETTE = [
-  'border-indigo-200 bg-indigo-50 text-indigo-700',
-  'border-brand-bold/30 bg-indigo-100 text-brand-bold',
-  'border-orange-200 bg-orange-50 text-orange-700',
-  'border-emerald-200 bg-emerald-50 text-emerald-700',
-];
 
 /**
  * Tabla de miembros del equipo (patrón "pill header" de service-catalog):
@@ -80,6 +74,8 @@ export class UserTableComponent {
   @Output() resendInvite = new EventEmitter<TeamMember>();
   @Output() toggleSuspend = new EventEmitter<TeamMember>();
   @Output() offboard = new EventEmitter<TeamMember>();
+  /** Avance del handover de alguien ya desvinculado. */
+  @Output() handover = new EventEmitter<TeamMember>();
   @Output() cancelInvite = new EventEmitter<TeamMember>();
   /** SG-8 — reordena hacia arriba (prioridad más antigua) o al final (slot más alto, candidato a gated). */
   @Output() moveSlotUp = new EventEmitter<TeamMember>();
@@ -87,8 +83,7 @@ export class UserTableComponent {
 
   /** Chip determinístico por nombre de rol (los roles del tenant son dinámicos, no un enum fijo). */
   roleChip(roleName: string): string {
-    const hash = roleName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return ROLE_CHIP_PALETTE[hash % ROLE_CHIP_PALETTE.length];
+    return roleTone(roleName).chip;
   }
 
   /** Etiqueta del actor type (nivel de acceso, no un rol): "Admin" / "Employee" / "Client portal". */
@@ -127,7 +122,7 @@ export class UserTableComponent {
       case 'suspended':
         return 'Suspended';
       case 'removed':
-        return 'Removed';
+        return 'Offboarded';
       default:
         return status;
     }

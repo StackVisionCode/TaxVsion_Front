@@ -81,7 +81,9 @@
         (downloadSealed)="downloadSealed($event)" (downloadCertificate)="downloadCertificate($event)"
         (downloadFile)="downloadDocumentFile($event)"
         (viewDocument)="viewDocument($event)"
-        (resendSigner)="resendToSigner($event)"></app-signature-preview>
+        (resendSigner)="resendToSigner($event)"
+        (changePreparer)="openChangePreparer($event)"
+        (signAsPreparer)="signAsPreparerFromPreview($event)"></app-signature-preview>
     </ng-template>
   </ng-template>
 </div>
@@ -116,6 +118,46 @@
     <button type="button" (click)="confirmCancel()" [disabled]="actionBusy()"
       class="rounded-full bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-500 transition-colors disabled:opacity-50">
       {{ actionBusy() ? 'Canceling…' : 'Cancel request' }}
+    </button>
+  </div>
+</app-modal>
+
+<!-- Cambiar el preparador de una solicitud enviada (admin): solo mientras no haya firmado. -->
+<app-modal [isOpen]="changePreparerTarget() !== null" heading="Change preparer"
+  subheading="Who signs this return as preparer (Form 8879)" size="md" (closed)="closeChangePreparer()">
+  <div *ngIf="changePreparerTarget() as target" class="mt-4 flex flex-col gap-3">
+    <p class="text-sm text-gray-600">
+      <span class="font-semibold text-gray-900">{{ target.documentName }}</span> is waiting for the signature of
+      <span class="font-semibold text-gray-900">{{ target.preparerDisplayName }}</span>. The new preparer's own
+      PTIN/EFIN and name will be used, and the change is recorded in the audit trail.
+    </p>
+    <p *ngIf="preparerCandidatesLoading()" class="text-sm text-gray-500">Loading preparers…</p>
+    <ng-container *ngIf="!preparerCandidatesLoading()">
+      <select *ngIf="preparerCandidates().length > 0; else noCandidates" name="newPreparer"
+        [ngModel]="selectedPreparerId()" (ngModelChange)="selectedPreparerId.set($event)"
+        class="w-full rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-gray-300 focus:outline-none">
+        <option value="" disabled>Select a preparer</option>
+        <option *ngFor="let candidate of preparerCandidates()" [value]="candidate.userId">
+          {{ candidate.displayName }} · {{ candidate.maskedIdentifier }}
+        </option>
+      </select>
+      <ng-template #noCandidates>
+        <p class="rounded-2xl bg-brand-surface px-4 py-2.5 text-sm text-gray-600">
+          No other active team member has entered their preparer details (PTIN/EFIN) yet. They need to add them on
+          one of their own requests first.
+        </p>
+      </ng-template>
+    </ng-container>
+    <p *ngIf="actionError()" class="text-sm text-red-600">{{ actionError() }}</p>
+  </div>
+  <div class="mt-5 flex justify-end gap-2">
+    <button type="button" (click)="closeChangePreparer()" [disabled]="actionBusy()"
+      class="rounded-full border border-gray-200 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50">
+      Cancel
+    </button>
+    <button type="button" (click)="confirmChangePreparer()" [disabled]="actionBusy() || !selectedPreparerId()"
+      class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors disabled:opacity-50">
+      {{ actionBusy() ? 'Saving…' : 'Change preparer' }}
     </button>
   </div>
 </app-modal>

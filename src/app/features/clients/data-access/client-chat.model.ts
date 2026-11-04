@@ -16,3 +16,30 @@ export interface ClientChatDirectoryEntry {
   isActive: boolean;
   portalUserId: string | null;
 }
+
+/**
+ * Chat del cliente que se cerró al retirarse su preparador (`GET /communication/customers/{id}/closed-chats`).
+ * Queda en solo lectura: la oficina con acceso al cliente lee el historial.
+ */
+export interface ClosedClientChat {
+  conversationId: string;
+  formerStaffUserId: string;
+  formerStaffDisplayName: string;
+  closedAtUtc: string;
+  lastMessageAtUtc: string | null;
+}
+
+/** Lo mínimo de un mensaje del historial para leerlo (`GET /communication/conversations/{id}/messages`). */
+export interface ClosedChatMessage {
+  id: string;
+  senderId: string;
+  senderDisplayName: string;
+  kind: 'Text' | 'Attachment' | 'System';
+  body: string | null;
+  createdAtUtc: string;
+}
+
+export interface ClosedChatMessagesPage {
+  items: ClosedChatMessage[];
+  nextBeforeUtc: string | null;
+}

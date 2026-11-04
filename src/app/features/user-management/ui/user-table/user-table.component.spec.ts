@@ -10,8 +10,8 @@ import { TeamMember, UserTableComponent } from './user-table.component';
 describe('UserTableComponent — removed status', () => {
   const component = new UserTableComponent();
 
-  it('labels removed as "Removed"', () => {
-    expect(component.statusLabel('removed')).toBe('Removed');
+  it('labels removed as "Offboarded"', () => {
+    expect(component.statusLabel('removed')).toBe('Offboarded');
   });
 
   it('uses a neutral (non-danger) tone for removed', () => {

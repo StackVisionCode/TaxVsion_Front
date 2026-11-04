@@ -140,4 +140,12 @@ describe('NotificationRouteResolver', () => {
     await resolver.navigate(notification({ resourceType: 'compliance_settings', resourceId: 'tenant-1' }));
     expect(router.navigate).toHaveBeenCalledWith(['/company/settings'], { queryParams: undefined, fragment: 'compliance' });
   });
+
+  it('el aviso de campañas pausadas por un retiro abre el listado de campañas', () => {
+    expect(resolver.resolveResource('campaign', 'c1', {})).toEqual({ commands: ['/campaigns'] });
+    expect(resolver.resolveResource('user_management', 'u1', {})).toEqual({
+      commands: ['/company/users'],
+      queryParams: { handover: 'u1' },
+    });
+  });
 });

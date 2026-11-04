@@ -33,6 +33,7 @@ import {
   SignerLanguage,
   SignerVerificationMethod,
   PreparerSessionState,
+  PreparerCandidate,
   SetPreparerBody,
   SignatureCategoryOption,
   SignatureProfile,
@@ -644,6 +645,17 @@ export class SignatureStore {
     return this.service
       .signAsPreparer(requestId)
       .pipe(tap(() => this.patchPreparer(requestId, { signed: true })));
+  }
+
+  /** Admin: pasa el preparador de una solicitud enviada a otro empleado (auditado en el backend). */
+  changePreparer(requestId: string, newPreparerUserId: string): Observable<void> {
+    return this.service
+      .changePreparer(requestId, newPreparerUserId)
+      .pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  listPreparerCandidates(): Observable<PreparerCandidate[]> {
+    return this.service.listPreparerCandidates();
   }
 
   // ---------- Plantillas ----------

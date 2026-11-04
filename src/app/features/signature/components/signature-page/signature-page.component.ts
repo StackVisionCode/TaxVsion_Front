@@ -48,6 +48,7 @@ import { saveUrlAs } from '../../utils/save-file.util';
 import { isValidPractitionerPin } from '../../data-access/public-signature.model';
 import { SignatureStore, SignatureStatusFilter } from '../../data-access/signature.store';
 import {
+  PreparerCandidate,
   SIGNATURE_CATEGORIES,
   SIGNATURE_CATEGORY_LABEL,
   SignatureCategory,
@@ -181,6 +182,12 @@ export class SignaturePageComponent implements OnInit {
   );
   readonly actionBusy = signal(false);
   readonly actionError = signal('');
+
+  /** Solicitud enviada cuyo preparador está cambiando un admin (retiro, vacaciones, etc.). */
+  readonly changePreparerTarget = signal<SignatureRequest | null>(null);
+  readonly preparerCandidates = signal<PreparerCandidate[]>([]);
+  readonly preparerCandidatesLoading = signal(false);
+  readonly selectedPreparerId = signal('');
   /** Envío de una solicitud Ready desde el detalle (Ready → InProgress). */
   readonly sendingRequest = signal(false);
 
@@ -751,6 +758,88 @@ export class SignaturePageComponent implements OnInit {
       return;
     }
     this.runPreparerAction(this.store.clearPreparer(target.id), target, 'Preparer removed from');
+  }
+
+  // ---------- Cambiar preparador (admin) / firmar como preparador desde el detalle ----------
+
+  /** Abre el selector con los empleados activos que tienen su identidad 8879 declarada. */
+  openChangePreparer(request: SignatureRequest): void {
+    this.actionError.set('');
+    this.selectedPreparerId.set('');
+    this.preparerCandidates.set([]);
+    this.changePreparerTarget.set(request);
+    this.preparerCandidatesLoading.set(true);
+    this.store.listPreparerCandidates().subscribe({
+      next: (candidates) => {
+        this.preparerCandidates.set(candidates.filter((candidate) => candidate.userId !== request.preparerUserId));
+        this.preparerCandidatesLoading.set(false);
+      },
+      error: (err) => {
+        this.preparerCandidatesLoading.set(false);
+        this.actionError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  closeChangePreparer(): void {
+    if (this.actionBusy()) {
+      return;
+    }
+    this.changePreparerTarget.set(null);
+  }
+
+  confirmChangePreparer(): void {
+    const target = this.changePreparerTarget();
+    const newPreparerId = this.selectedPreparerId();
+    if (!target || !newPreparerId || this.actionBusy()) {
+      return;
+    }
+    this.actionBusy.set(true);
+    this.actionError.set('');
+    this.store.changePreparer(target.id, newPreparerId).subscribe({
+      next: () => {
+        this.actionBusy.set(false);
+        this.changePreparerTarget.set(null);
+        this.toast.success(`Preparer changed on "${target.documentName}"`);
+        this.reloadPreview(target.id);
+      },
+      error: (err) => {
+        this.actionBusy.set(false);
+        this.actionError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  signAsPreparerFromPreview(request: SignatureRequest): void {
+    if (this.actionBusy()) {
+      return;
+    }
+    this.actionBusy.set(true);
+    this.store.signAsPreparer(request.id).subscribe({
+      next: () => {
+        this.actionBusy.set(false);
+        this.toast.success(`Signed as preparer on "${request.documentName}"`);
+        this.reloadPreview(request.id);
+      },
+      error: (err) => {
+        this.actionBusy.set(false);
+        this.toast.error(toApiError(err).message);
+      },
+    });
+  }
+
+  /** Vuelve a pedir el detalle del preview abierto tras una acción (el estado del preparador cambió). */
+  private reloadPreview(requestId: string): void {
+    this.store.getRequestUi(requestId).subscribe({
+      next: (updated) => {
+        if (this.previewRequest()?.id === requestId) {
+          this.previewRequest.set(updated);
+        }
+      },
+      error: () => {
+        // Si falla, el preview queda con lo anterior; reabrirlo trae el estado real.
+      },
+    });
   }
 
   confirmSignAsPreparer(): void {

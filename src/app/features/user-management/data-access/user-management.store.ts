@@ -11,7 +11,9 @@ import {
   RoleSummary,
   TenantLimits,
   UserActorType,
+  OffboardRequest,
   invitationToTeamMember,
+  offboardedActivity,
   userToTeamMember,
 } from './user-management.model';
 
@@ -182,11 +184,12 @@ export class UserManagementStore {
    * POST offboard (204). Retiro TERMINAL: marca la fila como 'removed' (no vuelve a Suspend/Reactivate) y
    * refresca el cupo (offboard libera el asiento). `successorUserId` null = el trabajo se ruta a la oficina.
    */
-  offboardUser(userId: string, successorUserId: string | null): Observable<void> {
-    return this.service.offboardUser(userId, successorUserId).pipe(
+  offboardUser(userId: string, request: OffboardRequest): Observable<void> {
+    return this.service.offboardUser(userId, request).pipe(
       tap(() => {
+        const activity = offboardedActivity(new Date().toISOString());
         this._members.update(list =>
-          list.map(member => (member.id === userId ? { ...member, status: 'removed' } : member)),
+          list.map(member => (member.id === userId ? { ...member, status: 'removed', activity } : member)),
         );
         this.refreshLimits();
       }),

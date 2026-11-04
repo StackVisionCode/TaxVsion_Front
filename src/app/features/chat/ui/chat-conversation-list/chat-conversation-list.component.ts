@@ -40,6 +40,8 @@ export interface ChatConversation {
   editPolicy?: ChatEditPolicy | null;
   /** F8a: solo lectura (meeting terminado, ticket cerrado). */
   isArchived?: boolean;
+  /** Direct cuyo otro participante se retiró de la oficina: solo lectura, con su nombre y foto. */
+  departedParticipant?: ChatParticipant | null;
   /** F8a (D-12): abierta desde otro módulo (Support); usa el motor del chat pero no va en la lista de Chat. */
   embedded?: boolean;
   /** F8d (D-24, T-24): reacciones de este chat (llega con el historial). */
@@ -112,7 +114,7 @@ export class ChatConversationListComponent {
 
   /** El punto de estado solo se muestra si el otro está Online o Busy (Offline no pinta punto). */
   showPresenceDot(conv: ChatConversation): boolean {
-    return conv.presence !== 'Offline';
+    return conv.presence !== 'Offline' && !conv.departedParticipant;
   }
 
   presenceDotClass(conv: ChatConversation): string {

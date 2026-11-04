@@ -382,6 +382,8 @@ export class MailPageComponent implements OnInit, OnDestroy {
         return 'The provider did not grant offline access. Try again and approve all the requested permissions.';
       case 'invalid_state':
         return 'The connection link expired. Please start the connection again.';
+      case 'initiator_inactive':
+        return 'Your account is no longer active in this office, so the mailbox was not connected.';
       default:
         return 'Could not connect the mailbox. Please try again.';
     }

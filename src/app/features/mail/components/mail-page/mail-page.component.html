@@ -228,6 +228,9 @@
               <span *ngIf="account.status === 'Active' && !store.needsPermissionUpdate(account)" class="text-emerald-600">· syncing</span>
               <span *ngIf="store.needsPermissionUpdate(account)" class="text-amber-600">· syncing, needs one more permission</span>
             </p>
+            <p *ngIf="account.needsReview" class="text-xs text-amber-700" [attr.data-review]="account.id">
+              Linked to someone who left the office — reconnect it with an office account.
+            </p>
           </div>
           <!-- Acciones solo para quien puede administrar el buzón (oficina→admin; personal→su dueño con
                connect_own). Revocar connect_own deja el buzón usable pero sin reauth/desconectar acá. -->

@@ -1,7 +1,7 @@
 import { roleLabel } from '@core/auth/actor-labels';
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, catchError, forkJoin, map, of } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import {
   AssignRolesRequest,
@@ -11,7 +11,6 @@ import {
   EligibleSuccessor,
   InvitationStatus,
   InvitationSummary,
-  OffboardImpactItem,
   PagedResult,
   PermissionDeny,
   PermissionInfo,
@@ -21,31 +20,11 @@ import {
   TenantLimits,
   UpdateRoleRequest,
   UserEffectiveAccess,
+  OffboardRequest,
   UserSummary,
   actorTypeLabel,
 } from './user-management.model';
 
-/** Un servicio del fan-out de impacto: su prefijo del Gateway, cómo extraer el número y cómo mostrarlo. */
-interface ImpactSource {
-  path: string;
-  field: string;
-  key: string;
-  label: string;
-  action: string;
-  icon: string;
-}
-
-// Los 7 servicios que exponen `GET /<svc>/offboarding-impact/{userId}` (punto 3.2). El front compone la
-// preview; si alguno no responde, ese renglón queda `available: false` (degradación por-servicio).
-const IMPACT_SOURCES: readonly ImpactSource[] = [
-  { path: '/customers', field: 'assignedClients', key: 'clients', label: 'Clients', action: 'reassigned', icon: 'people-outline' },
-  { path: '/tasks', field: 'openTasks', key: 'tasks', label: 'Open tasks', action: 'reassigned', icon: 'checkbox-outline' },
-  { path: '/calendar', field: 'futureAppointments', key: 'appointments', label: 'Appointments', action: 'organizer moved', icon: 'calendar-outline' },
-  { path: '/correspondence', field: 'openDrafts', key: 'drafts', label: 'Email drafts', action: 'moved', icon: 'mail-outline' },
-  { path: '/storage', field: 'activeShareLinks', key: 'shareLinks', label: 'Share links', action: 'revoked', icon: 'link-outline' },
-  { path: '/connectors', field: 'personalMailboxes', key: 'mailboxes', label: 'Personal mailboxes', action: 'disconnected', icon: 'at-outline' },
-  { path: '/communication', field: 'activeMeetings', key: 'meetings', label: 'Meetings', action: 'host moved', icon: 'videocam-outline' },
-];
 
 interface GetUsersParams {
   page?: number;
@@ -110,29 +89,8 @@ export class UserManagementService {
    * empleado se reasigna a `successorUserId`, o se ruta a la oficina si es null. Requiere users.manage +
    * actor admin (TenantAdmin/PlatformAdmin).
    */
-  offboardUser(id: string, successorUserId: string | null): Observable<void> {
-    return this.http.post<void>(`${this.base}/users/${id}/offboard`, { successorUserId });
-  }
-
-  /**
-   * Preview de impacto: fan-out a los 7 servicios `GET /<svc>/offboarding-impact/{userId}`. Cada llamada
-   * degrada sola (catchError → available:false) para que un servicio caído no tumbe toda la preview.
-   */
-  getOffboardImpact(userId: string): Observable<OffboardImpactItem[]> {
-    return forkJoin(
-      IMPACT_SOURCES.map(source =>
-        this.http
-          .get<Record<string, number>>(`${this.api.tenantUrl(source.path)}/offboarding-impact/${userId}`)
-          .pipe(
-            map(response => this.toImpactItem(source, response[source.field] ?? 0, true)),
-            catchError(() => of(this.toImpactItem(source, 0, false))),
-          ),
-      ),
-    );
-  }
-
-  private toImpactItem(source: ImpactSource, count: number, available: boolean): OffboardImpactItem {
-    return { key: source.key, label: source.label, action: source.action, icon: source.icon, count, available };
+  offboardUser(id: string, request: OffboardRequest): Observable<void> {
+    return this.http.post<void>(`${this.base}/users/${id}/offboard`, request);
   }
 
   /** Staff activo (no portal) distinto del que se retira — candidatos a sucesor para el picker del diálogo. */

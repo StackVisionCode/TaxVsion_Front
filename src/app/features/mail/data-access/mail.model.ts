@@ -52,6 +52,8 @@ export interface MailAccount {
   ownerUserId: string | null;
   /** Permisos que el servicio pide hoy y la conexión OAuth no aceptó: no vacío = "Update permissions". */
   missingScopes: string[];
+  /** Buzón de oficina ligado a alguien que dejó la oficina (lo marca el retiro; se quita al reconectar). */
+  needsReview?: boolean;
 }
 
 /** POST /connectors/accounts — el frontend REDIRIGE el navegador a authorizationUrl (no es fetch). */

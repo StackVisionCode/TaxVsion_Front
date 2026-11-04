@@ -74,7 +74,8 @@ export type SignatureAuditEventKind =
   | 'RequestExpired'
   | 'RequestCompleted'
   | 'RequestSealed'
-  | 'PreparerSigned';
+  | 'PreparerSigned'
+  | 'PreparerChanged';
 
 // ---------- GET /signature/public/{token} ----------
 
@@ -297,6 +298,7 @@ export const AUDIT_EVENT_KIND_LABEL: Record<SignatureAuditEventKind, string> = {
   RequestCompleted: 'All signers completed',
   RequestSealed: 'Final document sealed',
   PreparerSigned: 'Preparer signed',
+  PreparerChanged: 'Preparer changed',
 };
 
 /**
@@ -320,6 +322,7 @@ export const AUDIT_EVENT_KIND_ICON: Record<SignatureAuditEventKind, string> = {
   RequestCompleted: 'checkmark-done-outline',
   RequestSealed: 'ribbon-outline',
   PreparerSigned: 'person-outline',
+  PreparerChanged: 'swap-horizontal-outline',
 };
 
 /** Filas que reportan un intento fallido: se resaltan en rojo, no rompen la cadena. */

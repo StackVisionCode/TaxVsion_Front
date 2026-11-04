@@ -1,149 +1,247 @@
-<div class="flex flex-wrap items-center justify-between gap-3">
-  <div>
-    <h2 class="text-sm font-bold text-gray-900">Roles</h2>
-    <p class="mt-0.5 text-xs text-gray-500">
-      A role is a set of permissions. Assign it to someone to give them access.
-    </p>
+<!-- Cabecera: qué es un rol, cómo se usa y la acción principal -->
+<div class="flex flex-wrap items-start justify-between gap-4">
+  <div class="min-w-0">
+    <h2 class="text-base font-bold text-gray-900">Roles</h2>
+    <p class="mt-0.5 text-sm text-gray-500">A role is a set of permissions. Assign it to people to give them access.</p>
+    <!-- Cómo funciona, en tres pasos: se entiende sin leer documentación -->
+    <ol class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-gray-500" aria-label="How roles work">
+      <li class="flex items-center gap-1.5">
+        <span class="grid h-5 w-5 place-items-center rounded-full bg-brand-surface text-[0.625rem] font-bold text-brand-bold">1</span>
+        Pick what it can do
+      </li>
+      <ion-icon name="chevron-forward-outline" class="text-gray-300" aria-hidden="true"></ion-icon>
+      <li class="flex items-center gap-1.5">
+        <span class="grid h-5 w-5 place-items-center rounded-full bg-brand-surface text-[0.625rem] font-bold text-brand-bold">2</span>
+        Assign it from <span class="font-medium text-gray-700">Members → Edit access</span>
+      </li>
+      <ion-icon name="chevron-forward-outline" class="text-gray-300" aria-hidden="true"></ion-icon>
+      <li class="flex items-center gap-1.5">
+        <span class="grid h-5 w-5 place-items-center rounded-full bg-brand-surface text-[0.625rem] font-bold text-brand-bold">3</span>
+        Changes apply right away
+      </li>
+    </ol>
   </div>
-  <button type="button" (click)="openNew()"
-    class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
+  <button type="button" (click)="openNew()" data-testid="role-new"
+    class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-px hover:bg-brand-ink hover:shadow-md">
     <ion-icon name="add-outline" class="text-base"></ion-icon>
     New role
   </button>
 </div>
 
-@if (store.loading()) {
-  <p class="mt-4 text-sm text-gray-400">Loading roles…</p>
-}
 @if (store.error(); as error) {
   <p class="mt-4 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800">{{ error }}</p>
 }
 
-<!-- ---------- Roles de la oficina ---------- -->
-<div class="mt-4 flex flex-col gap-2">
-  @for (role of customRoles(); track role.id) {
-    <div class="rounded-2xl border border-gray-100 px-4 py-3">
-      <div class="flex flex-wrap items-center gap-3">
-        <div class="min-w-0 flex-1">
-          <p class="flex items-center gap-2 text-sm font-bold text-gray-900">
-            {{ role.name }}
-            @if (!role.isActive) {
-              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[0.625rem] font-semibold text-gray-500">
-                Inactive
-              </span>
-            }
-          </p>
-          <p class="mt-0.5 truncate text-xs text-gray-500">
-            {{ role.description || 'No description' }} · {{ role.permissionCodes.length }} permissions
-          </p>
-        </div>
+<!-- Cargando: esqueleto con la forma de las tarjetas, no un texto suelto -->
+@if (store.loading() && store.roles().length === 0) {
+  <div class="mt-5 grid gap-3 md:grid-cols-2" aria-label="Loading roles">
+    @for (placeholder of [1, 2, 3, 4]; track placeholder) {
+      <div class="h-40 animate-pulse rounded-2xl border border-gray-100 bg-gray-50"></div>
+    }
+  </div>
+}
 
-        <button type="button" (click)="toggleUsers(role)"
-          class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50">
-          Who has it
-        </button>
-        <button *ngIf="canDuplicate(role)" type="button" (click)="duplicate(role)"
-          class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50">
-          Duplicate
-        </button>
-        @if (role.isActive) {
-          <button type="button" (click)="open(role)"
-            class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50">
-            Edit
-          </button>
-          <button type="button" (click)="confirmDeactivate(role)"
-            class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50">
-            Deactivate
-          </button>
-        } @else {
-          <button type="button" (click)="reactivate(role)"
-            class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50">
-            Reactivate
-          </button>
-        }
+@if (nothingMatches()) {
+  <div class="mt-5 rounded-2xl border border-dashed border-gray-200 px-4 py-8 text-center">
+    <ion-icon name="search-outline" class="text-2xl text-gray-300"></ion-icon>
+    <p class="mt-2 text-sm text-gray-500">No roles match your search.</p>
+  </div>
+}
+
+<!-- Tarjeta de rol (la usan los propios y los integrados) -->
+<ng-template #roleCard let-role let-builtIn="builtIn">
+  <article class="group relative flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-200 hover:shadow-lg hover:shadow-gray-200/60"
+    [class.bg-gray-50/50]="builtIn" data-testid="role-card">
+    <span class="absolute inset-x-0 top-0 h-1 opacity-70 transition-opacity group-hover:opacity-100" [ngClass]="roleTone(role.name).bar"></span>
+
+    <div class="flex items-start gap-3 px-4 pb-3 pt-4">
+      <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-bold ring-1" [ngClass]="roleTone(role.name).tile">
+        {{ roleInitials(roleLabel(role.name)) }}
+      </span>
+      <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-center gap-1.5">
+          <h3 class="truncate text-sm font-bold text-gray-900">{{ roleLabel(role.name) }}</h3>
+          @if (builtIn) {
+            <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[0.625rem] font-semibold text-gray-500">
+              <ion-icon name="lock-closed-outline" class="text-[0.625rem]"></ion-icon> Built-in
+            </span>
+          }
+        </div>
+        <p class="mt-0.5 line-clamp-2 text-xs leading-relaxed text-gray-500">
+          {{ role.description || (builtIn ? 'Comes with the product' : 'No description yet') }}
+        </p>
       </div>
 
-      <!-- Quiénes lo tienen. Se pide al desplegar: desactivar sin ver a quién afecta era el problema. -->
-      @if (expanded() === role.id) {
-        <div class="mt-3 border-t border-gray-100 pt-3">
-          @if (usersOf(role.id); as users) {
-            @if (users.length === 0) {
-              <p class="text-xs text-gray-400">Nobody has this role.</p>
-            } @else {
-              <ul class="flex flex-col gap-1">
-                @for (user of users; track user.id) {
-                  <li class="flex items-center gap-2 text-xs text-gray-600">
-                    <ion-icon name="person-outline" class="text-sm text-gray-400"></ion-icon>
-                    <span class="font-medium text-gray-800">{{ user.name }} {{ user.lastName }}</span>
-                    <span class="text-gray-400">{{ user.email }}</span>
-                  </li>
-                }
-              </ul>
-            }
+      <!-- Lo secundario va al menú: la tarjeta muestra una sola acción principal -->
+      <app-dropdown-menu ariaLabel="Role actions" panelClass="w-48 text-left">
+        <button appMenuItem type="button" (click)="toggleUsers(role)">
+          <ion-icon name="people-outline" class="text-sm text-gray-400"></ion-icon>
+          {{ expanded() === role.id ? 'Hide who has it' : 'Who has it' }}
+        </button>
+        @if (canDuplicate(role)) {
+          <button appMenuItem type="button" (click)="duplicate(role)" data-testid="role-duplicate">
+            <ion-icon name="copy-outline" class="text-sm text-gray-400"></ion-icon>
+            Duplicate
+          </button>
+        }
+        @if (!builtIn) {
+          <button appMenuItem [danger]="true" type="button" class="border-t border-gray-100" (click)="confirmDeactivate(role)"
+            data-testid="role-deactivate">
+            <ion-icon name="pause-circle-outline" class="text-sm text-red-400"></ion-icon>
+            Deactivate
+          </button>
+        }
+      </app-dropdown-menu>
+    </div>
+
+    <!-- Qué da: las áreas que cubre, no la lista de permisos -->
+    <div class="flex flex-wrap items-center gap-1.5 px-4 pb-4">
+      @for (area of areasPreview(role); track area) {
+        <span class="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[0.6875rem] font-medium text-gray-600">{{ area }}</span>
+      }
+      @if (moreAreas(role) > 0) {
+        <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[0.6875rem] font-medium text-gray-500">+{{ moreAreas(role) }} more</span>
+      }
+      <span class="text-[0.6875rem] text-gray-400">
+        · {{ role.permissionCodes.length }} {{ role.permissionCodes.length === 1 ? 'permission' : 'permissions' }}
+      </span>
+    </div>
+
+    <!-- A quién: caras de quienes lo tienen + acción principal -->
+    <div class="mt-auto flex items-center gap-3 border-t border-gray-100 px-4 py-3">
+      <button type="button" (click)="toggleUsers(role)" class="flex min-w-0 items-center gap-2 rounded-full py-0.5 pr-2 transition-colors hover:bg-gray-50"
+        [attr.aria-expanded]="expanded() === role.id" data-testid="role-people">
+        <span class="flex -space-x-2">
+          @for (user of peoplePreview(role.id); track user.id) {
+            <app-avatar [name]="fullName(user)" [colorClass]="avatarColorFor(user.id)" sizeClass="h-7 w-7 text-[0.625rem] ring-2 ring-white" />
+          }
+          @if (morePeople(role.id) > 0) {
+            <span class="grid h-7 w-7 place-items-center rounded-full bg-gray-100 text-[0.625rem] font-semibold text-gray-600 ring-2 ring-white">
+              +{{ morePeople(role.id) }}
+            </span>
+          }
+        </span>
+        <span class="truncate text-xs" [class.text-gray-400]="!activeUsersOf(role.id).length" [class.text-gray-600]="activeUsersOf(role.id).length">
+          {{ peopleLabel(role.id) ?? 'Loading…' }}
+        </span>
+        <ion-icon name="chevron-down-outline" class="text-xs text-gray-400 transition-transform"
+          [class.rotate-180]="expanded() === role.id"></ion-icon>
+      </button>
+
+      <button type="button" (click)="open(role)" data-testid="role-open"
+        class="ml-auto flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors"
+        [ngClass]="builtIn ? 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50' : 'bg-brand-surface text-brand-bold hover:bg-brand-bold hover:text-white'">
+        <ion-icon [name]="builtIn ? 'eye-outline' : 'create-outline'" class="text-sm"></ion-icon>
+        {{ builtIn ? 'View' : 'Edit' }}
+      </button>
+    </div>
+
+    <!-- Quiénes lo tienen. Se pide al desplegar: desactivar sin ver a quién afecta era el problema. -->
+    @if (expanded() === role.id) {
+      <div class="border-t border-gray-100 bg-gray-50/70 px-4 py-3">
+        @if (usersOf(role.id); as users) {
+          @if (users.length === 0) {
+            <p class="text-xs text-gray-400">Nobody has this role yet. Assign it from Members → Edit access.</p>
           } @else {
-            <p class="text-xs text-gray-400">Loading…</p>
+            <ul class="flex max-h-48 flex-col gap-2 overflow-y-auto">
+              @for (user of sortedUsers(users); track user.id) {
+                <li class="flex items-center gap-2.5 text-xs">
+                  <app-avatar [name]="fullName(user)" [colorClass]="avatarColorFor(user.id)" sizeClass="h-6 w-6 text-[0.5625rem]" />
+                  <span class="truncate font-medium text-gray-800">{{ fullName(user) }}</span>
+                  <span class="truncate text-gray-400">{{ user.email }}</span>
+                  @if (!user.isActive) {
+                    <span class="ml-auto shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[0.625rem] text-gray-500">Inactive</span>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        } @else {
+          <p class="text-xs text-gray-400">Loading…</p>
+        }
+      </div>
+    }
+  </article>
+</ng-template>
+
+<!-- ---------- Roles de la oficina ---------- -->
+@if (!store.loading() || store.roles().length > 0) {
+  @if (activeRoles().length > 0) {
+    <div class="mt-5 grid items-start gap-3 md:grid-cols-2">
+      @for (role of activeRoles(); track role.id) {
+        <ng-container *ngTemplateOutlet="roleCard; context: { $implicit: role, builtIn: false }"></ng-container>
+      }
+    </div>
+  } @else if (!nothingMatches() && store.customRoles().length === 0) {
+    <!-- Primer uso: qué hacer, con dos caminos claros -->
+    <div class="mt-5 flex flex-col items-center rounded-2xl border border-dashed border-gray-200 px-6 py-8 text-center">
+      <span class="grid h-12 w-12 place-items-center rounded-2xl bg-brand-surface text-brand-bold">
+        <ion-icon name="shield-checkmark-outline" class="text-2xl"></ion-icon>
+      </span>
+      <p class="mt-3 text-sm font-semibold text-gray-800">No roles of your own yet</p>
+      <p class="mt-1 max-w-sm text-xs text-gray-500">
+        Start from a built-in role below and duplicate it, or create one from scratch.
+      </p>
+      <button type="button" (click)="openNew()"
+        class="mt-4 rounded-full border border-brand-bold/30 px-4 py-1.5 text-xs font-semibold text-brand-bold hover:bg-brand-bold/5">
+        Create a role
+      </button>
+    </div>
+  }
+
+  <!-- ---------- Inactivos: plegados ---------- -->
+  @if (inactiveRoles().length > 0) {
+    <div class="mt-5">
+      <button type="button" (click)="showInactive.set(!showInactive())" [attr.aria-expanded]="inactiveOpen()"
+        class="flex items-center gap-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400 transition-colors hover:text-gray-600"
+        data-testid="roles-inactive-toggle">
+        <ion-icon name="chevron-forward-outline" class="transition-transform" [class.rotate-90]="inactiveOpen()"></ion-icon>
+        Inactive ({{ inactiveRoles().length }})
+      </button>
+      @if (inactiveOpen()) {
+        <div class="mt-2 flex flex-col gap-2">
+          @for (role of inactiveRoles(); track role.id) {
+            <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-gray-200 px-4 py-2.5" data-testid="role-inactive">
+              <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gray-100 text-[0.6875rem] font-bold text-gray-400">
+                {{ roleInitials(role.name) }}
+              </span>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-semibold text-gray-500">{{ role.name }}</p>
+                <p class="truncate text-xs text-gray-400">
+                  Not in use · {{ role.permissionCodes.length }} {{ role.permissionCodes.length === 1 ? 'permission' : 'permissions' }}
+                </p>
+              </div>
+              @if (canDuplicate(role)) {
+                <button type="button" (click)="duplicate(role)"
+                  class="rounded-full px-3 py-1.5 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-100">
+                  Duplicate
+                </button>
+              }
+              <button type="button" (click)="reactivate(role)" data-testid="role-reactivate"
+                class="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:border-brand-bold/30 hover:text-brand-bold">
+                <ion-icon name="play-circle-outline" class="text-sm"></ion-icon>
+                Reactivate
+              </button>
+            </div>
           }
         </div>
       }
     </div>
-  } @empty {
-    @if (!store.loading()) {
-      <p class="rounded-2xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-400">
-        No roles of your own yet. Duplicate a built-in one to start.
-      </p>
-    }
   }
-</div>
 
-<!-- ---------- Roles integrados ---------- -->
-@if (systemRoles().length > 0) {
-  <h3 class="mt-7 text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Built-in</h3>
-  <div class="mt-2 flex flex-col gap-2">
-    @for (role of systemRoles(); track role.id) {
-      <div class="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100 bg-gray-50/60 px-4 py-3">
-        <div class="min-w-0 flex-1">
-          <p class="text-sm font-bold text-gray-900">{{ roleLabel(role.name) }}</p>
-          <p class="mt-0.5 truncate text-xs text-gray-500">
-            {{ role.description || 'Comes with the product' }} · {{ role.permissionCodes.length }} permissions
-          </p>
-        </div>
-        <button type="button" (click)="toggleUsers(role)"
-          class="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50">
-          Who has it
-        </button>
-        <button type="button" (click)="open(role)"
-          class="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50">
-          View
-        </button>
-        <button *ngIf="canDuplicate(role)" type="button" (click)="duplicate(role)"
-          class="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50">
-          Duplicate
-        </button>
-      </div>
-
-      @if (expanded() === role.id) {
-        <div class="-mt-1 rounded-2xl bg-gray-50/60 px-4 pb-3">
-          @if (usersOf(role.id); as users) {
-            @if (users.length === 0) {
-              <p class="text-xs text-gray-400">Nobody has this role.</p>
-            } @else {
-              <ul class="flex flex-col gap-1">
-                @for (user of users; track user.id) {
-                  <li class="flex items-center gap-2 text-xs text-gray-600">
-                    <ion-icon name="person-outline" class="text-sm text-gray-400"></ion-icon>
-                    <span class="font-medium text-gray-800">{{ user.name }} {{ user.lastName }}</span>
-                    <span class="text-gray-400">{{ user.email }}</span>
-                  </li>
-                }
-              </ul>
-            }
-          } @else {
-            <p class="text-xs text-gray-400">Loading…</p>
-          }
-        </div>
+  <!-- ---------- Roles integrados ---------- -->
+  @if (systemRoles().length > 0) {
+    <div class="mt-7 flex items-center gap-3">
+      <h3 class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Built-in</h3>
+      <span class="h-px flex-1 bg-gray-100"></span>
+      <span class="text-[0.6875rem] text-gray-400">Can't be edited — duplicate one to customize it</span>
+    </div>
+    <div class="mt-2 grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+      @for (role of systemRoles(); track role.id) {
+        <ng-container *ngTemplateOutlet="roleCard; context: { $implicit: role, builtIn: true }"></ng-container>
       }
-    }
-  </div>
+    </div>
+  }
 }
 
 <!-- ---------- Confirmar la baja ---------- -->

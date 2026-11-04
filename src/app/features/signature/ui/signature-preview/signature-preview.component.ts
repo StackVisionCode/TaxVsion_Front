@@ -15,6 +15,7 @@ import { SignatureDownloadKind } from '../../utils/download-filename.util';
 import { documentVerificationLabel } from '../../utils/document-verification.util';
 import { SignatureDeliveriesPanelComponent } from '../signature-deliveries-panel/signature-deliveries-panel.component';
 import { parseUtcDate } from '@shared/utils/utc-date.util';
+import { SignatureCapabilities } from '../../data-access/signature-permissions';
 
 /**
  * Vista previa de solo lectura de una solicitud de firma (mismo patrón
@@ -34,6 +35,7 @@ import { parseUtcDate } from '@shared/utils/utc-date.util';
 })
 export class SignaturePreviewComponent {
   private readonly store = inject(SignatureStore);
+  private readonly can = inject(SignatureCapabilities);
 
   private _request: SignatureRequest | null = null;
   @Input() set request(value: SignatureRequest | null) {
@@ -70,6 +72,34 @@ export class SignaturePreviewComponent {
     kind: SignatureDownloadKind;
   }>();
   @Output() resendSigner = new EventEmitter<{ request: SignatureRequest; signer: Signer }>();
+  /** Admin: pasar el preparador (Form 8879) de una solicitud enviada a otro empleado. */
+  @Output() changePreparer = new EventEmitter<SignatureRequest>();
+  /** El preparador asignado firma su parte (canal paralelo del 8879). */
+  @Output() signAsPreparer = new EventEmitter<SignatureRequest>();
+
+  /**
+   * Cambiar el preparador solo mientras no haya firmado y ningún documento esté sellado (el sellado ya
+   * lleva estampado al actual), con la solicitud enviada o programada — igual que el backend.
+   */
+  canChangePreparer(request: SignatureRequest): boolean {
+    return (
+      (request.status === 'in-progress' || request.status === 'scheduled') &&
+      !!request.preparerUserId &&
+      !request.isPreparerSigned &&
+      !request.documents.some((document) => !!document.sealedFileId) &&
+      this.can.canManageRequests()
+    );
+  }
+
+  /** Solo el preparador asignado firma como tal, una vez enviada la solicitud. */
+  canSignAsPreparer(request: SignatureRequest): boolean {
+    return (
+      (request.status === 'in-progress' || request.status === 'completed') &&
+      !!request.isActorPreparer &&
+      !request.isPreparerSigned &&
+      this.can.canSign()
+    );
+  }
 
   /**
    * Un borrador aun no enviado (Draft, o Ready historico pre-F2) puede enviarse desde el preview.

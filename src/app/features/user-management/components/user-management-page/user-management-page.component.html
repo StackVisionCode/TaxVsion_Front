@@ -13,8 +13,10 @@
       <!-- B9: la pestaña Roles es `roles.manage`, un permiso distinto de ver el equipo (ver tabOptions). -->
       <app-filter-chips size="sm" [options]="tabOptions()" [value]="tab()" (valueChange)="setTab($event)" />
 
-      <app-search-input class="w-full sm:w-64" widthClass="w-full" placeholder="Search members..." [value]="search()"
-        (valueChange)="onSearchChange($event)" />
+      <!-- En Roles busca roles (en el cliente); en las demás pestañas, miembros en el servidor. -->
+      <app-search-input class="w-full sm:w-64" widthClass="w-full"
+        [placeholder]="tab() === 'roles' ? 'Search roles...' : 'Search members...'"
+        [value]="tab() === 'roles' ? rolesSearch() : search()" (valueChange)="onSearchChange($event)" />
 
       <div class="ml-auto flex items-center gap-2">
         <button *ngIf="can.canManageSeats()" type="button" (click)="openSeatModal()"
@@ -38,7 +40,7 @@
         [canInvite]="can.canInvite()" [canManageUsers]="can.canManageUsers()" [canManageRoles]="can.canManageRoles()"
         [canManageSlotPriority]="can.canManageSlotPriority()"
         emptyMessage="No team members match your search" (editRoles)="openAccessDrawer($event)"
-        (toggleSuspend)="toggleSuspend($event)" (offboard)="offboard($event)"
+        (toggleSuspend)="toggleSuspend($event)" (offboard)="offboard($event)" (handover)="showHandover($event)"
         (moveSlotUp)="moveSlotUp($event)" (moveSlotEnd)="moveSlotEnd($event)"></app-user-table>
       <app-pagination [currentPage]="membersPage()" [totalItems]="membersTotal()" [pageSize]="pageSize"
         (pageChange)="onMembersPageChange($event)"></app-pagination>
@@ -46,7 +48,7 @@
 
     <!-- Roles tab (B9): CRUD de roles de la oficina. -->
     <div *ngIf="tab() === 'roles'" class="mt-5">
-      <app-roles-panel></app-roles-panel>
+      <app-roles-panel [search]="rolesSearch()"></app-roles-panel>
     </div>
 
     <!-- Invitations tab: GET /auth/invitations?status=Pending -->
@@ -88,6 +90,10 @@
   confirmLabel="Suspend" (confirmed)="confirmSuspend()"
   (cancelled)="pendingSuspend.set(null)"></app-confirm-dialog>
 
-<!-- Remove from office (offboard): preview de impacto (fan-out 7 servicios) + selector de sucesor -->
-<app-offboard-dialog *ngIf="pendingOffboard() as member" [member]="member"
-  (confirmed)="confirmOffboard($event)" (cancelled)="pendingOffboard.set(null)"></app-offboard-dialog>
+<!-- Offboard (desvincular): preview de impacto (servicios que declara Auth) + selector de sucesor -->
+<app-offboard-dialog *ngIf="pendingOffboard() as member" [member]="member" [busy]="offboarding()"
+  (confirmed)="confirmOffboard($event)" (cancelled)="!offboarding() && pendingOffboard.set(null)"></app-offboard-dialog>
+
+<!-- Handover: cuántas áreas confirmaron su parte del retiro -->
+<app-offboard-status-dialog *ngIf="handover() as open" [userId]="open.userId" [name]="handoverName()"
+  (closed)="closeHandover()"></app-offboard-status-dialog>

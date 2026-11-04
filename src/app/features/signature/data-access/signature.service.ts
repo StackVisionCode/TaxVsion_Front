@@ -21,6 +21,8 @@ import {
   SignatureTemplateStatus,
   SignerResponse,
   SetPreparerBody,
+  ChangePreparerBody,
+  PreparerCandidate,
   AddTemplateSlotBody,
   CreateTemplateBody,
   InstantiateTemplateBody,
@@ -404,6 +406,20 @@ export class SignatureService {
    */
   signAsPreparer(requestId: string): Observable<void> {
     return this.http.post<void>(`${this.base}/requests/${requestId}/preparer/sign`, {});
+  }
+
+  /**
+   * Pasa el preparador de una solicitud ENVIADA a otro empleado mientras no haya firmado
+   * (`signature.request.manage`). La identidad 8879 sale del perfil del nuevo; queda auditado.
+   */
+  changePreparer(requestId: string, newPreparerUserId: string): Observable<void> {
+    const body: ChangePreparerBody = { newPreparerUserId };
+    return this.http.post<void>(`${this.base}/requests/${requestId}/preparer/change`, body);
+  }
+
+  /** Empleados activos con identidad 8879 declarada: a quién se le puede pasar el preparador. */
+  listPreparerCandidates(): Observable<PreparerCandidate[]> {
+    return this.http.get<PreparerCandidate[]>(`${this.base}/requests/preparer-candidates`);
   }
 
   // ---------- Plantillas ----------

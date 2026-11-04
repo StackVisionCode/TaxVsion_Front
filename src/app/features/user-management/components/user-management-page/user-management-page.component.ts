@@ -1,4 +1,5 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { take, takeWhile, timer, switchMap } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
@@ -6,6 +7,7 @@ import { TeamMember, UserTableComponent } from '../../ui/user-table/user-table.c
 import { UserInvitePanelComponent } from '../../ui/user-invite-panel/user-invite-panel.component';
 import { EditAccessDrawerComponent } from '../../ui/edit-access-drawer/edit-access-drawer.component';
 import { OffboardDialogComponent } from '../../ui/offboard-dialog/offboard-dialog.component';
+import { OffboardStatusDialogComponent } from '../../ui/offboard-status-dialog/offboard-status-dialog.component';
 import {
   SEAT_CHECKOUT_INTENT_KEY,
   SeatPurchaseModalComponent,
@@ -19,6 +21,7 @@ import { UserManagementStore } from '../../data-access/user-management.store';
 import { SeatPurchaseStore } from '../../data-access/seat-purchase.store';
 import { UserManagementCapabilities } from '../../data-access/user-management-permissions';
 import { UserManagementService } from '../../data-access/user-management.service';
+import { OffboardRequest } from '../../data-access/user-management.model';
 import { RolesPanelComponent } from '../../ui/roles-panel/roles-panel.component';
 import { RolesStore } from '../../data-access/roles.store';
 
@@ -33,7 +36,7 @@ const SEARCH_DEBOUNCE_MS = 300;
  * edición. Los datos vienen de UserManagementStore (Auth.Api vía `/auth/*`):
  * Members = GET /auth/users con paginación y búsqueda del servidor;
  * Invitations = GET /auth/invitations?status=Pending. Suspend/Reactivate son
- * PATCH deactivate/reactivate; "Remove from office" es el retiro terminal
+ * PATCH deactivate/reactivate; "Offboard" es el retiro terminal
  * (POST offboard) con su diálogo de impacto + sucesor. Suspend y offboard piden
  * confirmación; cancelar una invitación también. La fila del usuario logueado no
  * muestra menú de acciones.
@@ -46,6 +49,7 @@ const SEARCH_DEBOUNCE_MS = 300;
     UserInvitePanelComponent,
     EditAccessDrawerComponent,
     OffboardDialogComponent,
+    OffboardStatusDialogComponent,
     SeatPurchaseModalComponent,
     PaginationComponent,
     ConfirmDialogComponent,
@@ -68,6 +72,8 @@ export class UserManagementPageComponent {
   private readonly seatStore = inject(SeatPurchaseStore);
   private readonly service = inject(UserManagementService);
   private readonly toast = inject(ToastService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   readonly members = this.store.members;
   readonly membersTotal = this.store.membersTotal;
@@ -87,12 +93,16 @@ export class UserManagementPageComponent {
 
   readonly tab = signal<TeamTab>('members');
   readonly search = signal('');
+  /** Búsqueda de la pestaña Roles: filtra en el cliente y no toca la de miembros. */
+  readonly rolesSearch = signal('');
 
   readonly isPanelOpen = signal(false);
   readonly editingMember = signal<TeamMember | null>(null);
   readonly pendingCancel = signal<TeamMember | null>(null);
   readonly pendingSuspend = signal<TeamMember | null>(null);
   readonly pendingOffboard = signal<TeamMember | null>(null);
+  /** Handover abierto (avance del retiro): id + nombre; llega de la fila, de confirmar o del aviso (`?handover=`). */
+  readonly handover = signal<{ userId: string; name: string } | null>(this.handoverFromLink());
   readonly isSeatModalOpen = signal(false);
 
   /** The member whose "Edit access" drawer is open (null = closed). */
@@ -218,6 +228,10 @@ export class UserManagementPageComponent {
   }
 
   onSearchChange(value: string): void {
+    if (this.tab() === 'roles') {
+      this.rolesSearch.set(value);
+      return;
+    }
     this.search.set(value);
     // Members se buscan en el servidor (query `search` de GET /auth/users), con debounce.
     clearTimeout(this.searchDebounce);
@@ -311,7 +325,7 @@ export class UserManagementPageComponent {
     });
   }
 
-  /** "Remove from office" (retiro terminal) — pide confirmación. */
+  /** "Offboard" (desvincular, terminal) — pide confirmación. */
   offboard(member: TeamMember): void {
     this.pendingOffboard.set(member);
   }
@@ -320,15 +334,51 @@ export class UserManagementPageComponent {
    * FE-2: el diálogo emite el sucesor elegido (o null = rutar a la oficina). El backend marca el estado
    * terminal, reasigna el trabajo activo y libera el asiento.
    */
-  confirmOffboard(successorUserId: string | null): void {
+  /** El retiro tarda unos segundos (corta sesiones y avisa a cada servicio): el diálogo espera abierto. */
+  readonly offboarding = signal(false);
+
+  confirmOffboard(request: OffboardRequest): void {
     const member = this.pendingOffboard();
-    if (member) {
-      this.store.offboardUser(member.id, successorUserId).subscribe({
-        next: () => this.toast.success(`${member.name} removed from the office`),
-        error: err => this.toast.error(toApiError(err).message),
-      });
+    if (!member || this.offboarding()) {
+      return;
     }
-    this.pendingOffboard.set(null);
+    this.offboarding.set(true);
+    this.store.offboardUser(member.id, request).subscribe({
+      next: () => {
+        this.offboarding.set(false);
+        this.pendingOffboard.set(null);
+        this.toast.success(`${member.name} was offboarded`);
+        // Se ve en vivo cómo cada área confirma su parte.
+        this.handover.set({ userId: member.id, name: member.name });
+      },
+      error: err => {
+        // Queda abierto para reintentar o cancelar.
+        this.offboarding.set(false);
+        this.toast.error(toApiError(err).message);
+      },
+    });
+  }
+
+  /** Desde el aviso llega solo el id: el nombre sale de la lista en cuanto carga. */
+  readonly handoverName = computed(() => {
+    const open = this.handover();
+    return open ? open.name || this.members().find(member => member.id === open.userId)?.name || '' : '';
+  });
+
+  showHandover(member: TeamMember): void {
+    this.handover.set({ userId: member.id, name: member.name });
+  }
+
+  closeHandover(): void {
+    this.handover.set(null);
+    // Sin el `?handover=` del aviso, recargar no la vuelve a abrir.
+    void this.router.navigate([], { queryParams: { handover: null }, queryParamsHandling: 'merge', replaceUrl: true });
+  }
+
+  /** El aviso "el retiro no terminó" enlaza con `?handover=<userId>` (un id, no datos personales). */
+  private handoverFromLink(): { userId: string; name: string } | null {
+    const userId = this.route.snapshot.queryParamMap.get('handover');
+    return userId ? { userId, name: '' } : null;
   }
 
   cancelInvite(member: TeamMember): void {

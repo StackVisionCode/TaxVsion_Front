@@ -58,9 +58,15 @@
           [class.border-gray-100]="!last">{{ member.activity }}</td>
         <td class="px-4 py-3.5 text-right group-hover:bg-gray-50 transition-colors rounded-r-2xl relative"
           [class.border-b]="!last" [class.border-gray-100]="!last">
-          <app-dropdown-menu *ngIf="member.id !== currentUserId && !(member.kind === 'user' && member.status === 'removed')"
+          <app-dropdown-menu *ngIf="member.id !== currentUserId && (member.status !== 'removed' || canManageUsers)"
             ariaLabel="Member actions" panelClass="w-48 text-left">
-            <ng-container *ngIf="member.kind === 'user'">
+            <!-- Desvinculado: es terminal, solo queda ver cómo terminó el handover -->
+            <button *ngIf="member.kind === 'user' && member.status === 'removed'" appMenuItem type="button"
+              data-testid="handover-status" (click)="handover.emit(member)">
+              <ion-icon name="checkmark-done-outline" class="text-sm text-gray-400"></ion-icon>
+              Handover status
+            </button>
+            <ng-container *ngIf="member.kind === 'user' && member.status !== 'removed'">
               <button *ngIf="canManageRoles" appMenuItem type="button" (click)="editRoles.emit(member)">
                 <ion-icon name="options-outline" class="text-sm text-gray-400"></ion-icon>
                 Edit access
@@ -83,7 +89,7 @@
               <button *ngIf="canManageUsers" appMenuItem [danger]="true" type="button" class="border-t border-gray-100"
                 (click)="offboard.emit(member)">
                 <ion-icon name="person-remove-outline" class="text-sm text-red-400"></ion-icon>
-                Remove from office
+                Offboard
               </button>
             </ng-container>
             <ng-container *ngIf="member.kind === 'invitation'">

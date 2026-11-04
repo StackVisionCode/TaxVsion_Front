@@ -1,4 +1,4 @@
-import type { ChatEditPolicy, ChatParticipant, ChatReactionPolicy, GroupRole, MessageEditsDto, MessageReactionSummary, VoiceNoteTranscriptState } from '@shared/ui/chat/chat-message.model';
+import type { ChatEditPolicy, ChatParticipant, ChatReactionPolicy, GroupRole, MessageEditsDto, MessageReactionSummary, SystemMessageKind, VoiceNoteTranscriptState } from '@shared/ui/chat/chat-message.model';
 export type { ChatParticipant, GroupRole, MessageEditsDto, VoiceNoteTranscriptState } from '@shared/ui/chat/chat-message.model';
 export type ConversationKind = 'Direct' | 'Group' | 'Support' | 'Meeting';
 
@@ -46,6 +46,18 @@ export interface ConversationParticipantRoleChangedDto {
   changedAtUtc: string;
 }
 
+/** Por qué ya no se escribe: Archived = cerrada; ParticipantLeft = el otro del Direct se retiró de la oficina. */
+export type ConversationClosedReason = 'Archived' | 'ParticipantLeft';
+
+/** Quien salió de un Direct (retiro): da nombre y foto al chat aunque ya no participe. */
+export interface DepartedParticipantDto {
+  userId: string;
+  displayName: string;
+  actorType: string;
+  /** Ausente = no se resolvió; null = sin foto. */
+  avatarFileId?: string | null;
+}
+
 /** Fila de GET /communication/conversations. Sin preview de último mensaje — el backend no lo incluye. */
 export interface ConversationSummary {
   id: string;
@@ -62,6 +74,10 @@ export interface ConversationSummary {
   isArchived?: boolean;
   isMuted?: boolean;
   myRole?: GroupRole | null;
+  /** Solo lectura (archivada o el otro participante se fue) y quién se fue. Ausentes en backends viejos. */
+  isClosedForWriting?: boolean;
+  closedReason?: ConversationClosedReason | null;
+  departedParticipant?: DepartedParticipantDto | null;
 }
 
 export interface PagedConversations {
@@ -88,6 +104,8 @@ export interface MessageDto {
   /** F8a: meeting dueño cuando el chat es de una sala. */
   meetingId?: string | null;
   kind: MessageKind;
+  /** Solo kind=System: origen del aviso (ícono). Ausente en backends viejos. */
+  systemKind?: SystemMessageKind | null;
   body: string | null;
   attachmentFileId: string | null;
   replyToMessageId: string | null;
@@ -182,6 +200,10 @@ export interface ConversationUpdatedDto {
   adminsOnlyWrite?: boolean;
   /** Solo a mis pestañas: silencio propio. */
   isMuted?: boolean;
+  /** Solo lectura en vivo (el otro participante del Direct se retiró de la oficina). */
+  isClosedForWriting?: boolean;
+  closedReason?: ConversationClosedReason | null;
+  departedParticipant?: DepartedParticipantDto | null;
 }
 
 /** F8a — no leídos por tipo de chat (badges de Chat y de Support). */
@@ -210,6 +232,9 @@ export interface PresenceChangedDto {
   busyReason: PresenceBusyReason;
   changedAtUtc: string;
 }
+
+/** Subtítulo de un Direct cuyo otro participante se retiró (en lugar de su presencia). */
+export const DEPARTED_PRESENCE_LABEL = 'No longer with the office';
 
 /** Etiqueta legible del estado de presencia (nunca solo color — ver a11y). */
 export function presenceLabel(status: PresenceStatus, busyReason: PresenceBusyReason): string {

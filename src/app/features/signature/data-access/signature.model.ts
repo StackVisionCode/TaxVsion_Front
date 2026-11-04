@@ -369,6 +369,9 @@ export interface SignatureRequestDetail {
   preparerSignatureFileId: string | null;
   preparerFields: PreparerFieldResponse[];
   signers: SignerResponse[];
+  /** Quién es el preparador (sin PTIN); null si no hay o es anterior a ligarlo a un usuario. */
+  preparerUserId?: string | null;
+  preparerDisplayName?: string | null;
 }
 
 export type PartialCopyAudienceKind = 'All' | 'Specific';
@@ -753,6 +756,20 @@ export interface PreparerSessionState {
   signed: boolean;
 }
 
+/** POST /signature/requests/{id}/preparer/change — un admin pasa el preparador a otro empleado. */
+export interface ChangePreparerBody {
+  newPreparerUserId: string;
+}
+
+/** GET /signature/requests/preparer-candidates — empleados activos con identidad 8879 declarada. */
+export interface PreparerCandidate {
+  userId: string;
+  displayName: string;
+  titleLabel: string | null;
+  /** PTIN/EFIN enmascarado (p. ej. "P•••••5678"). */
+  maskedIdentifier: string;
+}
+
 export interface CreateSignatureRequestBody {
   title: string;
   description?: string | null;
@@ -989,6 +1006,10 @@ export function detailToUiRequest(
     ),
     preparerSignatureFileId: detail.preparerSignatureFileId,
     preparerFieldCount: detail.preparerFields.length,
+    preparerUserId: detail.preparerUserId ?? null,
+    preparerDisplayName: detail.preparerDisplayName ?? null,
+    isPreparerSigned: detail.isPreparerSigned,
+    isActorPreparer: !!currentUserId && detail.preparerUserId === currentUserId,
     isOwnedByActor: currentUserId ? detail.createdByUserId === currentUserId : false,
     scheduledSendAtUtc: detail.scheduledSendAtUtc,
     deliversToSigners:

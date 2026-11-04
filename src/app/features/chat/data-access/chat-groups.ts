@@ -1,6 +1,6 @@
 import { ChatConversation } from '../ui/chat-conversation-list/chat-conversation-list.component';
 import { ConversationParticipantRoleChangedDto, ConversationUpdatedDto, GroupRole } from './chat.model';
-import { withParticipants } from './chat-participants';
+import { toDepartedParticipant, withParticipants } from './chat-participants';
 
 /**
  * F8b: reglas de grupo del lado del CRM (puras, testeables sin el store). El backend manda (D-22); esto solo
@@ -82,7 +82,16 @@ export function applyConversationUpdate(conv: ChatConversation, update: Conversa
     ...(update.avatarFileId !== undefined ? { groupAvatarFileId: update.avatarFileId } : {}),
     ...(update.adminsOnlyWrite !== undefined ? { adminsOnlyWrite: update.adminsOnlyWrite } : {}),
     ...(update.isMuted !== undefined ? { isMuted: update.isMuted } : {}),
+    ...(update.departedParticipant !== undefined
+      ? { departedParticipant: toDepartedParticipant(update.departedParticipant, conv.participants), peerUserId: update.departedParticipant ? null : conv.peerUserId }
+      : {}),
   };
+}
+
+/** Solo lectura porque el otro participante del Direct se retiró: aviso en lugar del composer. */
+export function departedNotice(conv: Pick<ChatConversation, 'departedParticipant'>): string | null {
+  const name = conv.departedParticipant?.displayName;
+  return name ? `${name} is no longer with the office. You can still read this conversation.` : null;
 }
 
 /** Códigos del backend de grupos → copy en inglés para el usuario (sin filtrar detalles internos). */

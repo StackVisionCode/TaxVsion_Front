@@ -120,6 +120,12 @@ export class NotificationRouteResolver {
         return { commands: ['/support'], queryParams: compact({ ticketId: id }) };
       case 'seats':
         return { commands: ['/company/users'] };
+      // Retiro que no terminó: abre el avance del handover de esa persona.
+      case 'user_management':
+        return { commands: ['/company/users'], queryParams: compact({ handover: id }) };
+      // Campañas pausadas al retirarse quien las enviaba: se revisan en el listado.
+      case 'campaign':
+        return { commands: ['/campaigns'] };
       default:
         return this.detailFallback(fallbackNotificationId);
     }

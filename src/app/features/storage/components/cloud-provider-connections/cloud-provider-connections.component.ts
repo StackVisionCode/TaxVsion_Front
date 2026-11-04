@@ -4,7 +4,8 @@ import { Component, inject, signal } from '@angular/core';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { AccessStore } from '@core/access/access.store';
 
-interface CloudConnection { connected: boolean; email: string | null; }
+/** `needsReview`: ligada a alguien que dejó la oficina (la marca el retiro; se quita al reconectar). */
+interface CloudConnection { connected: boolean; email: string | null; needsReview?: boolean; }
 interface StoragePolicy { providerId: string; availableProviders: string[]; connectedProviders: string[]; mode: string; backupFrequency: string | null; backupTime: string | null; backupTimeZoneId: string | null; }
 interface CloudProvider { id: string; name: string; description: string; }
 interface PendingSwitch { target: CloudProvider; current: CloudProvider[]; policy: StoragePolicy; }
@@ -31,7 +32,12 @@ interface PendingSwitch { target: CloudProvider; current: CloudProvider[]; polic
                 <div class="min-w-0">
                   <h2 class="font-semibold text-gray-900">{{ provider.name }}</h2>
                   @if (loading()) { <p class="mt-1 text-sm text-gray-500">Checking connection…</p> }
-                  @else if (connections()[provider.id]?.connected) { <p class="mt-1 truncate text-sm text-gray-600">Connected as {{ connections()[provider.id]?.email }}</p> }
+                  @else if (connections()[provider.id]?.connected) {
+                    <p class="mt-1 truncate text-sm text-gray-600">Connected as {{ connections()[provider.id]?.email }}</p>
+                    @if (connections()[provider.id]?.needsReview) {
+                      <p class="mt-1 text-sm text-amber-700" [attr.data-review]="provider.id">This connection belongs to someone who left the office. Reconnect it with an office account.</p>
+                    }
+                  }
                   @else { <p class="mt-1 text-sm text-gray-600">Not connected. Your existing Storage workspace remains available.</p> }
                 </div>
               </div>
@@ -56,7 +62,7 @@ interface PendingSwitch { target: CloudProvider; current: CloudProvider[]; polic
             </div>
             <h2 id="cloud-switch-title" class="text-xl font-semibold">A cloud provider is already connected</h2>
             <p class="mt-3 text-sm leading-relaxed text-[#3E5F6B]">
-              {{ change.current[0]?.name }} is connected to this tenant. To connect {{ change.target.name }}, TaxVision must disconnect the current provider first. Its files in the cloud will not be deleted. Do you want to disconnect it and continue?
+              {{ change.current[0]?.name }} is connected to this office. To connect {{ change.target.name }}, TaxVision must disconnect the current provider first. Its files in the cloud will not be deleted. Do you want to disconnect it and continue?
             </p>
             <div class="mt-7 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button type="button" (click)="cancelSwitch()" [disabled]="!!busyProvider()" class="h-11 rounded-xl px-5 text-sm font-semibold text-[#3E5F6B] hover:bg-[#F8F4ED] disabled:opacity-60">Cancel</button>

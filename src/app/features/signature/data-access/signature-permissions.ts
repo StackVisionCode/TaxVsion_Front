@@ -11,6 +11,7 @@ export const SignaturePermissions = {
   RequestCancel: 'signature.request.cancel',
   RequestResend: 'signature.request.resend',
   RequestExpire: 'signature.request.expire',
+  RequestManage: 'signature.request.manage',
   DocumentPrepare: 'signature.document.prepare',
   DocumentSign: 'signature.document.sign',
   DocumentSend: 'signature.document.send',
@@ -44,6 +45,8 @@ export class SignatureCapabilities {
   readonly canCancel: Signal<boolean> = computed(() => this.access.can(SignaturePermissions.RequestCancel));
   readonly canExtend: Signal<boolean> = computed(() => this.access.can(SignaturePermissions.RequestExpire));
   readonly canResend: Signal<boolean> = computed(() => this.access.can(SignaturePermissions.RequestResend));
+  /** Gestionar solicitudes de otros (override de autor): p. ej. cambiar el preparador de una enviada. */
+  readonly canManageRequests: Signal<boolean> = computed(() => this.access.can(SignaturePermissions.RequestManage));
 
   /** Colocar campos sobre el PDF (del firmante y del preparador). */
   readonly canPrepare: Signal<boolean> = computed(() => this.access.can(SignaturePermissions.DocumentPrepare));

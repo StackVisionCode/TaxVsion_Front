@@ -21,11 +21,11 @@
         <span class="rounded-full bg-gray-100 px-3 py-1 text-[0.6875rem] font-medium text-gray-500">{{ message.dateGroup }}</span>
       </div>
 
-      <!-- Evento del sistema (p.ej. "Missed call", "Call ended 2:34"): centrado, con icono de teléfono. -->
+      <!-- Evento del sistema: centrado, con el ícono de su origen (llamada, miembros, aviso). -->
       <div *ngIf="message.isSystem" class="my-1 flex justify-center" [attr.data-message-id]="message.id">
         <span class="inline-flex flex-wrap items-center justify-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-[0.6875rem] font-medium text-gray-500 transition-shadow"
           [class.ring-2]="highlightedId() === message.id" [class.ring-amber-300]="highlightedId() === message.id">
-          <ion-icon name="call-outline" class="text-xs"></ion-icon>{{ message.text }}
+          <ion-icon [name]="systemIcon(message)" data-role="system-icon" class="text-xs"></ion-icon>{{ message.text }}
           <!-- F7: transcript de la llamada (archivo adjunto al mensaje del sistema) -->
           <button *ngIf="message.systemAttachmentFileId" type="button" data-role="view-transcript"
             (click)="transcriptRequested.emit(message.systemAttachmentFileId)"
