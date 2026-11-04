@@ -16,7 +16,7 @@ const ISSUER_PROFILE_PERMISSION = 'invoicing.view';
  *
  * API:
  *  - `currency()` ........ signal con el código ISO (siempre algo válido; 'USD' mientras no se sepa).
- *  - `set(code)` ......... lo llama billing.store cuando carga o guarda el perfil del emisor.
+ *  - `set(code)` ......... lo llama billing.store cuando carga el perfil del emisor.
  *  - `ensureLoaded()` .... pide `GET /billing/issuer-profile` una sola vez, y SOLO si el usuario ya
  *                          tiene `invoicing.view`; si no, se queda en el fallback sin pegarle al API.
  *

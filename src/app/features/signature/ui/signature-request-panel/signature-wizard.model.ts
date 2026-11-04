@@ -27,6 +27,8 @@ export interface PlacedField {
   signerId: string;
   /** Instrucción/etiqueta que verá el firmante (solo campos `text`). */
   label?: string;
+  /** Letra del estampado en pt (iniciales/fecha/texto); null/omitido = automática. */
+  fontSizePt?: number | null;
 }
 
 /** Canal por el que el firmante recibe/verifica su código (propuesta UX). */
@@ -69,7 +71,10 @@ export interface RequestRules {
   expirationEnabled: boolean;
 }
 
-/** Firmante dentro del editor (el cliente es el firmante #1; se pueden añadir más). */
+/**
+ * Firmante dentro del editor. Los clientes de la solicitud usan el id `client:<customerId>`
+ * (ver `client-signers.util`); el resto son firmantes externos.
+ */
 export interface EditorSigner {
   id: string;
   name: string;
@@ -82,6 +87,8 @@ export interface EditorSigner {
   phone: string;
   /** Idioma de los correos al firmante ('Es' | 'En'). Default 'En'. */
   language: SignerLanguage;
+  /** Foto del cliente registrado; null/ausente = iniciales. */
+  avatarFileId?: string | null;
 }
 
 /** Campo sembrado al rehidratar un borrador: coordenadas NORMALIZADas [0..1] (el editor las pasa a px al render). */
@@ -97,6 +104,7 @@ export interface EditorSeedField {
   nh: number;
   signerLocalId: string;
   label?: string;
+  fontSizePt?: number | null;
 }
 
 /** Estado con el que se siembra el editor al "continuar" un borrador existente. */

@@ -6,10 +6,10 @@ import { AccessStore } from './access.store';
  * identidad de la empresa, la marca y el cobro. Viven en `core` porque las consultan pantallas de
  * varias features (Company settings, Settings/billing, Billing).
  *
- * Los códigos salen de los controladores, y uno no coincide con lo que decía la auditoría: el
- * perfil legal del emisor es **`invoicing.issuer.manage`**, un permiso propio, no el
- * `invoicing.manage` de las facturas. Tiene sentido: cambiar el EIN y la razón social que se
- * estampan en cada factura no es lo mismo que emitir una.
+ * Los códigos salen de los controladores. Desde la F1 el perfil de la oficina (razón social, EIN,
+ * dirección) es de Tenant y lo edita `settings.manage`; Billing solo lo proyecta en las facturas.
+ * `invoicing.issuer.manage` queda para los ajustes de factura de Billing (condiciones de pago,
+ * instrucciones y pie), que tampoco vienen con el `invoicing.manage` de emitir facturas.
  */
 export const AdminPermissions = {
   BrandingManage: 'branding.manage',
@@ -30,9 +30,20 @@ export class AdminCapabilities {
   /** Logo, favicon y colores del tenant. */
   readonly canManageBranding: Signal<boolean> = computed(() => this.access.can(AdminPermissions.BrandingManage));
 
-  /** Razón social, EIN y dirección que se estampan en las facturas. */
-  readonly canManageIssuerProfile: Signal<boolean> = computed(() =>
+  /** Perfil de la oficina (`PUT /tenants/current/profile`): razón social, EIN, contacto y dirección. */
+  readonly canManageOfficeProfile: Signal<boolean> = computed(() => this.access.can(AdminPermissions.SettingsManage));
+
+  /** Ajustes de factura de Billing (`/billing/invoice-settings`): condiciones, instrucciones y pie. */
+  readonly canManageInvoiceSettings: Signal<boolean> = computed(() =>
     this.access.can(AdminPermissions.InvoicingIssuerManage),
+  );
+
+  /**
+   * Cumplimiento de la oficina (`/tenants/current/compliance`: EFIN, WISP, retención). Doble candado como el
+   * backend: actor `TenantAdmin` (ni un empleado con `settings.manage` ni PlatformAdmin) y `settings.manage`.
+   */
+  readonly canManageCompliance: Signal<boolean> = computed(
+    () => this.access.actorType() === 'TenantAdmin' && this.access.can(AdminPermissions.SettingsManage),
   );
 
   /** Ajustes generales del tenant. */

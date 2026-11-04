@@ -42,6 +42,7 @@ import {
   taxIdentifierDigits,
 } from '../../utils/customer-form-normalizers';
 import { formatPhoneForDisplay, isValidPhone, normalizePhoneToApi } from '@shared/utils/phone.util';
+import { OfficeLanguage, OfficeLanguageStore } from '@core/services/office-language.store';
 
 const BUSINESS_STRUCTURES: BusinessStructure[] = ['LLC', 'S-Corp', 'C-Corp', 'Partnership', 'Sole Proprietorship'];
 
@@ -59,6 +60,9 @@ const LANGUAGES: { value: CustomerLanguage; label: string }[] = [
   { value: 'Pt', label: 'Portuguese' },
   { value: 'Fr', label: 'French' },
 ];
+
+/** Idioma predeterminado de la oficina → idioma del cliente. */
+const OFFICE_TO_CUSTOMER_LANGUAGE: Record<OfficeLanguage, CustomerLanguage> = { en: 'En', es: 'Es' };
 
 const CHANNELS: { value: PreferredChannel; label: string }[] = [
   { value: 'Email', label: 'Email' },
@@ -109,6 +113,12 @@ export class ClientFormPanelComponent implements OnChanges {
   readonly partialSaveWarning = this.store.partialSaveWarning;
   private readonly clientsService = inject(ClientsService);
   private readonly router = inject(Router);
+  private readonly officeLanguage = inject(OfficeLanguageStore);
+
+  /** El usuario ya eligió idioma en este formulario: la preselección de la oficina no lo pisa. */
+  private languageTouched = false;
+  /** Sube en cada reset; una respuesta del perfil de otra apertura se descarta. */
+  private formGeneration = 0;
 
   @Input() isOpen = false;
   @Input() client: ClientItem | null = null;
@@ -205,8 +215,25 @@ export class ClientFormPanelComponent implements OnChanges {
       this.resetForm();
       if (this.isOpen && this.client) {
         this.prefillFromDetail(this.client.id);
+      } else if (this.isOpen) {
+        this.preselectOfficeLanguage();
       }
     }
+  }
+
+  pickLanguage(language: CustomerLanguage): void {
+    this.languageTouched = true;
+    this.language.set(language);
+  }
+
+  /** Alta: idioma predeterminado de la oficina (el último conocido ya, el vigente al llegar el perfil). */
+  private preselectOfficeLanguage(): void {
+    const generation = this.formGeneration;
+    void this.officeLanguage.refresh().then(language => {
+      if (generation === this.formGeneration && !this.languageTouched && !this.isEditMode()) {
+        this.language.set(OFFICE_TO_CUSTOMER_LANGUAGE[language]);
+      }
+    });
   }
 
   /**
@@ -590,7 +617,10 @@ export class ClientFormPanelComponent implements OnChanges {
     this.bizErr.set(null);
     this.taxErr.set(null);
     this.formationErr.set(null);
-    this.language.set('En');
+    this.formGeneration++;
+    this.languageTouched = false;
+    // En edición el idioma real llega con el detalle; en el alta manda la oficina.
+    this.language.set(client ? 'En' : OFFICE_TO_CUSTOMER_LANGUAGE[this.officeLanguage.language()]);
     this.preferredChannel.set('Email');
     this.emailEnabled.set(true);
     this.smsEnabled.set(true);

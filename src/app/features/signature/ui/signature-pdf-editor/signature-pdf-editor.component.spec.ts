@@ -14,6 +14,7 @@ import {
 } from '../signature-request-panel/signature-wizard.model';
 import { defaultRules } from '../signature-request-panel/signature-wizard.presenter';
 import { RenderedPage, blankPages } from '../../utils/pdf-render.util';
+import { TEST_EFFECTIVE_LIMITS } from '../../testing/effective-limits.fixture';
 
 /** Stub mínimo del store: el editor solo lee firmas/clientes y pide URLs de descarga. */
 function storeStub() {
@@ -26,6 +27,9 @@ function storeStub() {
     // B5: el editor siembra los defaults de la request nuevos desde los settings del despacho.
     loadSignatureSettings: vi.fn(),
     signatureSettings: signal(null),
+    // Regla de la letra del estampado (vista previa WYSIWYG).
+    loadLimits: vi.fn(),
+    limits: signal(TEST_EFFECTIVE_LIMITS),
     getDownloadUrl: vi.fn(() => of('blob:x')),
     queryCustomers: vi.fn(),
     loadCustomers: vi.fn(),
@@ -64,7 +68,7 @@ describe('SignaturePdfEditorComponent', () => {
     });
     const fixture = TestBed.createComponent(SignaturePdfEditorComponent);
     const c = fixture.componentInstance;
-    const set = (changes: Partial<Record<'client' | 'document' | 'seed', unknown>>): void => {
+    const set = (changes: Partial<Record<'clients' | 'document' | 'seed', unknown>>): void => {
       const simple: Record<string, SimpleChange> = {};
       for (const [key, value] of Object.entries(changes)) {
         (c as unknown as Record<string, unknown>)[key] = value;
@@ -92,7 +96,7 @@ describe('SignaturePdfEditorComponent', () => {
 
     it('existen los disparadores de Signers / Fields / checklist y abren su contenido', () => {
       const { fixture, set } = setup();
-      set({ client: client('1'), document: blankDoc() });
+      set({ clients: [client('1')], document: blankDoc() });
 
       for (const id of [
         'mobile-signers-trigger',
@@ -124,7 +128,7 @@ describe('SignaturePdfEditorComponent', () => {
 
     it('con un campo seleccionado, el inspector aparece como hoja inferior con todas sus acciones', () => {
       const { c, fixture, set } = setup();
-      set({ client: client('1'), document: blankDoc() });
+      set({ clients: [client('1')], document: blankDoc() });
       c.addField('text');
       fixture.detectChanges();
 
@@ -144,7 +148,7 @@ describe('SignaturePdfEditorComponent', () => {
 
     it('colocar con un toque: se arma el tipo, se cierra el panel y se coloca en la página visible', () => {
       const { c, fixture, set } = setup();
-      set({ client: client('1'), document: blankDoc() });
+      set({ clients: [client('1')], document: blankDoc() });
       c.toggleNarrowPanel('fields');
       c.armPlacement('initials');
       fixture.detectChanges();
@@ -205,7 +209,7 @@ describe('SignaturePdfEditorComponent', () => {
       ],
       rules: defaultRules(),
     };
-    set({ seed, client: client('1'), document: blankDoc() });
+    set({ seed, clients: [client('1')], document: blankDoc() });
     expect(c.fields().map((f) => f.id)).toEqual(['field-3', 'prep-5']);
 
     c.addField('date');
@@ -220,12 +224,12 @@ describe('SignaturePdfEditorComponent', () => {
 
   it('cambiar de cliente pasa sus campos al nuevo firmante cliente (con ids nuevos) — nunca huérfanos', () => {
     const { c, set } = setup();
-    set({ client: client('old', 'Old Client'), document: blankDoc() });
+    set({ clients: [client('old', 'Old Client')], document: blankDoc() });
     c.addField('signature');
     c.addField('date');
     const before = c.fields().map((f) => f.id);
 
-    set({ client: client('new', 'New Client') });
+    set({ clients: [client('new', 'New Client')] });
 
     expect(c.signers().map((s) => s.id)).toEqual(['client:new']);
     expect(c.fields().every((f) => f.signerId === 'client:new')).toBe(true);
@@ -241,11 +245,58 @@ describe('SignaturePdfEditorComponent', () => {
     ]);
   });
 
+  it('a registered client picked in "Add signer" joins as a client signer and is added to the request', () => {
+    const { c, set } = setup();
+    set({ clients: [client('1')], document: blankDoc() });
+    const emitted: WizardClient[][] = [];
+    c.clientsChange.subscribe((list) => emitted.push(list));
+
+    c.openAddSigner();
+    c.pickRegisteredClient(client('2', 'Mirian Hernandez'));
+    c.confirmAddSigner();
+
+    expect(c.signers().map((s) => s.id)).toEqual(['client:1', 'client:2']);
+    expect(emitted.map((list) => list.map((x) => x.id))).toEqual([['1', '2']]);
+  });
+
+  it('typing a signer manually adds an external signer', () => {
+    const { c, set } = setup();
+    set({ clients: [client('1')], document: blankDoc() });
+    const emitted: WizardClient[][] = [];
+    c.clientsChange.subscribe((list) => emitted.push(list));
+
+    c.openAddSigner();
+    c.draftName.set('Luis Perez');
+    c.draftEmail.set('luis@x.com');
+    c.confirmAddSigner();
+
+    expect(c.signers()[1].id.startsWith('client:')).toBe(false);
+    expect(emitted).toEqual([]);
+  });
+
+  it('a client signer can be removed only while another client remains and it is not pinned', () => {
+    const { c, set } = setup();
+    set({ clients: [client('1'), client('2')], document: blankDoc() });
+    const emitted: WizardClient[][] = [];
+    c.clientsChange.subscribe((list) => emitted.push(list));
+    const [first, second] = c.signers();
+
+    c.pinnedClientId = '1';
+    expect(c.canRemoveSigner(first)).toBe(false);
+    expect(c.canRemoveSigner(second)).toBe(true);
+
+    c.removeSigner(second.id);
+    expect(emitted.map((list) => list.map((x) => x.id))).toEqual([['1']]);
+    set({ clients: [client('1')] });
+    c.pinnedClientId = null;
+    expect(c.canRemoveSigner(c.signers()[0])).toBe(false);
+  });
+
   it('switching document tabs preserves fields, ids and positions for each document', async () => {
     const { c, set } = setup();
     const first = blankDoc('doc-1');
     const second = blankDoc('doc-2');
-    set({ client: client('1'), document: first });
+    set({ clients: [client('1')], document: first });
     c.addField('signature');
     const firstField = { ...c.fields()[0] };
 
@@ -290,17 +341,17 @@ describe('SignaturePdfEditorComponent', () => {
       ],
       rules: defaultRules(),
     };
-    set({ seed, client: client('1'), document: blankDoc() });
+    set({ seed, clients: [client('1')], document: blankDoc() });
     expect(c.signers()[0].channel).toBe('sms'); // no se pisó lo sembrado
 
-    set({ client: client('2', 'Other') });
+    set({ clients: [client('2', 'Other')] });
     expect(c.fields().map((f) => f.signerId)).toEqual(['client:2']);
     expect(c.fields()[0].id).not.toBe('seed-f1');
   });
 
   it('validación por firmante: los campos del preparador no cuentan y la lista dice a quién le falta', () => {
     const { c, set } = setup();
-    set({ client: client('1'), document: blankDoc() });
+    set({ clients: [client('1')], document: blankDoc() });
     c.signers.update((list) => [
       ...list,
       {
@@ -340,7 +391,7 @@ describe('SignaturePdfEditorComponent', () => {
 
   it('duplicar y duplicar en todas las páginas crean campos normales', () => {
     const { c, set } = setup();
-    set({ client: client('1'), document: blankDoc() });
+    set({ clients: [client('1')], document: blankDoc() });
     c.addField('signature');
     const id = c.fields()[0].id;
 
@@ -359,7 +410,7 @@ describe('SignaturePdfEditorComponent', () => {
 
   it('reasignar desde el inspector cambia firmante e id', () => {
     const { c, set } = setup();
-    set({ client: client('1'), document: blankDoc() });
+    set({ clients: [client('1')], document: blankDoc() });
     c.signers.update((list) => [
       ...list,
       {
@@ -382,7 +433,7 @@ describe('SignaturePdfEditorComponent', () => {
 
   it('zoom: reescala los campos SOLO tras el render y la posición normalizada no cambia', async () => {
     const { c, set } = setup();
-    set({ client: client('1'), document: blankDoc() });
+    set({ clients: [client('1')], document: blankDoc() });
     c.addField('signature');
     const normalizedBefore = c.buildNormalizedFields();
     const pxBefore = c.fields()[0];
@@ -402,7 +453,7 @@ describe('SignaturePdfEditorComponent', () => {
 
   it('zoom fallido: se queda el zoom anterior, los campos no se tocan y el aviso es amable', async () => {
     const { c, set } = setup();
-    set({ client: client('1'), document: blankDoc() });
+    set({ clients: [client('1')], document: blankDoc() });
     c.addField('signature');
     const before = c.fields();
     // Bytes basura: pdf.js (o su carga en jsdom) rechaza el re-render.
@@ -419,7 +470,7 @@ describe('SignaturePdfEditorComponent', () => {
 
   it('el tamaño por defecto de un campo nuevo sigue al zoom (mismo tamaño en el PDF)', async () => {
     const { c, set } = setup();
-    set({ client: client('1'), document: blankDoc() });
+    set({ clients: [client('1')], document: blankDoc() });
     c.addField('signature');
     const atOne = c.buildNormalizedFields()[0];
     await (c as unknown as { applyZoom(z: number): Promise<void> }).applyZoom(2);
@@ -443,7 +494,7 @@ describe('SignaturePdfEditorComponent', () => {
       fileId: 'bad',
     };
     const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    set({ client: client('1'), document: broken });
+    set({ clients: [client('1')], document: broken });
     await fixture.whenStable();
     fixture.detectChanges();
     spy.mockRestore();
@@ -459,7 +510,7 @@ describe('SignaturePdfEditorComponent', () => {
 
   it('Escape: cierra primero lo del editor (selección, colocación) antes que el wizard', () => {
     const { c, set } = setup();
-    set({ client: client('1'), document: blankDoc() });
+    set({ clients: [client('1')], document: blankDoc() });
     expect(c.handleEscape()).toBe(false);
     c.addField('date');
     expect(c.handleEscape()).toBe(true);
@@ -487,7 +538,7 @@ describe('SignaturePdfEditorComponent', () => {
   describe('Tools del documento (búsqueda, color de página, campos)', () => {
     it('cambia el aspecto de las páginas y lo aplica a la imagen', () => {
       const { c, fixture, set } = setup();
-      set({ client: client('1'), document: blankDoc() });
+      set({ clients: [client('1')], document: blankDoc() });
       c.setPageTint('night');
       fixture.detectChanges();
       expect(c.pageTint()).toBe('night');
@@ -499,7 +550,7 @@ describe('SignaturePdfEditorComponent', () => {
 
     it('ocultar los campos los quita de la página, pero reaparecen al armar un tipo', () => {
       const { c, fixture, set } = setup();
-      set({ client: client('1'), document: blankDoc() });
+      set({ clients: [client('1')], document: blankDoc() });
       c.addField('signature');
       fixture.detectChanges();
       expect(fixture.nativeElement.querySelectorAll('.field-overlay').length).toBeGreaterThan(0);
@@ -515,7 +566,7 @@ describe('SignaturePdfEditorComponent', () => {
 
     it('una búsqueda de menos de 2 caracteres no se lanza y el panel de Tools se abre', () => {
       const { c, fixture, set } = setup();
-      set({ client: client('1'), document: blankDoc() });
+      set({ clients: [client('1')], document: blankDoc() });
       c.toolsOpen.set(true);
       fixture.detectChanges();
       c.setSearchQuery('i');
@@ -529,7 +580,7 @@ describe('SignaturePdfEditorComponent', () => {
     it.each(['signature', 'initials', 'date', 'text'] as const)('doblar el tamaño, alinear y mover de página funcionan con el campo %s', (type) => {
       {
         const { c, fixture, set } = setup();
-        set({ client: client('1'), document: blankDoc() });
+        set({ clients: [client('1')], document: blankDoc() });
         c.addField(type);
         fixture.detectChanges();
         const before = c.selectedField()!;
@@ -550,7 +601,7 @@ describe('SignaturePdfEditorComponent', () => {
 
     it('duplicar a la página siguiente crea una copia nueva y la selecciona', () => {
       const { c, fixture, set } = setup();
-      set({ client: client('1'), document: blankDoc() });
+      set({ clients: [client('1')], document: blankDoc() });
       c.addField('signature');
       fixture.detectChanges();
       const original = c.selectedField()!;
@@ -564,7 +615,7 @@ describe('SignaturePdfEditorComponent', () => {
 
     it('"mismo tamaño" iguala los campos del mismo tipo y no toca otros tipos', () => {
       const { c, fixture, set } = setup();
-      set({ client: client('1'), document: blankDoc() });
+      set({ clients: [client('1')], document: blankDoc() });
       c.addField('signature');
       const first = c.selectedField()!;
       c.addField('signature');
@@ -583,10 +634,54 @@ describe('SignaturePdfEditorComponent', () => {
     });
   });
 
+  describe('Letra del estampado (WYSIWYG)', () => {
+    it('la fecha se ve con el formato de la oficina, sin caja, y la letra elegida viaja al backend', () => {
+      const { c, fixture, set } = setup();
+      set({ clients: [client('1')], document: blankDoc() });
+      c.addField('date');
+      fixture.detectChanges();
+      const field = c.selectedField()!;
+
+      const auto = c.stampPreviews().get(field.id)!;
+      expect(auto.auto).toBe(true);
+      expect(auto.text).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
+      expect(fixture.nativeElement.querySelector('[data-testid="field-stamp-preview"]')).not.toBeNull();
+
+      c.setFieldFontSize(field.id, 8);
+      fixture.detectChanges();
+      expect(c.stampPreviews().get(field.id)!.pt).toBe(8);
+      expect(c.buildNormalizedFields().find((f) => f.localId === field.id)!.fontSizePt).toBe(8);
+
+      c.setFieldFontSize(field.id, null);
+      expect(c.buildNormalizedFields().find((f) => f.localId === field.id)!.fontSizePt).toBeNull();
+    });
+
+    it('la firma no lleva letra: ni vista previa de texto ni selector de tamaño', () => {
+      const { c, fixture, set } = setup();
+      set({ clients: [client('1')], document: blankDoc() });
+      c.addField('signature');
+      fixture.detectChanges();
+      expect(c.stampPreviews().has(c.selectedField()!.id)).toBe(false);
+      expect(fixture.nativeElement.querySelector('[data-testid="field-font-size"]')).toBeNull();
+    });
+
+    it('los canales del firmante son los que permite el plan, más "sin código"', () => {
+      const { c } = setup();
+      expect(c.deliveryChannels()).toEqual(['email', 'sms', 'none']);
+    });
+
+    it('el selector ofrece solo los tamaños que permite el backend', () => {
+      const { c } = setup();
+      const options = c.fontSizeOptions();
+      expect(Math.min(...options)).toBe(TEST_EFFECTIVE_LIMITS.minFontSizePt);
+      expect(Math.max(...options)).toBe(TEST_EFFECTIVE_LIMITS.maxFontSizePt);
+    });
+  });
+
   describe('Etiqueta de texto como enlace', () => {
     it('detecta una URL, la enmascara y la desenmascara', () => {
       const { c, fixture, set } = setup();
-      set({ client: client('1'), document: blankDoc() });
+      set({ clients: [client('1')], document: blankDoc() });
       c.addField('text');
       fixture.detectChanges();
       const id = c.selectedField()!.id;
@@ -609,7 +704,7 @@ describe('SignaturePdfEditorComponent', () => {
 
     it('no enmascara si la etiqueta no es un enlace', () => {
       const { c, fixture, set } = setup();
-      set({ client: client('1'), document: blankDoc() });
+      set({ clients: [client('1')], document: blankDoc() });
       c.addField('text');
       fixture.detectChanges();
       const id = c.selectedField()!.id;
@@ -622,7 +717,7 @@ describe('SignaturePdfEditorComponent', () => {
   describe('Reordenar páginas (miniaturas)', () => {
     it('al soltar una miniatura emite el nuevo orden de páginas originales', () => {
       const { c, fixture, set } = setup();
-      set({ client: client('1'), document: blankDoc() });
+      set({ clients: [client('1')], document: blankDoc() });
       fixture.detectChanges();
       const total = c.pages().length;
       expect(total).toBeGreaterThan(1);
@@ -637,7 +732,7 @@ describe('SignaturePdfEditorComponent', () => {
 
     it('no emite nada si no se movió o el padre está ocupado', () => {
       const { c, fixture, set } = setup();
-      set({ client: client('1'), document: blankDoc() });
+      set({ clients: [client('1')], document: blankDoc() });
       fixture.detectChanges();
       let calls = 0;
       c.pageOrderChange.subscribe(() => calls++);
@@ -649,7 +744,7 @@ describe('SignaturePdfEditorComponent', () => {
 
     it('remapFieldPages mueve cada campo con su página', () => {
       const { c, fixture, set } = setup();
-      set({ client: client('1'), document: blankDoc() });
+      set({ clients: [client('1')], document: blankDoc() });
       c.addField('signature'); // página 1
       fixture.detectChanges();
       const total = c.pages().length;
@@ -667,7 +762,7 @@ describe('SignaturePdfEditorComponent', () => {
 
     it('se pliega desde la toolbar, recuerda la preferencia y se reabre', () => {
       const { c, fixture, set } = setup();
-      set({ client: client('1'), document: blankDoc() });
+      set({ clients: [client('1')], document: blankDoc() });
       expect(el(fixture, 'side-inspector')).not.toBeNull();
 
       el(fixture, 'inspector-collapse')!.click();
@@ -685,7 +780,7 @@ describe('SignaturePdfEditorComponent', () => {
     it('plegada: seleccionar un campo no la reabre, avisa en la toolbar y la hoja inferior sigue', () => {
       localStorage.setItem('signature.editor.inspectorCollapsed', '1');
       const { c, fixture, set } = setup();
-      set({ client: client('1'), document: blankDoc() });
+      set({ clients: [client('1')], document: blankDoc() });
       expect(c.inspectorCollapsed()).toBe(true);
 
       c.addField('text');
@@ -743,6 +838,7 @@ describe('SignaturePdfEditorComponent', () => {
           width,
           height,
           label: field.type === 'text' ? field.label?.trim() || undefined : undefined,
+          fontSizePt: field.fontSizePt ?? null,
         });
       }
       return out;
@@ -814,7 +910,7 @@ describe('SignaturePdfEditorComponent', () => {
 
     it('golden: valores exactos que viajan al backend (no dependen del zoom aplicado)', async () => {
       const { c, set } = setup();
-      set({ client: client('1'), document: blankDoc() });
+      set({ clients: [client('1')], document: blankDoc() });
       c.fields.set(
         FIXED.map((f) => ({ ...f, signerId: f.signerId === 'signer-4' ? 'client:1' : f.signerId })),
       );
@@ -831,6 +927,7 @@ describe('SignaturePdfEditorComponent', () => {
           width: 0.327,
           height: 0.0758,
           label: undefined,
+          fontSizePt: null,
         },
         {
           localId: 'field-1',
@@ -843,6 +940,7 @@ describe('SignaturePdfEditorComponent', () => {
           width: 0.0463,
           height: 0.0526,
           label: 'SSN',
+          fontSizePt: null,
         },
         {
           localId: 'field-2',
@@ -855,6 +953,7 @@ describe('SignaturePdfEditorComponent', () => {
           width: 0.2125,
           height: 0.0505,
           label: undefined,
+          fontSizePt: null,
         },
       ]);
       expect(c.buildPreparerFields()).toEqual([
@@ -932,7 +1031,7 @@ describe('SignaturePdfEditorComponent', () => {
 
     function ready() {
       const ctx = setup();
-      ctx.set({ client: client('1'), document: blankDoc() });
+      ctx.set({ clients: [client('1')], document: blankDoc() });
       ctx.fixture.detectChanges();
       stubPageRects();
       const button = el(ctx.fixture, 'palette-signature')!;

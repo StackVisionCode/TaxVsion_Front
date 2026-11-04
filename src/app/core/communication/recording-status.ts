@@ -26,6 +26,9 @@ export interface RecordingStateChange {
   maxDurationSeconds?: number | null;
   /** En `Stopping`: `RecordingStopReason`; en `Failed`: código del fallo. */
   reason?: string | null;
+  /** D-71: grabación a la que se refiere (hay varias por reunión) y quién la pidió. */
+  recordingId?: string;
+  requestedByUserId?: string;
 }
 
 /** Campos comunes de `*.recording.limit_warning`. */
@@ -42,6 +45,16 @@ export function usesClientCapture(change: Pick<RecordingStateChange, 'captureMod
 /** Ya terminó de grabar y el servidor la está componiendo o procesando. */
 export function isRecordingProcessing(state: RecordingState): boolean {
   return state === 'Composing' || state === 'Processing';
+}
+
+/** D-71: pedida, grabando o deteniéndose; mientras tanto no se puede iniciar otra grabación. */
+export function isRecordingCapturing(state: RecordingState): boolean {
+  return state === 'Requesting' || state === 'Recording' || state === 'Stopping';
+}
+
+/** Pedida o deteniéndose: una transición de la captura en curso (el botón de grabar espera). */
+export function isRecordingTransitioning(state: RecordingState): boolean {
+  return state === 'Requesting' || state === 'Stopping';
 }
 
 /** Estados en los que el botón de grabar queda deshabilitado (hay una transición en curso). */
@@ -92,6 +105,8 @@ export function recordingStartErrorMessage(code: string | null | undefined): str
       return "Recording isn't included in your plan.";
     case 'Meeting.RecordingRequiresSfu':
       return "This meeting can't be recorded. Start a new meeting to record.";
+    case 'Meeting.Recording.InProgress':
+      return 'This meeting is already being recorded.';
     default:
       return null;
   }

@@ -16,10 +16,18 @@ import { RouterLink } from '@angular/router';
 import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
 import {
+  DeliveryNoticeCopy,
+  DeliveryNoticeSummary,
+  DeliveryTone,
   MessageSummary,
+  RecipientDelivery,
   ThreadSummary,
+  deliveryDetail,
+  deliveryNoticeCopy,
+  deliveryStatusPill,
   formatMailTime,
 } from '../../data-access/mail.model';
+import { StatusPillComponent, StatusTone } from '@shared/ui/status-pill/status-pill.component';
 import { avatarColorFor } from '@shared/utils/avatar.util';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { AvatarUrlService } from '@core/profile-photo/avatar-url';
@@ -43,9 +51,29 @@ import {
  * Sigue dumb: recibe estado del store por @Input y emite intenciones. Sólo
  * importa tipos y helpers de presentación de data-access (funciones puras).
  */
+/** Botón de la tarjeta de aviso. */
+export interface NoticeAction {
+  id: 'fix' | 'edit' | 'resend' | 'view' | 'unblock';
+  label: string;
+  primary: boolean;
+}
+
+function statusToneOf(tone: DeliveryTone): StatusTone {
+  switch (tone) {
+    case 'green':
+      return 'success';
+    case 'red':
+      return 'danger';
+    case 'amber':
+      return 'warning';
+    default:
+      return 'neutral';
+  }
+}
+
 @Component({
   selector: 'app-mail-reading-pane',
-  imports: [InfinityLoaderComponent, CommonModule, FormsModule, RouterLink, AvatarComponent, BytesPipe],
+  imports: [InfinityLoaderComponent, CommonModule, FormsModule, RouterLink, AvatarComponent, BytesPipe, StatusPillComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mail-reading-pane.component.html',
   styleUrl: './mail-reading-pane.component.css',
@@ -68,6 +96,12 @@ export class MailReadingPaneComponent implements OnChanges {
   @Input() customer: Pick<CustomerSummary, 'id' | 'displayName' | 'primaryEmail' | 'avatarFileId'> | null = null;
   /** Chip del cliente con enlace a su ficha (no en el perfil, donde ya se está en ella). */
   @Input() showCustomerLink = false;
+  /** Reenviar desde un aviso exige buzón activo y permiso de redactar. */
+  @Input() canResend = false;
+  /** D-8: desbloquear una dirección suprimida (`postmaster.suppression.write`). */
+  @Input() canUnblock = false;
+  /** Aviso con una acción en curso (reenvío o desbloqueo). */
+  @Input() noticeBusyId: string | null = null;
 
   @Output() messageToggled = new EventEmitter<string>();
   @Output() bodyRetryRequested = new EventEmitter<string>();
@@ -87,6 +121,10 @@ export class MailReadingPaneComponent implements OnChanges {
   @Output() messageReadStateToggled = new EventEmitter<{ messageId: string; isRead: boolean }>();
   /** Marca TODO el hilo leído (true) o no-leído (false). */
   @Output() threadReadStateToggled = new EventEmitter<boolean>();
+  /** Tarjeta de aviso: reenviar (`fix` = corregir el destinatario), ver el original o desbloquear. */
+  @Output() noticeResendRequested = new EventEmitter<{ notice: DeliveryNoticeSummary; fix: boolean }>();
+  @Output() noticeOriginalRequested = new EventEmitter<DeliveryNoticeSummary>();
+  @Output() noticeUnblockRequested = new EventEmitter<DeliveryNoticeSummary>();
 
   /** Texto del reply inline (el body viaja en el autosave justo antes del send). */
   readonly replyText = signal('');
@@ -130,10 +168,19 @@ export class MailReadingPaneComponent implements OnChanges {
   }
 
   /** Línea secundaria: dirección del remitente (inbound) o destinatarios (outbound). */
+  /** Enviado: "To … · Cc … · Bcc …" (solo las partes que tienen direcciones); recibido: el remitente. */
   addressLabel(message: MessageSummary): string {
     if (message.direction === 'Outbound') {
-      const to = message.toAddresses ?? [];
-      return to.length > 0 ? `To ${to.join(', ')}` : 'Sent';
+      const parts = [
+        ['To', message.toAddresses],
+        ['Cc', message.ccAddresses],
+        ['Bcc', message.bccAddresses],
+      ] as const;
+      const label = parts
+        .filter(([, addresses]) => (addresses?.length ?? 0) > 0)
+        .map(([kind, addresses]) => `${kind} ${addresses!.join(', ')}`)
+        .join(' · ');
+      return label || 'Sent';
     }
     return message.from ?? '';
   }
@@ -157,6 +204,113 @@ export class MailReadingPaneComponent implements OnChanges {
 
   timeFor(iso: string): string {
     return formatMailTime(iso);
+  }
+
+  // ---------- Avisos y estado de entrega ----------
+
+  isNotice(message: MessageSummary): boolean {
+    return message.kind === 'DeliveryNotice' && !!message.deliveryNotice;
+  }
+
+  noticeCopy(notice: DeliveryNoticeSummary): DeliveryNoticeCopy {
+    return deliveryNoticeCopy(notice);
+  }
+
+  /** Botones de la tarjeta según el motivo (la acción principal primero). */
+  noticeActions(notice: DeliveryNoticeSummary): NoticeAction[] {
+    const actions: NoticeAction[] = [];
+    const primary = deliveryNoticeCopy(notice).primary;
+    if (notice.outcome === 'NotDelivered' && this.canResend) {
+      if (primary === 'fix') actions.push({ id: 'fix', label: 'Fix address and resend', primary: true });
+      if (primary === 'edit') actions.push({ id: 'edit', label: 'Edit and resend', primary: true });
+      if (primary === 'resend') actions.push({ id: 'resend', label: 'Resend', primary: true });
+      if (primary === 'view') actions.push({ id: 'resend', label: 'Resend', primary: false });
+    }
+    if (notice.canViewOriginal) {
+      actions.push({ id: 'view', label: 'View original notice', primary: primary === 'view' });
+    }
+    if (notice.suppressed && this.canUnblock) {
+      actions.push({ id: 'unblock', label: 'Unblock', primary: false });
+    }
+    // La principal va primero aunque se haya agregado después (p. ej. "View original notice").
+    return actions.sort((a, b) => Number(b.primary) - Number(a.primary));
+  }
+
+  runNoticeAction(action: NoticeAction, notice: DeliveryNoticeSummary): void {
+    switch (action.id) {
+      case 'fix':
+        this.noticeResendRequested.emit({ notice, fix: true });
+        break;
+      case 'edit':
+      case 'resend':
+        this.noticeResendRequested.emit({ notice, fix: false });
+        break;
+      case 'view':
+        this.noticeOriginalRequested.emit(notice);
+        break;
+      case 'unblock':
+        this.noticeUnblockRequested.emit(notice);
+        break;
+    }
+  }
+
+  noticeIcon(tone: DeliveryTone): string {
+    return tone === 'red' ? 'alert-circle-outline' : tone === 'amber' ? 'file-tray-outline' : 'time-outline';
+  }
+
+  noticeToneClasses(tone: DeliveryTone): string {
+    switch (tone) {
+      case 'red':
+        return 'border-red-200 bg-red-50/60';
+      case 'amber':
+        return 'border-amber-200 bg-amber-50/60';
+      default:
+        return 'border-gray-200 bg-gray-50';
+    }
+  }
+
+  noticeIconClasses(tone: DeliveryTone): string {
+    switch (tone) {
+      case 'red':
+        return 'bg-red-100 text-red-600';
+      case 'amber':
+        return 'bg-amber-100 text-amber-700';
+      default:
+        return 'bg-gray-200 text-gray-500';
+    }
+  }
+
+  /** Píldora del enviado: Delivered / Not delivered / Delayed (o "Sent" sin noticias). */
+  deliveryPill(message: MessageSummary): { label: string; tone: StatusTone; toneClass: string; title: string } {
+    const pill = deliveryStatusPill(message.deliveryStatus);
+    return {
+      label: pill.label,
+      tone: statusToneOf(pill.tone),
+      toneClass: pill.tone === 'amber' ? 'border-amber-200 bg-amber-50 text-amber-700' : '',
+      title: deliveryDetail(message.deliveries) || pill.label,
+    };
+  }
+
+  /** Destinatarios con noticias de entrega (para el detalle al expandir). */
+  deliveriesWithStatus(message: MessageSummary): RecipientDelivery[] {
+    return (message.deliveries ?? []).filter(item => item.status !== null);
+  }
+
+  deliveryLabel(item: RecipientDelivery): string {
+    return deliveryStatusPill(item.status).label;
+  }
+
+  deliveryTone(item: RecipientDelivery): string {
+    switch (item.status) {
+      case 'Delivered':
+        return 'text-emerald-700';
+      case 'NotDelivered':
+        return 'text-red-700';
+      case 'Delayed':
+        return 'text-amber-700';
+      default:
+        return 'text-gray-500';
+    }
   }
 
   bodyFor(messageId: string): MessageBodyView | null {

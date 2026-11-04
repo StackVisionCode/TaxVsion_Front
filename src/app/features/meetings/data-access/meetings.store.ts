@@ -11,6 +11,9 @@ import type { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { CommunicationRealtimeService } from '@core/realtime/communication-realtime.service';
 import { MeetingsService } from './meetings.service';
 import {
+  CreateMeetingInvitationsResponse,
+  MeetingCodeResolution,
+  MeetingGuestAccess,
   CreatedMeetingInvitation,
   MeetingCustomerEntry,
   MeetingEmployeeEntry,
@@ -86,6 +89,8 @@ export class MeetingsStore {
   readonly canCreate = computed(
     () => this.perms.has('communication.meeting.create'),
   );
+  /** "Join with code": el backend exige `communication.meeting.join`. */
+  readonly canJoin = computed(() => this.perms.has('communication.meeting.join'));
 
   readonly upcoming = computed<MeetingItem[]>(() => this.mapScope(this._upcoming()));
   readonly past = computed<MeetingItem[]>(() => this.mapScope(this._past()));
@@ -243,6 +248,8 @@ export class MeetingsStore {
         ...(form.transcriptLanguage ? { transcriptLanguage: form.transcriptLanguage } : {}),
         // F3: duración programada (informativa; el backend valida contra el máximo de la oficina).
         ...(form.scheduledDurationMinutes ? { scheduledDurationMinutes: form.scheduledDurationMinutes } : {}),
+        // D-69: explícito, igual que la sala de espera.
+        guestsAllowed: form.guestsAllowed,
       })
       .pipe(
         switchMap(created =>
@@ -344,10 +351,33 @@ export class MeetingsStore {
     return this.service.listInvitations(meetingId).pipe(map(result => result.invitations));
   }
 
-  createInvitations(meetingId: string, invitees: MeetingInviteeDraft[]): Observable<CreatedMeetingInvitation[]> {
+  /** Emitidas + omitidas (MNT-01: quien ya tenía invitación abierta no se vuelve a invitar). */
+  createInvitations(meetingId: string, invitees: MeetingInviteeDraft[]): Observable<CreateMeetingInvitationsResponse> {
     return this.service
       .createInvitations(meetingId, invitees.map(toInviteeInput))
-      .pipe(map(result => [...result.invitations]));
+      .pipe(map(result => ({ invitations: [...result.invitations], skipped: [...(result.skipped ?? [])] })));
+  }
+
+  // ---------- Invitados externos de la reunión (D-68/D-69) ----------
+
+  resolveCode(shortCode: string): Observable<MeetingCodeResolution> {
+    return this.service.resolveCode(shortCode);
+  }
+
+  getGuestAccess(meetingId: string): Observable<MeetingGuestAccess> {
+    return this.service.getGuestAccess(meetingId);
+  }
+
+  setGuestAccess(meetingId: string, allowed: boolean): Observable<MeetingGuestAccess> {
+    return this.service.setGuestAccess(meetingId, allowed);
+  }
+
+  enableGuestLink(meetingId: string, rotate: boolean): Observable<MeetingGuestAccess> {
+    return this.service.enableGuestLink(meetingId, rotate);
+  }
+
+  disableGuestLink(meetingId: string): Observable<MeetingGuestAccess> {
+    return this.service.disableGuestLink(meetingId);
   }
 
   revokeInvitation(meetingId: string, invitationId: string): Observable<void> {

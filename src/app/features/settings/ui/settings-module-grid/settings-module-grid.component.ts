@@ -11,28 +11,31 @@ export interface SettingsModule {
   circleClass: string;
   /** Si está presente, la tarjeta navega a esta ruta en vez de seleccionar un panel local. */
   routerLink?: string;
+  /** Query params de la ruta (p. ej. Mail abre su panel de buzones). */
+  queryParams?: Record<string, string>;
   /**
    * Feature del registro `core/access/features` que la tarjeta configura. Sin esto la tarjeta se
-   * ve siempre (Overview, que es la configuración general y no pertenece a ningún módulo).
+   * ve siempre (ajustes personales: Notifications, Communication preferences).
    */
   featureId?: string;
 }
 
 export const SETTINGS_MODULES: SettingsModule[] = [
-  { id: 'overview', title: 'Overview', description: 'App colors and general preferences', icon: 'grid-outline', circleClass: 'bg-gray-200 text-gray-700' },
+  // Sin "Overview" (solo repetía el enlace a Office y un interruptor que no guardaba nada) ni
+  // "Accounts" (campos de alta de clientes sin backend).
   // El nombre de la firma, EIN, dirección, logo y paleta del tenant sí tienen backend
-  // (Billing /billing/issuer-profile + /tenants/{id}/...), pero se editan en su propia
+  // (Tenant /tenants/current/profile + /tenants/{id}/...), pero se editan en su propia
   // pantalla: se enlaza en vez de duplicar el formulario acá.
   { id: 'company', featureId: 'company-settings', title: 'Office', description: 'Legal name, EIN, address, logo and brand colors', icon: 'business-outline', circleClass: 'bg-indigo-100 text-brand-bold', routerLink: '/company/settings' },
   // Gestión de usuarios de la oficina: antes era una entrada del sidebar. Tiene su propia pantalla.
   { id: 'security', featureId: 'security-settings', title: 'Security', description: 'Two-step verification for your team and clients', icon: 'shield-checkmark-outline', circleClass: 'bg-indigo-100 text-brand-bold', routerLink: '/settings/security' },
   { id: 'users', featureId: 'users', title: 'Users', description: 'Team members, roles, invitations and seats', icon: 'person-circle-outline', circleClass: 'bg-gray-200 text-gray-700', routerLink: '/company/users' },
-  { id: 'accounts', featureId: 'clients', title: 'Accounts', description: 'Client intake defaults and record fields', icon: 'people-outline', circleClass: 'bg-indigo-100 text-indigo-600' },
-  { id: 'documents', featureId: 'documents', title: 'Documents', description: 'Upload limits and retention policy', icon: 'document-text-outline', circleClass: 'bg-indigo-50 text-orange-500' },
-  // Cobro de facturas: proveedores de pago (Stripe/PayPal). La identidad/branding de la empresa NO
-  // se duplica acá — vive en Company (arriba). Reusa el BillingStore de la feature billing.
-  { id: 'invoices', featureId: 'billing', title: 'Invoices', description: 'Payment providers to collect invoices online (Stripe, PayPal…)', icon: 'card-outline', circleClass: 'bg-indigo-100 text-brand-bold', routerLink: '/settings/billing' },
-  { id: 'mail', featureId: 'email', title: 'Mail', description: 'Outgoing signatures and default reply-to', icon: 'mail-outline', circleClass: 'bg-indigo-100 text-indigo-600' },
+  { id: 'documents', featureId: 'documents', title: 'Documents', description: 'Sharing rules and client uploads', icon: 'document-text-outline', circleClass: 'bg-indigo-50 text-orange-500' },
+  // Cobro online de facturas: proveedores de pago. La identidad/branding de la empresa NO se duplica
+  // acá — vive en Company (arriba). Texto fijo: la grilla no puede leer el catálogo de otra feature.
+  { id: 'invoices', featureId: 'billing', title: 'Online payments', description: 'Connect Stripe or PayPal so clients can pay their invoices online', icon: 'card-outline', circleClass: 'bg-indigo-100 text-brand-bold', routerLink: '/settings/billing' },
+  // Los buzones se administran en Mail (Connectors): la tarjeta abre ese panel en vez de duplicarlo.
+  { id: 'mail', featureId: 'email', title: 'Mail', description: 'Connect the office mailbox and your own', icon: 'mail-outline', circleClass: 'bg-indigo-100 text-indigo-600', routerLink: '/email', queryParams: { mailboxes: 'open' } },
   // Preferencias de notificación por categoría × canal (FASE 8 del plan). Autoservicio: siempre
   // visible, el backend filtra por UserId del JWT; sin featureId porque no hay módulo que apagar.
   // Qué pasó con cada correo que salió de la oficina (entregado, rebotado, spam).
@@ -55,7 +58,7 @@ export const SETTINGS_MODULES: SettingsModule[] = [
   { id: 'ai', featureId: 'ai-assistant', title: 'AI', description: 'Assistant behavior and suggestion tone', icon: 'sparkles-outline', circleClass: 'bg-indigo-100 text-brand-bold' },
   // Conexiones de terceros para la IA: API keys de proveedores, cuentas OAuth y servidores MCP.
   { id: 'connections', featureId: 'ai-assistant', title: 'Connections & MCP', description: 'AI providers, connected accounts and MCP servers', icon: 'extension-puzzle-outline', circleClass: 'bg-indigo-50 text-orange-500', routerLink: '/settings/connections' },
-  { id: 'storage', featureId: 'storage', title: 'Storage', description: 'Usage breakdown, categories and shared files', icon: 'cloud-outline', circleClass: 'bg-indigo-100 text-indigo-600', routerLink: '/storage' },
+  { id: 'storage', featureId: 'storage', title: 'Storage', description: 'Usage, cloud providers and storage policy', icon: 'cloud-outline', circleClass: 'bg-indigo-100 text-indigo-600', routerLink: '/storage' },
   { id: 'templates', featureId: 'templates', title: 'Templates', description: 'Reusable email, letter and reminder content', icon: 'copy-outline', circleClass: 'bg-indigo-50 text-orange-500', routerLink: '/templates' },
 ];
 
@@ -75,7 +78,7 @@ export const SETTINGS_MODULES: SettingsModule[] = [
 export class SettingsModuleGridComponent {
   private readonly access = inject(AccessStore);
 
-  @Input() selectedId = 'overview';
+  @Input() selectedId: string | null = null;
   @Output() moduleSelected = new EventEmitter<string>();
 
   /**

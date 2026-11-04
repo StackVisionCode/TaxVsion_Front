@@ -19,6 +19,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { SidebarComponent } from '../sidebar/sidebar.component';
 import { AuthService } from '@core/auth/auth.service';
+import { actorTypeLabel } from '@core/auth/actor-labels';
 import { WalletStore } from '@features/wallet/data-access/wallet.store';
 import { formatMicros } from '@features/wallet/data-access/wallet.model';
 import type { NotificationsStore } from '@features/notifications/data-access/notifications.store';
@@ -138,7 +139,8 @@ export class NavbarComponent {
       email: me.email,
       avatarUrl: this.avatarUrls.url(me.avatarFileId),
       isOwner: me.actorType === 'TenantAdmin',
-      role: me.roles[0] ?? me.actorType,
+      // El chip dice qué es la persona en la oficina ("Admin", "Employee"), no un identificador interno.
+      role: actorTypeLabel(me.actorType),
     };
   });
 

@@ -4,11 +4,12 @@ import { CommunicationSettingsStore } from '../../data-access/communication-sett
 import { CommSettingsSectionComponent } from '../../ui/settings-section/settings-section.component';
 import { CommSettingRowComponent } from '../../ui/setting-row/setting-row.component';
 import { CommNumberSettingComponent } from '../../ui/number-setting/number-setting.component';
+import { CommInheritSwitchComponent } from '../../ui/inherit-switch/inherit-switch.component';
 
 /** F9 — Settings → Communication → Chat: canales, quién chatea con quién, grupos, edición y retención. */
 @Component({
   selector: 'app-chat-settings-page',
-  imports: [SwitchComponent, CommSettingsSectionComponent, CommSettingRowComponent, CommNumberSettingComponent],
+  imports: [SwitchComponent, CommSettingsSectionComponent, CommSettingRowComponent, CommNumberSettingComponent, CommInheritSwitchComponent],
   template: `
     @if (store.draft(); as d) {
       @if (store.effective(); as e) {
@@ -63,15 +64,29 @@ import { CommNumberSettingComponent } from '../../ui/number-setting/number-setti
             </app-comm-setting-row>
           </app-comm-settings-section>
 
-          <!-- La retención la fija la plataforma (obligaciones de conservación): aquí solo se muestra -->
-          <app-comm-settings-section heading="Keeping messages" description="Set by the platform to meet record-keeping requirements. Contact support to change it.">
-            <app-comm-setting-row label="Automatic cleanup" hint="Messages and recordings older than their retention period are deleted.">
-              <p class="text-sm font-medium text-gray-900" data-role="retention-cleanup">{{ e.retention.purgeEnabled ? 'On' : 'Off' }}</p>
-            </app-comm-setting-row>
-            <app-comm-setting-row label="Messages are kept for">
-              <p class="text-sm font-medium text-gray-900" data-role="retention-messages">{{ e.retention.messageDays + ' days' }}</p>
-            </app-comm-setting-row>
-          </app-comm-settings-section>
+          <!-- D-72: la oficina edita la retención solo si PlatformAdmin se lo permitió; si no, solo se muestra -->
+          @if (e.retention.managedByTenant) {
+            <app-comm-settings-section heading="Keeping messages" description="Your office decides whether old messages and recordings are deleted, and when.">
+              <app-comm-setting-row label="Automatic cleanup" hint="Messages and recordings older than their retention period are deleted. When off, nothing is deleted.">
+                <app-comm-inherit-switch label="Automatic cleanup" [value]="d.purgeEnabled" [inherited]="e.retention.platformDefault.purgeEnabled"
+                  defaultLabel="Platform default" (valueChange)="store.set('purgeEnabled', $event)"></app-comm-inherit-switch>
+              </app-comm-setting-row>
+              <app-comm-setting-row label="Messages are kept for" hint="Meeting chats are kept for the same time.">
+                <app-comm-number-setting label="Messages are kept for" [nullable]="true" unit="days" [value]="d.messageRetentionDays"
+                  [inherited]="e.retention.platformDefault.messageDays" [min]="store.range('messageRetentionDays').min"
+                  [max]="store.range('messageRetentionDays').max" (valueChange)="store.set('messageRetentionDays', $event)"></app-comm-number-setting>
+              </app-comm-setting-row>
+            </app-comm-settings-section>
+          } @else {
+            <app-comm-settings-section heading="Keeping messages" description="Managed by your platform administrator to meet record-keeping requirements.">
+              <app-comm-setting-row label="Automatic cleanup" hint="Messages and recordings older than their retention period are deleted.">
+                <p class="text-sm font-medium text-gray-900" data-role="retention-cleanup">{{ (e.retention.purgeEnabled ? 'On' : 'Off') + ' — managed by your platform administrator' }}</p>
+              </app-comm-setting-row>
+              <app-comm-setting-row label="Messages are kept for" hint="Deleted after this long only when automatic cleanup is on.">
+                <p class="text-sm font-medium text-gray-900" data-role="retention-messages">{{ e.retention.messageDays + ' days' }}</p>
+              </app-comm-setting-row>
+            </app-comm-settings-section>
+          }
         </div>
       }
     }

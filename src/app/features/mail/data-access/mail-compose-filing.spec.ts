@@ -235,7 +235,7 @@ describe('MailStore: a qué cliente se archiva el correo', () => {
   });
 
   describe('en /email, filtro "Not a client"', () => {
-    it('lista Sent y Drafts sin cliente, quita el filtro de cliente y redacta sin cliente', () => {
+    it('pide lo saliente sin cliente, quita el filtro de cliente, se queda en la carpeta y redacta sin cliente', () => {
       const store = configure();
       store.pickCustomer(customer('c1'));
       listed = [];
@@ -246,17 +246,18 @@ describe('MailStore: a qué cliente se archiva el correo', () => {
 
       expect(listed).toEqual([
         { list: 'drafts', scope: { kind: 'unlinked' } },
-        { list: 'sent', scope: { kind: 'unlinked' } },
         { list: 'drafts', scope: { kind: 'unlinked' } }, // recarga tras el envío
       ]);
       expect(store.selectedCustomerId()).toBeNull();
-      expect(store.activeFolderId()).toBe('sent');
+      // El Inbox también tiene conversaciones sin cliente (avisos de no entrega): ya no salta a Sent.
+      expect(store.activeFolderId()).toBe('inbox');
       expect(created).toEqual([null]);
       expect(store.canUnlinkComposeCustomer()).toBe(false);
     });
 
     it('elegir un cliente quita "Not a client" y se queda en la carpeta', () => {
       const store = configure();
+      store.selectFolder('sent');
       store.showUnlinkedMail();
       listed = [];
 
@@ -270,15 +271,19 @@ describe('MailStore: a qué cliente se archiva el correo', () => {
       ]);
     });
 
-    it('volver al Inbox quita "Not a client"', () => {
+    it('pide los hilos con `unlinked=true` y se conserva al volver al Inbox sin recargar', () => {
       const store = configure();
+      store.selectFolder('sent');
       store.showUnlinkedMail();
+      expect(inboxQueries.at(-1)).toEqual({ customerId: null, unlinked: true, search: '' });
       listed = [];
+      inboxQueries = [];
 
       store.selectFolder('inbox');
 
-      expect(store.unlinkedView()).toBe(false);
-      expect(listed).toEqual([{ list: 'drafts', scope: { kind: 'all' } }]);
+      expect(store.unlinkedView()).toBe(true);
+      expect(listed).toEqual([]);
+      expect(inboxQueries).toEqual([]);
     });
 
     it('sin identidad del usuario no deja enviar adjuntos ni crea el draft', () => {

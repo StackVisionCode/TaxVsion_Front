@@ -2,11 +2,25 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
-import { BrandResponse, BrandSurface, CompanyProfile, UploadAssetResponse } from './company-settings.model';
+import {
+  BrandResponse,
+  BrandSurface,
+  InvoiceSettings,
+  OfficeCompliance,
+  OfficeIdentity,
+  OfficeProfile,
+  UpdateOfficeComplianceRequest,
+  UpdateOfficeIdentityRequest,
+  UpdateOfficeProfileRequest,
+  UploadAssetResponse,
+} from './company-settings.model';
 
 /**
- * Cliente HTTP fino del módulo Company Settings. Dos backends distintos detrás del Gateway:
- * - Billing → IssuerProfileController (`/billing/issuer-profile`): datos legales de la empresa.
+ * Cliente HTTP fino del módulo Company Settings, detrás del Gateway:
+ * - `/tenants/current/profile`: perfil de la oficina (datos legales, contacto, dirección).
+ * - `/tenants/current`: nombre visible de la oficina y zona horaria.
+ * - `/tenants/current/compliance`: cumplimiento (solo TenantAdmin con `settings.manage`).
+ * - Billing `/billing/invoice-settings`: leer con `invoicing.view`, guardar con `invoicing.issuer.manage`.
  * - Tenant → TenantBrandsController (`/tenants/{tenantId}/brands/{surface}`): identidad visual por
  *   superficie (colores + logo + favicon, modelo TenantBrands).
  * El token lo adjunta el interceptor de auth; el tenantId de la ruta DEBE coincidir con el claim
@@ -20,27 +34,57 @@ export class CompanySettingsService {
     return this.api.tenantBase();
   }
 
-  // --- Perfil legal de la empresa (Billing) ---
+  // --- Perfil de la oficina (Tenant) ---
 
-  /** Nunca 404: si el tenant no guardó nada aún, llega `name: ""` con country "US". */
-  getProfile(): Observable<CompanyProfile> {
-    return this.http.get<CompanyProfile>(`${this.base}/billing/issuer-profile`);
+  /** Lo lee cualquier usuario del tenant. Nunca 404: sin perfil guardado llega vacío con `version: 0`. */
+  getProfile(): Observable<OfficeProfile> {
+    return this.http.get<OfficeProfile>(`${this.base}/tenants/current/profile`);
   }
 
-  /** PUT upsert → 204. Requiere permiso Billing.Manage; `name` es obligatorio. */
-  saveProfile(profile: CompanyProfile): Observable<void> {
-    return this.http.put<void>(`${this.base}/billing/issuer-profile`, {
-      name: profile.name,
-      taxId: profile.taxId || null,
-      line1: profile.line1 || null,
-      city: profile.city || null,
-      state: profile.state || null,
-      zip: profile.zip || null,
-      country: profile.country || 'US',
-      phone: profile.phone || null,
-      email: profile.email || null,
-      website: profile.website || null,
-    });
+  /**
+   * PUT estado completo → 200 con el perfil normalizado. Requiere `settings.manage`. 400 con código
+   * `Tenant.Profile.<Campo>` por campo inválido.
+   */
+  saveProfile(request: UpdateOfficeProfileRequest): Observable<OfficeProfile> {
+    return this.http.put<OfficeProfile>(`${this.base}/tenants/current/profile`, request);
+  }
+
+  // --- Oficina (Tenant): nombre visible y zona horaria ---
+
+  getOffice(): Observable<OfficeIdentity> {
+    return this.http.get<OfficeIdentity>(`${this.base}/tenants/current`);
+  }
+
+  /** PUT → 204/200. Estado completo: nombre y zona horaria IANA. */
+  saveOffice(request: UpdateOfficeIdentityRequest): Observable<void> {
+    return this.http.put<void>(`${this.base}/tenants/current`, request);
+  }
+
+  // --- Ajustes de factura (Billing) ---
+
+  getInvoiceSettings(): Observable<InvoiceSettings> {
+    return this.http.get<InvoiceSettings>(`${this.base}/billing/invoice-settings`);
+  }
+
+  /** PUT estado completo → 200 con lo guardado. 400 `Billing.InvoiceSettings.<Campo>`. */
+  saveInvoiceSettings(request: InvoiceSettings): Observable<InvoiceSettings> {
+    return this.http.put<InvoiceSettings>(`${this.base}/billing/invoice-settings`, request);
+  }
+
+  // --- Cumplimiento (Tenant, solo TenantAdmin) ---
+
+  getCompliance(): Observable<OfficeCompliance> {
+    return this.http.get<OfficeCompliance>(`${this.base}/tenants/current/compliance`);
+  }
+
+  /** PUT → 200 con lo guardado (EFIN enmascarado). 400 `Tenant.Compliance.<Campo>`. */
+  saveCompliance(request: UpdateOfficeComplianceRequest): Observable<OfficeCompliance> {
+    return this.http.put<OfficeCompliance>(`${this.base}/tenants/current/compliance`, request);
+  }
+
+  /** EFIN completo; cada llamada queda auditada. 404 `Tenant.Compliance.EfinNotSet` si no hay. */
+  revealEfin(): Observable<{ efin: string }> {
+    return this.http.post<{ efin: string }>(`${this.base}/tenants/current/compliance/efin/reveal`, {});
   }
 
   // --- Marca del tenant (TenantBrands, por superficie: CRM o Portal del cliente) ---

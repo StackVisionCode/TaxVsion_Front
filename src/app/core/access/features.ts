@@ -79,11 +79,13 @@ export const FEATURES: readonly FeatureDefinition[] = [
     anyOf: ['cloudstorage.file.view'],
   },
   {
+    // Administración del almacenamiento de la oficina: cuota, proveedores de nube y política de uso
+    // (todo exige settings.manage en CloudStorage). Los archivos y "Shared with me" viven en Documents.
     id: 'storage',
     label: 'Storage',
     route: 'storage',
     module: 'documents',
-    anyOf: ['cloudstorage.file.view'],
+    anyOf: ['cloudstorage.settings.manage'],
   },
 
   // ---- Comunicación: chat, reuniones y correo ----

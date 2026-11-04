@@ -63,6 +63,15 @@ describe('AuthService', () => {
     expect(service.mustEnrollMfa()).toBe(false);
   });
 
+  it('un PlatformAdmin no entra al CRM: aviso neutral y sin guardar tokens', () => {
+    environment.authMock = false;
+    let kind = '';
+    service.login(credentials).subscribe(o => (kind = o.kind));
+    httpMock.expectOne(loginUrl).flush({ ...withTokens, actorType: 'PlatformAdmin' });
+    expect(kind).toBe('wrong-portal');
+    expect(tokenService.isAuthenticated()).toBe(false);
+  });
+
   it('desenlace (b): mfaRequired → reto pendiente, sin sesión', () => {
     environment.authMock = false;
     let kind = '';
@@ -91,6 +100,16 @@ describe('AuthService', () => {
     expect(kind).toBe('mfa-setup-required');
     expect(service.mustEnrollMfa()).toBe(true);
     expect(tokenService.isAuthenticated()).toBe(true);
+  });
+
+  it('renombrar la oficina actualiza el nombre de la sesión sin volver a pedir /auth/me', () => {
+    environment.authMock = true;
+    service.login(credentials).subscribe();
+
+    service.applyTenantName('Gutierrez Tax Office');
+
+    expect(service.currentUser()?.tenant.name).toBe('Gutierrez Tax Office');
+    httpMock.expectNone(`${environment.apiUrl}/auth/me`);
   });
 
   it('logout limpia la sesión (modo mock)', () => {

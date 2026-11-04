@@ -20,7 +20,6 @@ export interface CommunicationOfficeSettings {
   groupsAllowMultipleClients: boolean;
   defaultCameraOff: boolean;
   defaultMicrophoneOff: boolean;
-  persistChatOnEnd: boolean;
   recordingConsentPolicy: RecordingConsentPolicy;
   defaultMeetingDurationMinutes: number | null;
   maxMeetingDurationMinutes: number | null;
@@ -43,7 +42,6 @@ export interface CommunicationOfficeSettings {
   echoMuteOnDetect: boolean | null;
   reactionsEnabled: boolean | null;
   meetingReminderMinutesBefore: number | null;
-  guestsWaitingRoom: boolean | null;
   transcriptPrompt: string | null;
   voiceNoteTranscriptEnabled: boolean | null;
   chatEditWindowMinutesDirect: number | null;
@@ -51,6 +49,10 @@ export interface CommunicationOfficeSettings {
   chatEditWindowMinutesSupport: number | null;
   chatEditWindowMinutesMeeting: number | null;
   chatMaxEditsPerMessage: number | null;
+  /** D-72 (null = default de la plataforma): solo se editan si `effective.retention.managedByTenant`. */
+  purgeEnabled: boolean | null;
+  messageRetentionDays: number | null;
+  recordingRetentionDays: number | null;
 }
 
 export type CommunicationSettingsKey = keyof CommunicationOfficeSettings;
@@ -78,6 +80,12 @@ export interface CommunicationCeilings {
   guestsAllowed: boolean;
 }
 
+export interface CommunicationRetentionValues {
+  messageDays: number;
+  recordingDays: number;
+  purgeEnabled: boolean;
+}
+
 /** Valores vigentes: lo que de verdad aplica (el valor de la oficina o, si es null, el de la plataforma). */
 export interface CommunicationEffective {
   planCode: string | null;
@@ -86,14 +94,17 @@ export interface CommunicationEffective {
     maxDurationMinutes: number;
     defaultDurationMinutes: number;
     maxParticipants: number;
-    guestsWaitingRoom: boolean;
     reminderMinutesBefore: number;
     soundsPolicy: MeetingSoundsPolicy;
     chatAttachmentsPerMinute: number;
     chatAttachmentsPerMeeting: number;
   };
-  /** Retención: la fija la plataforma (global o excepción por oficina); la oficina solo la ve. */
-  retention: { messageDays: number; recordingDays: number; purgeEnabled: boolean };
+  /** D-72: retención vigente; la oficina la edita solo si `managedByTenant` (si no, solo la ve). */
+  retention: CommunicationRetentionValues & {
+    managedByTenant: boolean;
+    /** Lo que rige cuando la oficina no fija un valor (excepción de PlatformAdmin o global). */
+    platformDefault: CommunicationRetentionValues;
+  };
   calls: {
     ringingTimeoutSeconds: number;
     maxCallMinutes: number | null;
@@ -134,7 +145,9 @@ export type CommunicationNumericKey =
   | 'chatEditWindowMinutesGroup'
   | 'chatEditWindowMinutesSupport'
   | 'chatEditWindowMinutesMeeting'
-  | 'chatMaxEditsPerMessage';
+  | 'chatMaxEditsPerMessage'
+  | 'messageRetentionDays'
+  | 'recordingRetentionDays';
 
 export interface CommunicationSettingsOverview {
   settings: CommunicationOfficeSettings;
@@ -181,6 +194,8 @@ export function settingsErrorMessage(code: string | null | undefined): string {
       return "The default meeting length can't be longer than the maximum.";
     case 'Settings.InvalidTranscriptPrompt':
       return 'The transcript vocabulary is too long.';
+    case 'Settings.RetentionNotManagedByTenant':
+      return 'Your platform administrator manages how long messages and recordings are kept.';
     case 'Settings.OutOfTechnicalRange':
     case 'Settings.InvalidRetention':
       return 'One of the values is out of range. Check it and try again.';

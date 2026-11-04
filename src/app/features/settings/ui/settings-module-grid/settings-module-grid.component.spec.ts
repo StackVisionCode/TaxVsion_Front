@@ -25,11 +25,26 @@ describe('SettingsModuleGridComponent', () => {
 
   afterEach(() => TestBed.resetTestingModule());
 
-  it('Overview no depende de ningún módulo', () => {
+  it('sin módulos solo quedan las preferencias personales (ya no hay Overview)', () => {
     const fixture = create([]);
 
     // Las preferencias personales (Notifications, Communication preferences) son autoservicio: siempre se ven.
-    expect(fixture.componentInstance.modules().map(m => m.id)).toEqual(['overview', 'notifications', 'communication-preferences']);
+    expect(fixture.componentInstance.modules().map(m => m.id)).toEqual(['notifications', 'communication-preferences']);
+  });
+
+  it('no hay tarjetas sin nada real detrás: ni Overview ni Accounts', () => {
+    const ids = SETTINGS_MODULES.map(m => m.id);
+
+    expect(ids).not.toContain('overview');
+    expect(ids).not.toContain('accounts');
+  });
+
+  it('Mail abre el panel de buzones de Mail en vez de un panel propio', () => {
+    const fixture = create(['email']);
+    const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('a[href="/email?mailboxes=open"]');
+
+    expect(link?.textContent).toContain('Mail');
+    expect(link?.textContent).toContain('Connect the office mailbox and your own');
   });
 
   it('muestra solo las tarjetas de los módulos que el usuario tiene', () => {
@@ -37,7 +52,6 @@ describe('SettingsModuleGridComponent', () => {
     const fixture = create(['signature-settings', 'documents']);
 
     expect(fixture.componentInstance.modules().map(m => m.id)).toEqual([
-      'overview',
       'documents',
       'notifications',
       'signature',
@@ -69,6 +83,16 @@ describe('SettingsModuleGridComponent', () => {
 
     expect(ids).toEqual(expect.arrayContaining(['communication-chat', 'communication-meetings', 'communication-calls', 'communication-recording']));
     expect(ids).not.toContain('meetings');
+  });
+
+  // La tarjeta de cobro dice lo que hace: conectar proveedores, no "Invoices".
+  it('la tarjeta de cobro se llama "Online payments" y lleva a /settings/billing', () => {
+    const fixture = create(['billing']);
+    const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('a[href="/settings/billing"]');
+
+    expect(link?.textContent).toContain('Online payments');
+    expect(link?.textContent).toContain('Connect Stripe or PayPal so clients can pay their invoices online');
+    expect(link?.textContent).not.toContain('Invoices');
   });
 
   it('toda tarjeta con featureId apunta a una feature del registro', () => {

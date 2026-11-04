@@ -11,11 +11,15 @@ import {
   ConnectManualAccountResult,
   TestManualConnectionResult,
   DownloadAttachmentResult,
+  DeliveryNoticeOriginal,
   DraftDetail,
   DraftListItem,
   InitiateOAuthConnectResult,
   MailAccount,
   MailCustomerScope,
+  MailSearchFolder,
+  MailSearchGroup,
+  MailSearchResult,
   MessageBody,
   MessageSummary,
   SentMessageListItem,
@@ -27,23 +31,80 @@ import {
   UnreadMailCount,
 } from './mail.model';
 
-/** Alcance de los listados de Correspondence: `customerId=` o `unlinked=true`, nunca ninguno. */
-function scopeParams(scope: MailCustomerScope): HttpParams {
+/** Filtros de servidor comunes a Sent/Drafts/Trash (y parte de `/threads` y `/search`). */
+export interface MailListFilters {
+  q?: string | null;
+  hasAttachments?: boolean;
+  /** ISO UTC inclusivo (chip de fecha). */
+  fromUtc?: string | null;
+  /** ISO UTC inclusivo; solo en un rango personalizado (los presets terminan "ahora"). */
+  toUtc?: string | null;
+}
+
+/** Agrega a `params` los filtros presentes (los vacíos no viajan). */
+function withFilters(params: HttpParams, filters: MailListFilters | undefined): HttpParams {
+  const term = filters?.q?.trim();
+  if (term) params = params.set('q', term);
+  if (filters?.hasAttachments) params = params.set('hasAttachments', true);
+  if (filters?.fromUtc) params = params.set('fromUtc', filters.fromUtc);
+  if (filters?.toUtc) params = params.set('toUtc', filters.toUtc);
+  return params;
+}
+
+/** Alcance de los listados de Correspondence: `customerId=` o `unlinked=true`, nunca ambos. */
+function scopeParams(scope: MailCustomerScope, filters?: MailListFilters): HttpParams {
+  let params: HttpParams;
   switch (scope.kind) {
     case 'customer':
-      return new HttpParams().set('customerId', scope.customerId);
+      params = new HttpParams().set('customerId', scope.customerId);
+      break;
     case 'unlinked':
-      return new HttpParams().set('unlinked', true);
+      params = new HttpParams().set('unlinked', true);
+      break;
     default:
-      return new HttpParams().set('scope', 'all');
+      params = new HttpParams().set('scope', 'all');
   }
+  return withFilters(params, filters);
+}
+
+/**
+ * Cliente o "sin cliente": nunca los dos (el backend responde 400 `Correspondence.CustomerFilterConflict`).
+ * Manda el cliente.
+ */
+function customerParams(params: HttpParams, customerId: string | null | undefined, unlinked: boolean | undefined): HttpParams {
+  if (customerId) return params.set('customerId', customerId);
+  return unlinked ? params.set('unlinked', true) : params;
 }
 
 /** Filtros del inbox de la oficina; sin cliente = todos los visibles. */
 export interface InboxThreadsQuery {
   customerId?: string | null;
+  /** Solo conversaciones sin cliente. Se ignora si viene `customerId`. */
+  unlinked?: boolean;
   unreadOnly?: boolean;
+  hasAttachments?: boolean;
+  fromUtc?: string | null;
+  toUtc?: string | null;
   search?: string | null;
+}
+
+/**
+ * Filtros de servidor de `GET /search` (`hasAttachments`/`unreadOnly` solo aplican a correos).
+ * `from`/`to`/`subject` = "contiene"; con alguno de ellos `q` puede ir vacío. `groups` = solo lo que la
+ * pestaña muestra (sin él, el backend calcula los tres).
+ */
+export interface MailSearchFiltersQuery {
+  customerId?: string | null;
+  unlinked?: boolean;
+  hasAttachments?: boolean;
+  unreadOnly?: boolean;
+  fromUtc?: string | null;
+  toUtc?: string | null;
+  from?: string | null;
+  to?: string | null;
+  subject?: string | null;
+  folder?: MailSearchFolder | null;
+  groups?: readonly MailSearchGroup[];
 }
 
 /**
@@ -121,10 +182,65 @@ export class MailService {
    */
   listInboxThreads(query: InboxThreadsQuery, page: number, size: number): Observable<PagedResult<ThreadSummary>> {
     let params = new HttpParams().set('status', 'all').set('page', page).set('size', size);
-    if (query.customerId) params = params.set('customerId', query.customerId);
+    params = customerParams(params, query.customerId, query.unlinked);
     if (query.unreadOnly) params = params.set('unreadOnly', true);
-    if (query.search?.trim()) params = params.set('q', query.search.trim());
+    params = withFilters(params, {
+      q: query.search,
+      hasAttachments: query.hasAttachments,
+      fromUtc: query.fromUtc,
+      toUtc: query.toUtc,
+    });
     return this.http.get<PagedResult<ThreadSummary>>(`${this.correspondence}/threads`, { params });
+  }
+
+  /** UNA fila del Inbox por id (resultado de búsqueda, aviso o notificación fuera de la página cargada). */
+  getThread(threadId: string): Observable<ThreadSummary> {
+    return this.http.get<ThreadSummary>(`${this.correspondence}/threads/${threadId}`);
+  }
+
+  /**
+   * Búsqueda unificada: correos, adjuntos y personas (los clientes se piden aparte al directorio). Los
+   * textos vacíos no viajan; `people` puede faltar en la respuesta (backend sin el grupo).
+   */
+  search(q: string, limit: number, filters: MailSearchFiltersQuery = {}): Observable<MailSearchResult> {
+    let params = new HttpParams().set('limit', limit);
+    params = withFilters(params, { q });
+    params = customerParams(params, filters.customerId, filters.unlinked);
+    if (filters.unreadOnly) params = params.set('unreadOnly', true);
+    params = withFilters(params, {
+      hasAttachments: filters.hasAttachments,
+      fromUtc: filters.fromUtc,
+      toUtc: filters.toUtc,
+    });
+    for (const key of ['from', 'to', 'subject'] as const) {
+      const value = filters[key]?.trim();
+      if (value) params = params.set(key, value);
+    }
+    if (filters.folder) params = params.set('folder', filters.folder);
+    if (filters.groups?.length) params = params.set('groups', filters.groups.join(','));
+    return this.http.get<MailSearchResult>(`${this.correspondence}/search`, { params });
+  }
+
+  /**
+   * Borrador nuevo clonado del enviado que rebotó (asunto, cuerpo y adjuntos), en la misma conversación y
+   * dirigido solo a ese destinatario (`recipient` = dirección corregida; sin ella, la del aviso). No envía.
+   */
+  resendDeliveryNotice(deliveryNoticeId: string, recipient?: string | null): Observable<{ draftId: string }> {
+    const body = recipient?.trim() ? { recipient: recipient.trim() } : {};
+    return this.http.post<{ draftId: string }>(
+      `${this.correspondence}/delivery-notices/${deliveryNoticeId}/resend`,
+      body,
+    );
+  }
+
+  /** Aviso de no entrega tal cual llegó (en vivo). Solo si `canViewOriginal`; 409 si vino por webhook. */
+  getDeliveryNoticeOriginal(deliveryNoticeId: string): Observable<DeliveryNoticeOriginal> {
+    return this.http.get<DeliveryNoticeOriginal>(`${this.correspondence}/delivery-notices/${deliveryNoticeId}/original`);
+  }
+
+  /** Quita una dirección de la lista de supresión de Postmaster (permiso postmaster.suppression.write). 204. */
+  unblockAddress(address: string): Observable<void> {
+    return this.http.delete<void>(`${this.api.tenantUrl('/postmaster/suppression')}/${encodeURIComponent(address)}`);
   }
 
   /** No leídos de los hilos activos visibles (badges del Inbox y del menú). */
@@ -133,8 +249,8 @@ export class MailService {
   }
 
   /** Carpeta "Sent": mensajes ya enviados del cliente (o sin cliente), más reciente primero. */
-  listSent(scope: MailCustomerScope, page: number, size: number): Observable<PagedResult<SentMessageListItem>> {
-    const params = scopeParams(scope).set('page', page).set('size', size);
+  listSent(scope: MailCustomerScope, page: number, size: number, filters?: MailListFilters): Observable<PagedResult<SentMessageListItem>> {
+    const params = scopeParams(scope, filters).set('page', page).set('size', size);
     return this.http.get<PagedResult<SentMessageListItem>>(`${this.correspondence}/sent`, { params });
   }
 
@@ -158,8 +274,8 @@ export class MailService {
   }
 
   /** Papelera unificada (entrantes + enviados borrados) del cliente; sin cliente solo hay enviados. */
-  listTrash(scope: MailCustomerScope, page: number, size: number): Observable<PagedResult<TrashItem>> {
-    const params = scopeParams(scope).set('page', page).set('size', size);
+  listTrash(scope: MailCustomerScope, page: number, size: number, filters?: MailListFilters): Observable<PagedResult<TrashItem>> {
+    const params = scopeParams(scope, filters).set('page', page).set('size', size);
     return this.http.get<PagedResult<TrashItem>>(`${this.correspondence}/trash`, { params });
   }
 
@@ -239,8 +355,8 @@ export class MailService {
 
   // ---------- Correspondence: drafts ----------
 
-  listDrafts(scope: MailCustomerScope, page: number, size: number): Observable<PagedResult<DraftListItem>> {
-    const params = scopeParams(scope).set('page', page).set('size', size);
+  listDrafts(scope: MailCustomerScope, page: number, size: number, filters?: MailListFilters): Observable<PagedResult<DraftListItem>> {
+    const params = scopeParams(scope, filters).set('page', page).set('size', size);
     return this.http.get<PagedResult<DraftListItem>>(`${this.correspondence}/drafts`, { params });
   }
 

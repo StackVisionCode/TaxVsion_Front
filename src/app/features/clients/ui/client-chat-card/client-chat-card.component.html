@@ -44,4 +44,45 @@
       Chat unavailable
     </span>
   </div>
+
+  <!-- Chats anteriores: se cerraron cuando su preparador dejó la oficina; la oficina lee el historial -->
+  <div *ngIf="closedChats().length > 0" class="mt-5 border-t border-gray-100 pt-4" data-testid="closed-chats">
+    <p class="text-xs font-medium uppercase tracking-wide text-gray-400">Previous conversations</p>
+    <ul class="mt-2 flex flex-col gap-2">
+      <li *ngFor="let chat of closedChats()" class="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2.5">
+        <span class="min-w-0 text-sm text-gray-700">
+          With <span class="font-semibold text-gray-900">{{ chat.formerStaffDisplayName }}</span>
+          <span class="text-gray-400"> · closed {{ date(chat.closedAtUtc) }}</span>
+        </span>
+        <button type="button" (click)="openClosedChat(chat)" [attr.data-closed-chat]="chat.conversationId"
+          class="shrink-0 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+          View
+        </button>
+      </li>
+    </ul>
+  </div>
 </div>
+
+<app-modal [isOpen]="!!viewing()" [heading]="'Conversation with ' + (viewing()?.formerStaffDisplayName ?? '')"
+  subheading="Read only — this preparer is no longer with the office" size="lg" (closed)="closeViewer()">
+  <div class="mt-4 flex max-h-[60vh] flex-col gap-2 overflow-y-auto" data-testid="closed-chat-messages">
+    <button *ngIf="hasEarlier()" type="button" (click)="loadMessages()" [disabled]="messagesLoading()"
+      class="self-center rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50">
+      Load earlier messages
+    </button>
+    <p *ngIf="messagesLoading() && messages().length === 0" class="text-sm text-gray-400">Loading messages…</p>
+    <p *ngIf="messagesFailed()" class="text-sm text-red-600">We couldn't load this conversation.</p>
+    <p *ngIf="!messagesLoading() && !messagesFailed() && messages().length === 0" class="text-sm text-gray-400">No messages.</p>
+    <ng-container *ngFor="let message of messages()">
+      <p *ngIf="message.kind === 'System'" class="self-center text-center text-xs text-gray-400">{{ message.body }}</p>
+      <div *ngIf="message.kind !== 'System'" class="rounded-xl bg-gray-50 px-3 py-2">
+        <p class="text-xs text-gray-400">
+          <span class="font-semibold text-gray-600">{{ message.senderDisplayName }}</span> · {{ time(message.createdAtUtc) }}
+        </p>
+        <p class="mt-0.5 whitespace-pre-wrap text-sm text-gray-800">
+          {{ message.kind === 'Attachment' ? 'Sent an attachment' : (message.body ?? 'Message deleted') }}
+        </p>
+      </div>
+    </ng-container>
+  </div>
+</app-modal>

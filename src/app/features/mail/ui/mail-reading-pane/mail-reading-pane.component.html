@@ -61,8 +61,51 @@
     </p>
 
     <div class="flex flex-col gap-2">
-      <div *ngFor="let message of messages; trackBy: trackByMessageId"
-        class="rounded-2xl border transition-colors"
+      <ng-container *ngFor="let message of messages; trackBy: trackByMessageId">
+      <!-- Aviso de no entrega: tarjeta (qué falló, a quién, por qué y qué hacer), no un correo más -->
+      @if (isNotice(message) && message.deliveryNotice; as notice) {
+        @let copy = noticeCopy(notice);
+        <div role="note" class="rounded-2xl border px-4 py-3" [ngClass]="noticeToneClasses(copy.tone)"
+          [attr.aria-label]="copy.title + ', ' + notice.recipient">
+          <div class="flex items-start gap-3">
+            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full" [ngClass]="noticeIconClasses(copy.tone)">
+              <ion-icon aria-hidden="true" [name]="noticeIcon(copy.tone)" class="text-lg"></ion-icon>
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-start justify-between gap-2">
+                <p class="text-sm font-semibold text-gray-900">{{ copy.title }}</p>
+                <span class="shrink-0 text-[0.6875rem] text-gray-400">{{ timeFor(notice.occurredAtUtc) }}</span>
+              </div>
+              <p class="mt-0.5 text-xs text-gray-600">
+                To <span class="font-medium text-gray-800">{{ notice.recipient }}</span> · {{ copy.reason }}
+              </p>
+              <p class="mt-1 text-xs text-gray-500">{{ copy.hint }}</p>
+              <p *ngIf="notice.suppressed" class="mt-2 flex items-center gap-1.5 text-xs font-medium text-red-700">
+                <ion-icon aria-hidden="true" name="ban-outline" class="text-sm"></ion-icon>
+                Future emails to this address are blocked.
+              </p>
+              <details *ngIf="notice.diagnostic || notice.statusCode" class="mt-2 text-xs text-gray-500">
+                <summary class="cursor-pointer select-none font-medium text-gray-500 hover:text-gray-700">Technical details</summary>
+                <p class="mt-1 break-words font-mono text-[0.6875rem] text-gray-500">{{ notice.statusCode }} {{ notice.diagnostic }}</p>
+              </details>
+              @let actions = noticeActions(notice);
+              <div *ngIf="actions.length > 0" class="mt-3 flex flex-wrap gap-2">
+                @for (action of actions; track action.id) {
+                  <button type="button" (click)="runNoticeAction(action, notice)" [disabled]="noticeBusyId === notice.deliveryNoticeId"
+                    class="flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
+                    [ngClass]="action.primary ? 'bg-brand-bold text-white hover:bg-brand-ink' : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50'">
+                    @if (noticeBusyId === notice.deliveryNoticeId && action.primary) {
+                      <app-infinity-loader size="xs" tone="light" />
+                    }
+                    {{ action.label }}
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      } @else {
+      <div class="rounded-2xl border transition-colors"
         [ngClass]="expandedId === message.messageId ? 'border-gray-200 bg-white' : 'border-gray-100 bg-white hover:border-gray-200'">
         <!-- Cabecera del mensaje (acordeón) + papelera como botón aparte (no anidado) -->
         <div class="flex items-start">
@@ -79,20 +122,31 @@
                   [ngClass]="isUnread(message) ? 'font-bold' : 'font-semibold'">{{ senderLabel(message) }}</span>
                 <ion-icon *ngIf="message.direction === 'Inbound' && message.senderTrust === 'Unverified'"
                   name="alert-circle" class="shrink-0 text-sm text-amber-500" title="We couldn't verify this sender"></ion-icon>
-                <span *ngIf="message.direction === 'Outbound'"
-                  class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[0.625rem] font-semibold text-gray-500">Sent</span>
+                <!-- Estado de entrega del enviado; el detalle por destinatario va en el tooltip y al expandir -->
+                @if (message.direction === 'Outbound') {
+                  @let pill = deliveryPill(message);
+                  <app-status-pill class="shrink-0" size="xs" [soft]="true" [tone]="pill.tone" [toneClass]="pill.toneClass"
+                    [attr.title]="pill.title">{{ pill.label }}</app-status-pill>
+                }
               </span>
               <span class="shrink-0 text-[0.6875rem] text-gray-400">{{ timeFor(message.occurredAtUtc) }}</span>
             </span>
 
-            <span class="mt-0.5 block truncate text-xs text-gray-400">{{ addressLabel(message) }}</span>
+            <!-- Abierto: destinatarios completos (To · Cc · Bcc); cerrado: una línea con el detalle al pasar el ratón -->
+            <span class="mt-0.5 block text-xs text-gray-400" [class.truncate]="expandedId !== message.messageId"
+              [class.break-words]="expandedId === message.messageId" [attr.title]="addressLabel(message)">{{ addressLabel(message) }}</span>
 
             <span *ngIf="expandedId !== message.messageId && message.snippet"
               class="mt-0.5 block truncate text-xs text-gray-500">{{ message.snippet }}</span>
 
             <span *ngIf="message.hasAttachments" class="mt-1 flex items-center gap-1 text-[0.6875rem] text-gray-400">
               <ion-icon name="attach-outline" class="text-sm"></ion-icon>
-              {{ message.attachmentCount }} {{ message.attachmentCount === 1 ? 'attachment' : 'attachments' }}
+              <!-- Abierto desde la búsqueda no trae la cantidad (0): solo se dice que hay adjuntos -->
+              @if (message.attachmentCount > 0) {
+                {{ message.attachmentCount }} {{ message.attachmentCount === 1 ? 'attachment' : 'attachments' }}
+              } @else {
+                Attachments
+              }
             </span>
           </span>
 
@@ -209,6 +263,18 @@
             </div>
           </ng-container>
 
+          <!-- Entrega por destinatario (solo enviados con noticias) -->
+          <div *ngIf="message.direction === 'Outbound' && deliveriesWithStatus(message).length > 0"
+            class="mt-4 border-t border-gray-100 pt-3">
+            <p class="text-[0.6875rem] font-semibold uppercase tracking-wide text-gray-400">Delivery</p>
+            <ul class="mt-2 flex flex-col gap-1">
+              <li *ngFor="let item of message.deliveries ?? []" class="flex items-center justify-between gap-3 text-xs">
+                <span class="min-w-0 truncate text-gray-600">{{ item.address }}</span>
+                <span class="shrink-0 font-medium" [ngClass]="deliveryTone(item)">{{ deliveryLabel(item) }}</span>
+              </li>
+            </ul>
+          </div>
+
           <!-- Acciones del mensaje inbound: marcar leído/no-leído + responder -->
           <div *ngIf="message.direction === 'Inbound' && !isReplyingTo(message.messageId)"
             class="mt-4 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
@@ -266,6 +332,8 @@
           </div>
         </div>
       </div>
+      }
+      </ng-container>
     </div>
 
     <!-- Paginación del hilo: las páginas siguientes traen mensajes MÁS NUEVOS. -->

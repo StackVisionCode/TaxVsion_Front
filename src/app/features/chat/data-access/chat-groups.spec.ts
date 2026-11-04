@@ -1,4 +1,4 @@
-import { applyConversationUpdate, applyRoleChange, canWriteInGroup, groupErrorMessage, memberActions } from './chat-groups';
+import { applyConversationUpdate, applyRoleChange, canWriteInGroup, departedNotice, groupErrorMessage, memberActions } from './chat-groups';
 import type { ChatConversation } from '../ui/chat-conversation-list/chat-conversation-list.component';
 
 /** F8b — reglas de grupo del CRM: qué acciones ofrecer y cómo aplicar los eventos en vivo. */
@@ -50,6 +50,28 @@ describe('chat-groups', () => {
     const next = applyRoleChange(conv(), { conversationId: 'g1', userId: 'me', role: 'Owner', changedByUserId: null, changedAtUtc: '' }, 'me');
     expect(next.myRole).toBe('Owner');
     expect(next.participants?.find(p => p.userId === 'me')?.role).toBe('Owner');
+  });
+
+  it('applyConversationUpdate con quien se fue: lo guarda con la foto que ya se conocía y quita el par para llamar', () => {
+    const direct = conv({
+      kind: 'Direct',
+      peerUserId: 'u-lena',
+      participants: [
+        { userId: 'me', displayName: 'Me' },
+        { userId: 'u-lena', displayName: 'Lena', avatarFileId: 'f-lena' },
+      ],
+    });
+    const next = applyConversationUpdate(direct, {
+      conversationId: 'g1',
+      kind: 'Direct',
+      isClosedForWriting: true,
+      closedReason: 'ParticipantLeft',
+      departedParticipant: { userId: 'u-lena', displayName: 'Lena', actorType: 'TenantEmployee' },
+    });
+    expect(next.departedParticipant).toEqual({ userId: 'u-lena', displayName: 'Lena', actorType: 'TenantEmployee', avatarFileId: 'f-lena' });
+    expect(next.peerUserId).toBeNull();
+    expect(departedNotice(next)).toBe('Lena is no longer with the office. You can still read this conversation.');
+    expect(departedNotice(direct)).toBeNull();
   });
 
   it('applyConversationUpdate solo toca los campos presentes', () => {

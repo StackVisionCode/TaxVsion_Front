@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { TenantBrandingService } from '@core/theme/tenant-branding.service';
 import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { formatMoney } from '@shared/utils/format.util';
 import { Stripe, StripeCardElement, StripeElements, loadStripe } from '@stripe/stripe-js';
@@ -55,6 +56,7 @@ const UNAVAILABLE_FALLBACK = 'This payment link is no longer available.';
 export class InvoiceCheckoutPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly service = inject(InvoiceCheckoutService);
+  private readonly branding = inject(TenantBrandingService);
 
   readonly phase = signal<CheckoutPhase>('loading');
   readonly checkout = signal<InvoiceCheckout | null>(null);
@@ -88,6 +90,12 @@ export class InvoiceCheckoutPageComponent implements OnInit {
   /** Un método con flujo de pago implementado en el frontend (hoy Stripe o PayPal). */
   readonly isSupportedSelected = computed(() => this.isStripeSelected() || this.isPayPalSelected());
 
+  /** Logo de la oficina; si no tiene o la imagen falla, se muestran las iniciales. */
+  private readonly logoFailed = signal(false);
+  readonly officeLogoUrl = computed(() =>
+    this.checkout()?.tenantBrandingKey && !this.logoFailed() ? this.branding.logoUrl() : null,
+  );
+
   /** Iniciales de la oficina para el tile (presentacional). */
   readonly officeInitials = computed(() => {
     const words = (this.checkout()?.tenantName ?? '').split(/\s+/).filter(w => /[\p{L}\p{N}]/u.test(w));
@@ -118,6 +126,7 @@ export class InvoiceCheckoutPageComponent implements OnInit {
     this.service.getCheckout(this.token).subscribe({
       next: c => {
         this.checkout.set(c);
+        if (c.tenantBrandingKey) this.branding.applyForPublicBrandingKey(c.tenantBrandingKey, 'Portal');
         if (c.methods.length === 0) {
           this.phase.set('error');
           this.errorMessage.set('This office has no payment method available yet.');
@@ -131,6 +140,10 @@ export class InvoiceCheckoutPageComponent implements OnInit {
       },
       error: () => this.phase.set('invalid'),
     });
+  }
+
+  onLogoError(): void {
+    this.logoFailed.set(true);
   }
 
   /** Cambia el método elegido; monta el widget del proveedor nuevo. */
@@ -240,7 +253,7 @@ export class InvoiceCheckoutPageComponent implements OnInit {
     });
 
     if (error || !paymentMethod) {
-      this.cardError.set(error?.message ?? 'No se pudo procesar la tarjeta.');
+      this.cardError.set(error?.message ?? 'We could not process the card.');
       this.phase.set('ready');
       return;
     }

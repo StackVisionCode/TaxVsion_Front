@@ -10,6 +10,7 @@ import { formatBytes } from '@shared/utils/format.util';
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
 import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
 import { StorageStore } from '../../data-access/storage.store';
+import { AccessStore } from '@core/access/access.store';
 import { CloudProviderConnectionsComponent } from '../cloud-provider-connections/cloud-provider-connections.component';
 import { StorageUsagePolicyComponent } from '../storage-usage-policy/storage-usage-policy.component';
 import {
@@ -61,6 +62,9 @@ export interface CategoryFileRow {
 })
 export class StoragePageComponent implements OnInit {
   readonly store = inject(StorageStore);
+  private readonly access = inject(AccessStore);
+  /** Proveedores de nube y política de uso: mismo criterio que `app-cloud-provider-connections`. */
+  readonly canManageStorage = computed(() => this.access.isAdmin() && this.access.can('cloudstorage.settings.manage'));
 
   readonly showAllCategories = signal(false);
   /** Categoría activa para filtrar la tabla; null = todas. */

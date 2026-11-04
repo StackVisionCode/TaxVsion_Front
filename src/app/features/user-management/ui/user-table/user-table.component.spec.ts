@@ -10,8 +10,8 @@ import { TeamMember, UserTableComponent } from './user-table.component';
 describe('UserTableComponent — removed status', () => {
   const component = new UserTableComponent();
 
-  it('labels removed as "Removed"', () => {
-    expect(component.statusLabel('removed')).toBe('Removed');
+  it('labels removed as "Offboarded"', () => {
+    expect(component.statusLabel('removed')).toBe('Offboarded');
   });
 
   it('uses a neutral (non-danger) tone for removed', () => {
@@ -69,6 +69,15 @@ describe('UserTableComponent — slot column', () => {
     const img = fixture.nativeElement.querySelector('app-avatar img') as HTMLImageElement | null;
 
     expect(img?.getAttribute('src')).toContain('/storage/avatars/f-ada');
+  });
+
+  it('los roles de sistema se muestran con su nombre legible y los propios quedan igual', () => {
+    const fixture = render([member({ roleNames: ['Tenant Admin', 'Bookkeeper'], actorType: 'TenantAdmin' })], false);
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+    expect(text).toContain('Admin');
+    expect(text).toContain('Bookkeeper');
+    expect(text).not.toContain('Tenant');
   });
 
   it('sin slotIndex muestra el guión y no el badge', () => {

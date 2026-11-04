@@ -225,9 +225,10 @@
           </div>
         }
 
-        <!-- Controles comunes (F4) + React, chat y "terminar para todos" proyectados -->
-        <div class="flex justify-center px-3 py-3">
-          <app-media-controls size="sm" variant="bare" [audioEnabled]="audioEnabled()" [videoEnabled]="videoEnabled()" [muteReason]="muteReason()"
+        <!-- Controles comunes (F4) + React, chat y "terminar para todos" proyectados; a lo ancho del panel
+             para que salten de fila en vez de recortarse -->
+        <div class="px-3 py-3" data-role="mini-controls">
+          <app-media-controls class="block w-full" size="sm" variant="bare" [audioEnabled]="audioEnabled()" [videoEnabled]="videoEnabled()" [muteReason]="muteReason()"
             [videoPausedByNetwork]="videoPausedByNetwork()" [hasMicrophone]="hasMicrophone()" [waitingForPermission]="waitingForPermission()"
             [screenSharing]="screenSharing()" [screenAudioAllowed]="screenAudioAllowed()" [showHand]="true" [handRaised]="handRaised()" [raisedHands]="raisedHandCount()"
             [showChat]="true" [chatOpen]="chatOpen()" [chatUnread]="chatUnread()" leaveTitle="Leave meeting"

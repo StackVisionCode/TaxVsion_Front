@@ -25,8 +25,13 @@ const SCHEDULED: MeetingItem = {
 };
 
 function render(meeting: MeetingItem | null, setTranscriptLanguage = vi.fn(() => of({ transcriptLanguage: 'es' }))) {
-  const store = { setTranscriptLanguage, listInvitations: vi.fn(() => of([])), searchInvitees: vi.fn() };
-  const service = { limits: vi.fn(() => of({ defaultDurationMinutes: 60, maxDurationMinutes: 120 })) };
+  const store = {
+    setTranscriptLanguage,
+    listInvitations: vi.fn(() => of([])),
+    searchInvitees: vi.fn(),
+    getGuestAccess: vi.fn(() => of({ guestsAllowed: true, officeAllowsGuests: true, guestLinkUrl: null })),
+  };
+  const service = { limits: vi.fn(() => of({ defaultDurationMinutes: 60, maxDurationMinutes: 120, maxParticipants: 10, guestsAllowed: true })) };
   TestBed.configureTestingModule({
     providers: [
       { provide: MeetingsStore, useValue: store },
@@ -100,5 +105,18 @@ describe('MeetingSchedulePanelComponent — idioma del transcript', () => {
     expect(failing).toHaveBeenCalledWith('m1', null);
     expect(component.transcriptLanguage()).toBe('en');
     expect(document.body.textContent).toContain('Could not save the language.');
+  });
+
+  it('D-69: al crear manda "Allow external guests"; apagado quita los externos elegidos', () => {
+    const { component } = render(null);
+    const emitted: MeetingFormValue[] = [];
+    component.createRequested.subscribe(value => emitted.push(value));
+    component.title.set('Tax review');
+    expect(document.body.querySelector('[data-role="meeting-guests-allowed"]')).not.toBeNull();
+    component.invitees.set([{ kind: 'external', userId: null, email: 'x@ext.com', name: 'x' }]);
+    component.setGuestsAllowed(false);
+    expect(component.invitees()).toEqual([]);
+    component.save();
+    expect(emitted[0]?.guestsAllowed).toBe(false);
   });
 });

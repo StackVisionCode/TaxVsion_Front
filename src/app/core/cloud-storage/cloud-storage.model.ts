@@ -120,5 +120,31 @@ export function isFilePending(status: FileStatus): boolean {
   return status === 'PendingUpload' || status === 'PendingScan' || status === 'Scanning';
 }
 
+/**
+ * GET /storage/upload-policy?folderType= — qué se puede subir a esa carpeta (plan + carpeta + oficina,
+ * y para el cliente del portal lo que su oficina le permite). El front no tiene listas ni tamaños propios.
+ */
+export interface UploadPolicy {
+  folderType: FolderType;
+  maxFileSizeBytes: number;
+  allowedExtensions: string[];
+  allowedContentTypes: string[];
+  /** Listo para el atributo `accept` del input (extensiones separadas por coma). */
+  accept: string;
+}
+
+/** GET /storage/shares/policy — reglas de compartir de la oficina que aplica el diálogo de compartir. */
+export interface SharingPolicy {
+  allowPublicShareLinks: boolean;
+  allowLinkOnlyExternalShares: boolean;
+  requirePasswordOnLinkShares: boolean;
+  defaultLifetimeDays: number;
+  maxLifetimeDays: number;
+  minPasswordLength: number;
+  maxPasswordAttempts: number;
+  /** null = sin tope de descargas. */
+  maxDownloads: number | null;
+}
+
 /** Re-export: la implementación vive en shared/utils/format.util (misma salida B/KB/MB por defecto). */
 export { formatBytes } from '@shared/utils/format.util';

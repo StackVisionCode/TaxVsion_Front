@@ -11,7 +11,7 @@ import { ToastService } from '@shared/ui/toast/toast.service';
 import type { RecordedVoiceNote } from '@core/communication/voice-note-recorder.service';
 import { ChatStore } from '../../data-access/chat.store';
 import { AuthService } from '@core/auth/auth.service';
-import { canWriteInGroup, isGroupAdmin } from '../../data-access/chat-groups';
+import { canWriteInGroup, departedNotice, isGroupAdmin } from '../../data-access/chat-groups';
 import type { ChatConversation } from '../../ui/chat-conversation-list/chat-conversation-list.component';
 
 /**
@@ -45,6 +45,9 @@ import type { ChatConversation } from '../../ui/chat-conversation-list/chat-conv
       @if (conversation.isArchived) {
         <!-- F8a: chat archivado (meeting terminado, ticket cerrado) = solo lectura -->
         <p data-role="conversation-closed" class="rounded-2xl bg-gray-50 px-4 py-3 text-center text-sm text-gray-500">{{ closedLabel }}</p>
+      } @else if (departedNotice) {
+        <!-- El otro participante del Direct se retiró de la oficina: solo lectura -->
+        <p data-role="participant-left" class="rounded-2xl bg-gray-50 px-4 py-3 text-center text-sm text-gray-500">{{ departedNotice }}</p>
       } @else if (!canWrite) {
         <!-- F8b (D-23): modo anuncio -->
         <p data-role="admins-only" class="rounded-2xl bg-gray-50 px-4 py-3 text-center text-sm text-gray-500">Only admins can send messages in this group.</p>
@@ -83,7 +86,12 @@ export class ChatConversationPanelComponent {
 
   /** F8d: reaccionar en un chat activo (archivado = solo lectura). */
   get canReact(): boolean {
-    return !this.conversation.isArchived && !!this.conversation.reactionPolicy;
+    return !this.conversation.isArchived && !this.conversation.departedParticipant && !!this.conversation.reactionPolicy;
+  }
+
+  /** Aviso cuando el otro participante se retiró (null = sigue abierto). */
+  get departedNotice(): string | null {
+    return departedNotice(this.conversation);
   }
 
   get canWrite(): boolean {

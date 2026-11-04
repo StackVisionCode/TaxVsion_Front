@@ -5,10 +5,10 @@ import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { SignatureService } from '../../data-access/signature.service';
+import { SignatureStore } from '../../data-access/signature.store';
 import {
   SignatureCategory,
   SignatureTemplateStatus,
-  TOKEN_EXPIRATION_DEFAULT_HOURS,
   TemplateSummary,
   signatureCategoryLabel,
 } from '../../data-access/signature.model';
@@ -44,6 +44,7 @@ import { SignatureCategoryPickerComponent } from '../../ui/signature-category-pi
 })
 export class SignatureTemplatesPageComponent implements OnInit {
   private readonly service = inject(SignatureService);
+  private readonly store = inject(SignatureStore);
 
   readonly categoryLabel = signatureCategoryLabel;
 
@@ -64,6 +65,7 @@ export class SignatureTemplatesPageComponent implements OnInit {
   readonly canCreate = computed(() => this.draftTitle().trim().length >= 3);
 
   ngOnInit(): void {
+    this.store.loadLimits();
     void this.load();
   }
 
@@ -112,6 +114,11 @@ export class SignatureTemplatesPageComponent implements OnInit {
     if (!this.canCreate() || this.createBusy()) {
       return;
     }
+    const limits = this.store.limits();
+    if (!limits) {
+      this.createError.set('Still loading your office limits. Try again in a moment.');
+      return;
+    }
     this.createBusy.set(true);
     this.createError.set('');
     try {
@@ -120,7 +127,8 @@ export class SignatureTemplatesPageComponent implements OnInit {
           title: this.draftTitle().trim(),
           description: null,
           category: this.draftCategory(),
-          defaultTokenExpirationHours: TOKEN_EXPIRATION_DEFAULT_HOURS,
+          // La vida por defecto vigente de la oficina; el editor la deja cambiar dentro del techo.
+          defaultTokenExpirationHours: limits.defaultTokenHours,
           requiresSequentialSigning: false,
           requiresConsent: true,
           generateCertificate: true,

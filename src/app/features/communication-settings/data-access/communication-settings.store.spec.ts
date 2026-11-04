@@ -56,6 +56,18 @@ describe('CommunicationSettingsStore', () => {
     expect(store.draft()?.defaultMeetingDurationMinutes).toBe(90);
   });
 
+  it('D-72: la retención se guarda por el mismo flujo; si la oficina no la gestiona, el rechazo se explica', async () => {
+    const error = new HttpErrorResponse({ status: 400, error: { code: 'Settings.RetentionNotManagedByTenant', message: 'x' } });
+    const update = vi.fn(() => throwError(() => error));
+    const { store } = setup(update);
+    store.set('purgeEnabled', true);
+    store.set('messageRetentionDays', 30);
+
+    expect(await store.save()).toBe(false);
+    expect(update).toHaveBeenCalledWith({ purgeEnabled: true, messageRetentionDays: 30 });
+    expect(store.saveError()).toBe('Your platform administrator manages how long messages and recordings are kept.');
+  });
+
   it('el máximo de un número es el menor entre el rango técnico y el techo', () => {
     const { store } = setup();
     expect(store.range('defaultMeetingDurationMinutes', 60)).toEqual({ min: 5, max: 60 });

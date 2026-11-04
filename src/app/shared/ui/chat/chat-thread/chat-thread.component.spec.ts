@@ -201,6 +201,16 @@ describe('ChatThreadComponent — F7: transcript de notas de voz, enlace al tran
     expect(requested).toEqual(['f-txt']);
   });
 
+  it('el ícono del mensaje del sistema sigue su origen: teléfono solo en llamadas', () => {
+    const { el } = render([
+      msg('s1', 'them', { isSystem: true, text: 'Missed call', systemKind: 'Call' }),
+      msg('s2', 'them', { isSystem: true, text: 'Lena is no longer with the office', systemKind: 'Membership' }),
+      msg('s3', 'them', { isSystem: true, text: 'Old notice' }),
+    ]);
+    const icons = Array.from(el.querySelectorAll('[data-role="system-icon"]')).map(i => (i as HTMLElement & { name?: string }).name ?? i.getAttribute('name'));
+    expect(icons).toEqual(['call-outline', 'people-outline', 'information-circle-outline']);
+  });
+
   it('scrollToMessage salta y resalta un mensaje cargado; false si no está en el hilo', () => {
     vi.useFakeTimers();
     try {

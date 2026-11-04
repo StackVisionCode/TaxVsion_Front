@@ -20,7 +20,7 @@ import {
   kindCircle,
   kindIcon,
 } from '../signature-request-panel/signature-wizard.presenter';
-import { SignatureCategory } from '../../data-access/signature.model';
+import { EffectiveSignatureLimits, SignatureCategory } from '../../data-access/signature.model';
 import { SignatureCategoryPickerComponent } from '../signature-category-picker/signature-category-picker.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
@@ -69,7 +69,7 @@ const FIELD_TYPE_ORDER: FieldType[] = ['signature', 'initials', 'date', 'text'];
   styleUrl: './signature-wizard-review-step.component.css',
 })
 export class SignatureWizardReviewStepComponent {
-  @Input() client: WizardClient | null = null;
+  @Input() clients: WizardClient[] = [];
   @Input() document: WizardDocument | null = null;
   @Input() documents: WizardDocument[] = [];
   @Input() signers: EditorSigner[] = [];
@@ -78,6 +78,8 @@ export class SignatureWizardReviewStepComponent {
   @Input() title = '';
   @Input() category: SignatureCategory = 'Fiscal';
   @Input() dueDate = '';
+  /** Límites vigentes: vida por defecto y máxima del enlace del firmante. */
+  @Input() limits: EffectiveSignatureLimits | null = null;
   @Input() notes = '';
   @Output() titleChange = new EventEmitter<string>();
   @Output() categoryChange = new EventEmitter<SignatureCategory>();
@@ -240,12 +242,36 @@ export class SignatureWizardReviewStepComponent {
 
   dueDateLabel(): string {
     if (!this.dueDate) {
-      return 'in 7 days (default)';
+      return this.limits ? `in ${this.hoursAsText(this.limits.defaultTokenHours)} (default)` : 'on your office default';
     }
     return new Date(`${this.dueDate}T00:00:00`).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
     });
+  }
+
+  /** "(30 days max)" desde el techo vigente. */
+  maxDueLabel(): string {
+    return this.limits ? `(${this.hoursAsText(this.limits.plan.maxTokenHours)} max)` : '';
+  }
+
+  /** Fecha máxima del selector: hoy + techo de horas. */
+  maxDueDate(): string | null {
+    if (!this.limits) {
+      return null;
+    }
+    const max = new Date(Date.now() + this.limits.plan.maxTokenHours * 3_600_000);
+    const month = `${max.getMonth() + 1}`.padStart(2, '0');
+    const day = `${max.getDate()}`.padStart(2, '0');
+    return `${max.getFullYear()}-${month}-${day}`;
+  }
+
+  private hoursAsText(hours: number): string {
+    if (hours % 24 === 0) {
+      const days = hours / 24;
+      return days === 1 ? '1 day' : `${days} days`;
+    }
+    return hours === 1 ? '1 hour' : `${hours} hours`;
   }
 }

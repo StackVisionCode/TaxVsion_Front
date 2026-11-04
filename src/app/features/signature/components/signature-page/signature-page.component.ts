@@ -48,12 +48,11 @@ import { saveUrlAs } from '../../utils/save-file.util';
 import { isValidPractitionerPin } from '../../data-access/public-signature.model';
 import { SignatureStore, SignatureStatusFilter } from '../../data-access/signature.store';
 import {
+  PreparerCandidate,
   SIGNATURE_CATEGORIES,
   SIGNATURE_CATEGORY_LABEL,
   SignatureCategory,
-  TOKEN_EXPIRATION_DEFAULT_HOURS,
-  TOKEN_EXPIRATION_MAX_HOURS,
-  TOKEN_EXPIRATION_MIN_HOURS,
+  tokenHoursForDueDate,
 } from '../../data-access/signature.model';
 import { SignatureCapabilities } from '../../data-access/signature-permissions';
 import { notificationResourceError } from '../../../notifications/data-access/notification-resource-error';
@@ -183,6 +182,12 @@ export class SignaturePageComponent implements OnInit {
   );
   readonly actionBusy = signal(false);
   readonly actionError = signal('');
+
+  /** Solicitud enviada cuyo preparador está cambiando un admin (retiro, vacaciones, etc.). */
+  readonly changePreparerTarget = signal<SignatureRequest | null>(null);
+  readonly preparerCandidates = signal<PreparerCandidate[]>([]);
+  readonly preparerCandidatesLoading = signal(false);
+  readonly selectedPreparerId = signal('');
   /** Envío de una solicitud Ready desde el detalle (Ready → InProgress). */
   readonly sendingRequest = signal(false);
 
@@ -201,14 +206,16 @@ export class SignaturePageComponent implements OnInit {
   // ---------- Borrar borrador ----------
   readonly deleteTarget = signal<SignatureRequest | null>(null);
 
-  readonly minExtendHours = TOKEN_EXPIRATION_MIN_HOURS;
-  readonly maxExtendHours = TOKEN_EXPIRATION_MAX_HOURS;
+  /** Rango para extender: el de los límites vigentes (null mientras cargan). */
+  readonly minExtendHours = computed(() => this.store.limits()?.minTokenHours ?? null);
+  readonly maxExtendHours = computed(() => this.store.limits()?.plan.maxTokenHours ?? null);
 
   categoryLabel(category: SignatureCategory): string {
     return SIGNATURE_CATEGORY_LABEL[category];
   }
 
   constructor() {
+    this.store.loadLimits();
     if (!this.hosted) {
       this.store.refresh();
     }
@@ -452,7 +459,8 @@ export class SignaturePageComponent implements OnInit {
 
   confirmEdit(): void {
     const target = this.editTarget();
-    if (!target || this.actionBusy() || !this.isEditValid()) {
+    const limits = this.store.limits();
+    if (!target || !limits || this.actionBusy() || !this.isEditValid()) {
       return;
     }
     this.actionBusy.set(true);
@@ -462,7 +470,7 @@ export class SignaturePageComponent implements OnInit {
         title: this.editTitle().trim(),
         description: this.editNotes().trim() || null,
         category: this.editCategory(),
-        tokenExpirationHours: this.dueDateToHours(this.editDueDate()),
+        tokenExpirationHours: tokenHoursForDueDate(this.editDueDate() || null, limits),
       })
       .subscribe({
         next: () => {
@@ -475,16 +483,6 @@ export class SignaturePageComponent implements OnInit {
           this.actionError.set(toApiError(err).message);
         },
       });
-  }
-
-  /** Fecha de expiración → horas desde ahora (rango del dominio); sin fecha = default. */
-  private dueDateToHours(due: string): number {
-    if (!due) {
-      return TOKEN_EXPIRATION_DEFAULT_HOURS;
-    }
-    const endOfDay = new Date(`${due}T23:59:59`);
-    const hours = Math.ceil((endOfDay.getTime() - Date.now()) / 3_600_000);
-    return Math.min(Math.max(hours, TOKEN_EXPIRATION_MIN_HOURS), TOKEN_EXPIRATION_MAX_HOURS);
   }
 
   // ---------- Borrar borrador ----------
@@ -762,6 +760,88 @@ export class SignaturePageComponent implements OnInit {
     this.runPreparerAction(this.store.clearPreparer(target.id), target, 'Preparer removed from');
   }
 
+  // ---------- Cambiar preparador (admin) / firmar como preparador desde el detalle ----------
+
+  /** Abre el selector con los empleados activos que tienen su identidad 8879 declarada. */
+  openChangePreparer(request: SignatureRequest): void {
+    this.actionError.set('');
+    this.selectedPreparerId.set('');
+    this.preparerCandidates.set([]);
+    this.changePreparerTarget.set(request);
+    this.preparerCandidatesLoading.set(true);
+    this.store.listPreparerCandidates().subscribe({
+      next: (candidates) => {
+        this.preparerCandidates.set(candidates.filter((candidate) => candidate.userId !== request.preparerUserId));
+        this.preparerCandidatesLoading.set(false);
+      },
+      error: (err) => {
+        this.preparerCandidatesLoading.set(false);
+        this.actionError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  closeChangePreparer(): void {
+    if (this.actionBusy()) {
+      return;
+    }
+    this.changePreparerTarget.set(null);
+  }
+
+  confirmChangePreparer(): void {
+    const target = this.changePreparerTarget();
+    const newPreparerId = this.selectedPreparerId();
+    if (!target || !newPreparerId || this.actionBusy()) {
+      return;
+    }
+    this.actionBusy.set(true);
+    this.actionError.set('');
+    this.store.changePreparer(target.id, newPreparerId).subscribe({
+      next: () => {
+        this.actionBusy.set(false);
+        this.changePreparerTarget.set(null);
+        this.toast.success(`Preparer changed on "${target.documentName}"`);
+        this.reloadPreview(target.id);
+      },
+      error: (err) => {
+        this.actionBusy.set(false);
+        this.actionError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  signAsPreparerFromPreview(request: SignatureRequest): void {
+    if (this.actionBusy()) {
+      return;
+    }
+    this.actionBusy.set(true);
+    this.store.signAsPreparer(request.id).subscribe({
+      next: () => {
+        this.actionBusy.set(false);
+        this.toast.success(`Signed as preparer on "${request.documentName}"`);
+        this.reloadPreview(request.id);
+      },
+      error: (err) => {
+        this.actionBusy.set(false);
+        this.toast.error(toApiError(err).message);
+      },
+    });
+  }
+
+  /** Vuelve a pedir el detalle del preview abierto tras una acción (el estado del preparador cambió). */
+  private reloadPreview(requestId: string): void {
+    this.store.getRequestUi(requestId).subscribe({
+      next: (updated) => {
+        if (this.previewRequest()?.id === requestId) {
+          this.previewRequest.set(updated);
+        }
+      },
+      error: () => {
+        // Si falla, el preview queda con lo anterior; reabrirlo trae el estado real.
+      },
+    });
+  }
+
   confirmSignAsPreparer(): void {
     const target = this.preparerTarget();
     if (!target || this.actionBusy()) {
@@ -808,17 +888,13 @@ export class SignaturePageComponent implements OnInit {
   confirmExtend(): void {
     const target = this.extendTarget();
     const hours = Math.round(Number(this.extendHours()));
-    if (!target || this.actionBusy()) {
+    const min = this.minExtendHours();
+    const max = this.maxExtendHours();
+    if (!target || this.actionBusy() || min === null || max === null) {
       return;
     }
-    if (
-      !Number.isFinite(hours) ||
-      hours < TOKEN_EXPIRATION_MIN_HOURS ||
-      hours > TOKEN_EXPIRATION_MAX_HOURS
-    ) {
-      this.actionError.set(
-        `Hours must be between ${TOKEN_EXPIRATION_MIN_HOURS} and ${TOKEN_EXPIRATION_MAX_HOURS}.`,
-      );
+    if (!Number.isFinite(hours) || hours < min || hours > max) {
+      this.actionError.set(`Hours must be between ${min} and ${max}.`);
       return;
     }
     this.actionBusy.set(true);

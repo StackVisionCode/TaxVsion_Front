@@ -19,6 +19,9 @@ import { ModalComponent } from '@shared/ui/modal/modal.component';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { toApiError } from '@core/models/api-error.model';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { StoragePolicyService, uploadRejection } from '@core/cloud-storage/storage-policy.service';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { catchError, of } from 'rxjs';
 import { formatBytes } from '@shared/utils/format.util';
 import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
 import { TaskService } from '../../data-access/task.service';
@@ -61,6 +64,11 @@ export class TaskTemplatesModalComponent implements OnChanges {
   private readonly service = inject(TaskService);
   private readonly toast = inject(ToastService);
   private readonly cloud = inject(CloudStorageUploadService);
+  private readonly storagePolicy = inject(StoragePolicyService);
+  /** Qué admite la carpeta de destino (tipos y tamaño); null mientras carga: valida el backend. */
+  readonly attachmentPolicy = toSignal(this.storagePolicy.uploadPolicy('Templates').pipe(catchError(() => of(null))), {
+    initialValue: null,
+  });
 
   @Input() isOpen = false;
   /** Cliente fijado por el perfil (modo embebido): "Apply" llega preseleccionado y sin picker. */
@@ -309,6 +317,12 @@ export class TaskTemplatesModalComponent implements OnChanges {
     const id = this.editingId();
     if (!file || !id || this.uploadingAttachment()) {
       input.value = '';
+      return;
+    }
+    const rejection = uploadRejection(file, this.attachmentPolicy());
+    if (rejection) {
+      input.value = '';
+      this.toast.error(rejection);
       return;
     }
     this.uploadingAttachment.set(true);

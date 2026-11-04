@@ -1,4 +1,5 @@
 import { Component, CUSTOM_ELEMENTS_SCHEMA, EventEmitter, Input, Output, computed, inject, signal } from '@angular/core';
+import { formatBytes } from '@shared/utils/format.util';
 import { CommonModule } from '@angular/common';
 import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { FormsModule } from '@angular/forms';
@@ -44,7 +45,6 @@ interface TemplateDocumentDraft {
   error: string;
 }
 
-const MAX_PDF_BYTES = 25 * 1024 * 1024;
 
 /**
  * Crear una solicitud a partir de una plantilla.
@@ -300,7 +300,7 @@ export class SignatureTemplatePickerComponent {
     this.slots.update(list => list.map(slot => (slot.slotOrder === slotOrder ? { ...slot, ...patch } : slot)));
   }
 
-  /** Mismo límite que el wizard: PDF y ≤25 MB (el preflight del backend lo repite). */
+  /** Mismo límite que el wizard: PDF y el tamaño vigente de la oficina (el preflight del backend lo repite). */
   onFileSelected(documentId: string, event: Event): void {
     const input = event.target as HTMLInputElement;
     const picked = input.files?.[0] ?? null;
@@ -312,8 +312,9 @@ export class SignatureTemplatePickerComponent {
       this.setDocumentError(documentId, 'Only PDF files can be sent for signature.');
       return;
     }
-    if (picked.size > MAX_PDF_BYTES) {
-      this.setDocumentError(documentId, 'That PDF is over the 25 MB limit.');
+    const maxPdfBytes = this.store.limits()?.maxPdfBytes ?? 0;
+    if (maxPdfBytes && picked.size > maxPdfBytes) {
+      this.setDocumentError(documentId, `That PDF is over the ${formatBytes(maxPdfBytes)} limit.`);
       return;
     }
     this.documents.update(documents =>

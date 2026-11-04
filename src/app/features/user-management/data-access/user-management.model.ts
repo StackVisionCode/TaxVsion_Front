@@ -1,5 +1,6 @@
 import { avatarColorFor, initialsOf } from '@shared/utils/avatar.util';
 import { TeamMember } from '../ui/user-table/user-table.component';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
 
 /** Espejo de TaxVision.Auth.Domain.Users.UserActorType (viaja como string por JsonStringEnumConverter). */
 export type UserActorType = 'TenantEmployee' | 'TenantAdmin' | 'CustomerPortal' | 'PlatformAdmin';
@@ -41,6 +42,8 @@ export interface UserSummary {
   isGated?: boolean;
   /** Foto confirmada (`/storage/avatars/{id}`). Ausente = backend anterior; null = sin foto. */
   avatarFileId?: string | null;
+  /** Cuándo se retiró (solo Offboarded). */
+  removedAtUtc?: string | null;
 }
 
 /** Fila de GET /auth/invitations (InvitationResponse). El backend no expone los roleIds de la invitación. */
@@ -244,10 +247,63 @@ export interface PermissionDeny {
 export interface OffboardImpactItem {
   key: string;
   label: string;
-  action: string;
   icon: string;
+  /** Qué pasa si se elige un sucesor (`{name}` = su nombre) y qué pasa si no. */
+  withSuccessor: string;
+  withoutSuccessor: string;
   count: number;
   available: boolean;
+}
+
+/** Un servicio con pre-flight del retiro (`GET /auth/offboarding/participants`). `impactPath` lleva `{userId}`. */
+export interface OffboardingParticipant {
+  service: string;
+  /** Nombre del área que ve la oficina (p. ej. "Chat and meetings"). */
+  module: string;
+  impactPath: string;
+  /** El servicio reconoce cuentas por email: se manda en el cuerpo de un POST, nunca en la URL. */
+  acceptsEmail: boolean;
+}
+
+export type OffboardingRunStatus = 'InProgress' | 'Completed' | 'Incomplete';
+
+/** Motivo de la salida (opcional; espejo de `OffboardingReason` en Auth). */
+export type OffboardingReason = 'Resigned' | 'LetGo' | 'ContractEnded' | 'Other';
+
+export const OFFBOARDING_REASONS: readonly { value: OffboardingReason; label: string }[] = [
+  { value: 'Resigned', label: 'Resigned' },
+  { value: 'LetGo', label: 'Let go' },
+  { value: 'ContractEnded', label: 'Contract ended' },
+  { value: 'Other', label: 'Other' },
+];
+
+/** Límite de la nota del motivo (mismo que Auth). */
+export const OFFBOARDING_NOTE_MAX = 500;
+
+export function offboardingReasonLabel(reason: string | null | undefined): string | null {
+  return OFFBOARDING_REASONS.find(option => option.value === reason)?.label ?? null;
+}
+
+/** Lo que el diálogo confirma: sucesor (null = sin sucesor) y, si la oficina quiere, el motivo. */
+export interface OffboardRequest {
+  successorUserId: string | null;
+  reason: OffboardingReason | null;
+  reasonNote: string | null;
+}
+
+/** Avance del handover tras el retiro: cada área confirma su parte (`GET /auth/users/{id}/offboarding-status`). */
+export interface OffboardingStatus {
+  status: OffboardingRunStatus;
+  expected: number;
+  completed: number;
+  pending: { service: string; step: string; module: string }[];
+  startedAtUtc: string;
+  completedAtUtc: string | null;
+  /** Ficha del retiro; null en retiros anteriores a ella. `successor` null = sin sucesor. */
+  offboardedBy?: { id: string; name: string } | null;
+  successor?: { id: string; name: string } | null;
+  reason?: OffboardingReason | null;
+  reasonNote?: string | null;
 }
 
 /** Candidato a sucesor: staff activo (no portal) distinto del que se retira, para el picker del diálogo. */
@@ -269,29 +325,22 @@ function deriveNameFromEmail(email: string): string {
   return words.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 
+/** Texto de la columna Activity de alguien desvinculado. */
+export function offboardedActivity(iso: string): string {
+  return `Offboarded ${formatDate(iso)}`;
+}
+
 function formatDate(iso: string): string {
-  const date = new Date(iso);
+  // Auth manda sus fechas sin la `Z`: leerlas como UTC, no como hora local.
+  const date = parseUtcDate(iso);
   if (Number.isNaN(date.getTime())) {
     return '';
   }
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-/** Etiqueta corta del actor type para chips ("Admin" / "Employee"). */
-export function actorTypeLabel(actorType: string): string {
-  switch (actorType) {
-    case 'TenantAdmin':
-      return 'Admin';
-    case 'TenantEmployee':
-      return 'Employee';
-    case 'CustomerPortal':
-      return 'Client portal';
-    case 'PlatformAdmin':
-      return 'Platform';
-    default:
-      return actorType;
-  }
-}
+/** Etiqueta corta del actor type para chips ("Admin" / "Employee"): la misma en todo el CRM. */
+export { actorTypeLabel } from '@core/auth/actor-labels';
 
 /** Fila de la tabla desde GET /auth/users. Sin "last active" en el backend: se muestra la fecha de alta. */
 export function userToTeamMember(user: UserSummary): TeamMember {
@@ -309,7 +358,9 @@ export function userToTeamMember(user: UserSummary): TeamMember {
     actorType: user.actorType,
     // 'Offboarded' es terminal (Removed): distinto de una suspensión reversible; el resto por isActive.
     status: user.status === 'Offboarded' ? 'removed' : user.isActive ? 'active' : 'suspended',
-    activity: `Joined ${formatDate(user.createdAtUtc)}`,
+    activity: user.status === 'Offboarded' && user.removedAtUtc
+      ? offboardedActivity(user.removedAtUtc)
+      : `Joined ${formatDate(user.createdAtUtc)}`,
     slotIndex: user.slotIndex ?? null,
     isGated: user.isGated === true,
   };

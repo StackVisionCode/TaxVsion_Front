@@ -15,6 +15,8 @@ import {
   MeetingChatHistoryResponse,
   MeetingEventsPageResponse,
   MeetingInviteeInput,
+  MeetingGuestAccess,
+  MeetingCodeResolution,
   MeetingLimits,
   MeetingsPageResponse,
   MeetingsScope,
@@ -62,6 +64,11 @@ export class MeetingsService {
   /** GET /communication/meetings/stats — contadores reales para las tarjetas del dashboard. */
   stats(): Observable<MeetingStatsResponse> {
     return this.http.get<MeetingStatsResponse>(`${this.base}/meetings/stats`);
+  }
+
+  /** GET /communication/meetings/code/{shortCode} — 404 si no hay reunión con ese código en la oficina. */
+  resolveCode(shortCode: string): Observable<MeetingCodeResolution> {
+    return this.http.get<MeetingCodeResolution>(`${this.base}/meetings/code/${encodeURIComponent(shortCode)}`);
   }
 
   /** GET /communication/meetings/limits — duración por defecto/máxima y cupo efectivos de la oficina (F3). */
@@ -146,6 +153,28 @@ export class MeetingsService {
   /** GET /communication/meetings/{id}/invitations — metadata, sin token ni joinUrl. */
   listInvitations(id: string): Observable<ListMeetingInvitationsResponse> {
     return this.http.get<ListMeetingInvitationsResponse>(`${this.base}/meetings/${id}/invitations`);
+  }
+
+  // ---------- Invitados externos de la reunión (D-68/D-69, host/cohost) ----------
+
+  /** GET /communication/meetings/{id}/guest-access */
+  getGuestAccess(id: string): Observable<MeetingGuestAccess> {
+    return this.http.get<MeetingGuestAccess>(`${this.base}/meetings/${id}/guest-access`);
+  }
+
+  /** PUT /communication/meetings/{id}/guest-access — al cerrar, los externos que esperaban quedan rechazados. */
+  setGuestAccess(id: string, allowed: boolean): Observable<MeetingGuestAccess> {
+    return this.http.put<MeetingGuestAccess>(`${this.base}/meetings/${id}/guest-access`, { allowed });
+  }
+
+  /** POST /communication/meetings/{id}/guest-link — enciende el enlace; `rotate` invalida el anterior. */
+  enableGuestLink(id: string, rotate: boolean): Observable<MeetingGuestAccess> {
+    return this.http.post<MeetingGuestAccess>(`${this.base}/meetings/${id}/guest-link`, { rotate });
+  }
+
+  /** DELETE /communication/meetings/{id}/guest-link */
+  disableGuestLink(id: string): Observable<MeetingGuestAccess> {
+    return this.http.delete<MeetingGuestAccess>(`${this.base}/meetings/${id}/guest-link`);
   }
 
   /** DELETE /communication/meetings/{id}/invitations/{invitationId} — 204. */

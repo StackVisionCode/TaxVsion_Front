@@ -9,9 +9,11 @@
       class="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[0.6875rem] font-medium transition-colors"
       [ngClass]="onlyThisClient() ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-100'">
       <ion-icon name="person-outline" class="text-xs"></ion-icon>
-      This client only
+      {{ multipleClients() ? 'These clients only' : 'This client only' }}
     </button>
-    <span class="text-[0.6875rem] text-gray-400">{{ onlyThisClient() ? 'Showing this client’s PDFs' : 'Showing all office PDFs' }}</span>
+    <span class="text-[0.6875rem] text-gray-400">
+      {{ onlyThisClient() ? (multipleClients() ? 'Showing these clients’ PDFs' : 'Showing this client’s PDFs') : 'Showing all office PDFs' }}
+    </span>
   </div>
 
   <p *ngIf="error()" class="mb-2 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{{ error() }}</p>

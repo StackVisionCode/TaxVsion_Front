@@ -46,7 +46,6 @@ const FONT_PRESETS: FontPreset[] = [
   { name: 'Formal', fontFamily: "'Palatino Linotype', Palatino, serif", fontStyle: 'italic', fontWeight: 'normal' },
 ];
 
-const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 /**
  * Generador de firmas (Draw / Type / Upload), adaptado del `SignatureCreatorComponent`
@@ -195,12 +194,8 @@ export class SignatureCreatorComponent implements OnChanges, OnDestroy {
     if (!file) {
       return;
     }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      this.uploadError.set('La imagen debe pesar menos de 4MB.');
-      return;
-    }
     if (!/^image\/(png|jpe?g)$/.test(file.type)) {
-      this.uploadError.set('Solo se permiten archivos PNG o JPEG.');
+      this.uploadError.set('Only PNG or JPEG images are allowed.');
       return;
     }
     this.uploadError.set('');

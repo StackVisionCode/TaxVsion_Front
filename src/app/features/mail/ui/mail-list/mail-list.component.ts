@@ -13,19 +13,23 @@ import {
   ViewChildren,
   SimpleChanges,
   computed,
-  inject,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { LoadMoreComponent } from '@shared/ui/load-more/load-more.component';
-import { SearchInputComponent } from '@shared/ui/search-input/search-input.component';
 import { StateBlockComponent } from '@shared/ui/state-block/state-block.component';
 
 /** Etiqueta de la fila: el cliente del correo, o "Not a client" (atenuada). */
 export interface MailRowTag {
   label: string;
   muted: boolean;
+}
+
+/** Chip de estado de entrega de la fila ("Not delivered" rojo, "Mailbox full" ámbar, "Delayed" gris…). */
+export interface MailRowStatus {
+  label: string;
+  tone: 'red' | 'amber' | 'gray' | 'green';
 }
 
 /**
@@ -54,23 +58,29 @@ export interface MailListRow {
   badge: string | null;
   /** Correos inbound no leídos del hilo (0 fuera del Inbox). Pinta el hilo en negrita + globo. */
   unreadCount: number;
+  /** No leído sin conteo (resultados de búsqueda): negrita + punto, sin globo. */
+  unread?: boolean;
   /** Adjuntos de la fila (carpeta Sent): >0 pinta un clip. Ausente/0 = sin indicador. */
   attachmentCount?: number;
+  /** Estado de entrega (aviso de no entrega del hilo o estado del enviado). */
+  status?: MailRowStatus | null;
+  /** Icono en lugar del avatar (p. ej. un archivo en los resultados de búsqueda). */
+  icon?: string | null;
+  /** La vista previa es un aviso (se pinta en el color del estado). */
+  previewTone?: MailRowStatus['tone'] | null;
 }
 
 /**
- * Listado central del módulo Mail (estilo "Aether"): buscador píldora + filas
- * con avatar de iniciales, asunto, meta y fecha. La fila seleccionada se
- * resalta con un pill negro que se DESLIZA entre filas (mismo patrón que el
- * indicador del sidebar y del rail de carpetas).
+ * Listado central del módulo Mail (estilo "Aether"): filas con avatar de iniciales, asunto, meta y
+ * fecha. La fila seleccionada se resalta con un pill negro que se DESLIZA entre filas (mismo patrón que
+ * el indicador del sidebar y del rail de carpetas).
  *
- * Sigue siendo dumb: recibe filas ya armadas más los estados de carga del store
- * y emite selección / retry / paginación. Con `serverSearch` lo tecleado sube al padre (Inbox/Archived
- * buscan en el servidor); sin él filtra CLIENT-SIDE lo ya cargado (remitente, asunto, vista previa, cliente).
+ * Sigue siendo dumb: recibe filas ya armadas más los estados de carga del store y emite selección /
+ * retry / paginación. La búsqueda vive fuera (`app-grouped-search` en mail-page) y llega ya aplicada.
  */
 @Component({
   selector: 'app-mail-list',
-  imports: [CommonModule, AvatarComponent, LoadMoreComponent, SearchInputComponent, StateBlockComponent],
+  imports: [CommonModule, AvatarComponent, LoadMoreComponent, StateBlockComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mail-list.component.html',
   styleUrl: './mail-list.component.css',
@@ -92,26 +102,18 @@ export class MailListComponent implements OnChanges, AfterViewInit {
   @Input() emptyText = 'Nothing here yet';
   /** Papelera: muestra botones Restore / Delete-forever por fila. */
   @Input() showTrashActions = false;
-  /** true = la búsqueda la resuelve el servidor (se emite); false = filtra lo cargado. */
-  @Input() serverSearch = false;
-  @Input() searchPlaceholder = 'Search loaded mail';
-  /** Al cambiar (p. ej. de carpeta) se vacía la búsqueda. */
-  @Input() set searchResetKey(_key: unknown) {
-    this.search.set('');
-  }
+  /** Texto de apoyo bajo el estado vacío (p. ej. qué probar en una búsqueda sin resultados). */
+  @Input() emptyHint = '';
+  /** Nombre accesible de la lista de filas (p. ej. "Emails" en la pestaña All). */
+  @Input() listLabel = '';
 
   @Output() rowSelected = new EventEmitter<string>();
   @Output() retryRequested = new EventEmitter<void>();
   @Output() loadMoreRequested = new EventEmitter<void>();
   @Output() restoreRequested = new EventEmitter<string>();
   @Output() purgeRequested = new EventEmitter<string>();
-  @Output() serverSearchChange = new EventEmitter<string>();
   /** B6 — restaurar y borrar para siempre exigen `correspondence.manage`, no `read`. */
   @Input() canManage = true;
-
-  readonly search = signal('');
-  /** Espejo del input para que `filteredRows` (computed) reaccione al modo de búsqueda. */
-  private readonly serverSearchSig = signal(false);
 
   @ViewChild('listScroll') private scrollRef?: ElementRef<HTMLElement>;
   @ViewChildren('rowButton') private rowButtons?: QueryList<ElementRef<HTMLElement>>;
@@ -123,16 +125,8 @@ export class MailListComponent implements OnChanges, AfterViewInit {
   readonly indicatorHeight = signal(0);
   readonly indicatorReady = signal(false);
 
-  readonly filteredRows = computed<MailListRow[]>(() => {
-    const term = this.search().trim().toLowerCase();
-    const rows = this.rowsSig();
-    if (!term || this.serverSearchSig()) {
-      return rows;
-    }
-    return rows.filter(row =>
-      [row.title, row.subtitle, row.preview, row.tag?.label].some(text => !!text && text.toLowerCase().includes(term)),
-    );
-  });
+  /** Las filas llegan ya filtradas (búsqueda y chips se aplican en el store / la página). */
+  readonly filteredRows = computed<MailListRow[]>(() => this.rowsSig());
 
   ngAfterViewInit(): void {
     setTimeout(() => this.syncIndicator());
@@ -142,7 +136,6 @@ export class MailListComponent implements OnChanges, AfterViewInit {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    this.serverSearchSig.set(this.serverSearch);
     setTimeout(() => this.syncIndicator());
     // Moverse con j/k puede dejar la fila elegida fuera de la vista: se trae sin saltos bruscos.
     if (changes['selectedId'] && this.selectedId) {
@@ -150,16 +143,13 @@ export class MailListComponent implements OnChanges, AfterViewInit {
     }
   }
 
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-
-  /** Atajo `/`: lleva el foco al buscador de la lista. */
-  focusSearch(): void {
-    this.host.nativeElement.querySelector<HTMLInputElement>('app-search-input input')?.focus();
-  }
-
   private scrollSelectedIntoView(): void {
     const index = this.filteredRows().findIndex(row => row.id === this.selectedId);
     this.rowButtons?.toArray()[index]?.nativeElement.scrollIntoView({ block: 'nearest' });
+  }
+
+  isUnread(row: MailListRow): boolean {
+    return row.unreadCount > 0 || !!row.unread;
   }
 
   /** Lo que un lector de pantalla dice de la fila: remitente, asunto, no leídos, cliente y fecha. */
@@ -167,8 +157,9 @@ export class MailListComponent implements OnChanges, AfterViewInit {
     return [
       row.title,
       row.subtitle,
-      row.unreadCount > 0 ? `${row.unreadCount} unread` : null,
+      row.unreadCount > 0 ? `${row.unreadCount} unread` : row.unread ? 'unread' : null,
       row.tag?.label ?? null,
+      row.status?.label ?? null,
       (row.attachmentCount ?? 0) > 0 || row.hasAttachments ? 'has attachments' : null,
       row.badge,
       row.time,
@@ -182,10 +173,27 @@ export class MailListComponent implements OnChanges, AfterViewInit {
     this.syncIndicator();
   }
 
-  onSearchChange(value: string): void {
-    this.search.set(value);
-    if (this.serverSearch) this.serverSearchChange.emit(value);
-    setTimeout(() => this.syncIndicator());
+  statusClasses(status: MailRowStatus, selected: boolean): string {
+    if (selected) {
+      return 'bg-white/15 text-white';
+    }
+    switch (status.tone) {
+      case 'red':
+        return 'bg-red-50 text-red-700';
+      case 'amber':
+        return 'bg-amber-50 text-amber-700';
+      case 'green':
+        return 'bg-emerald-50 text-emerald-700';
+      default:
+        return 'bg-gray-100 text-gray-500';
+    }
+  }
+
+  previewClasses(row: MailListRow, selected: boolean): string {
+    if (selected) {
+      return 'text-gray-300';
+    }
+    return row.previewTone === 'red' ? 'text-red-600' : row.previewTone === 'amber' ? 'text-amber-700' : 'text-gray-400';
   }
 
   select(id: string): void {

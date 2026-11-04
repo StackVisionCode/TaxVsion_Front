@@ -21,6 +21,8 @@ import {
   SignatureTemplateStatus,
   SignerResponse,
   SetPreparerBody,
+  ChangePreparerBody,
+  PreparerCandidate,
   AddTemplateSlotBody,
   CreateTemplateBody,
   InstantiateTemplateBody,
@@ -34,6 +36,7 @@ import {
   SignatureProfile,
   SignatureProfileScope,
   SignatureProfilesResult,
+  EffectiveSignatureLimits,
   SignatureSettings,
   SignatureSettingsUpdate,
   UpdateSignatureRequestBody,
@@ -43,6 +46,7 @@ import {
   UpsertDraftResponse,
   ValidateDocumentResponse,
   ReplaceDocumentFileResponse,
+  SignedDocumentDelivery,
 } from './signature.model';
 
 /**
@@ -167,6 +171,25 @@ export class SignatureService {
     });
   }
 
+  /** Entregas de documentos firmados de la solicitud (a quién, cuándo, aperturas, vigencia). */
+  listDeliveries(requestId: string): Observable<SignedDocumentDelivery[]> {
+    return this.http.get<SignedDocumentDelivery[]>(`${this.base}/requests/${requestId}/deliveries`);
+  }
+
+  /** Emite las entregas que falten de una solicitud completada (idempotente). */
+  issueDeliveries(requestId: string): Observable<SignedDocumentDelivery[]> {
+    return this.http.post<SignedDocumentDelivery[]>(`${this.base}/requests/${requestId}/deliveries`, {});
+  }
+
+  /** Enlace nuevo al mismo email (el anterior deja de valer). */
+  resendDelivery(requestId: string, deliveryId: string): Observable<SignedDocumentDelivery> {
+    return this.http.post<SignedDocumentDelivery>(`${this.base}/requests/${requestId}/deliveries/${deliveryId}/resend`, {});
+  }
+
+  revokeDelivery(requestId: string, deliveryId: string): Observable<SignedDocumentDelivery> {
+    return this.http.post<SignedDocumentDelivery>(`${this.base}/requests/${requestId}/deliveries/${deliveryId}/revoke`, {});
+  }
+
   /** F7 — timeline del audit chain para el preparador (signature.document.audit.read). */
   getAuditTrail(id: string): Observable<AuditTrailResponse> {
     return this.http.get<AuditTrailResponse>(`${this.base}/requests/${id}/audit`);
@@ -276,6 +299,11 @@ export class SignatureService {
     return this.http.get<SignatureSettings>(`${this.base}/settings`);
   }
 
+  /** GET /signature/settings/effective-limits — límites vigentes (cualquiera que lea solicitudes). */
+  getEffectiveLimits(): Observable<EffectiveSignatureLimits> {
+    return this.http.get<EffectiveSignatureLimits>(`${this.base}/settings/effective-limits`);
+  }
+
   /** PUT /signature/settings — reemplaza toda la configuración (semántica PUT del backend). */
   updateSignatureSettings(body: SignatureSettingsUpdate): Observable<void> {
     return this.http.put<void>(`${this.base}/settings`, body);
@@ -378,6 +406,20 @@ export class SignatureService {
    */
   signAsPreparer(requestId: string): Observable<void> {
     return this.http.post<void>(`${this.base}/requests/${requestId}/preparer/sign`, {});
+  }
+
+  /**
+   * Pasa el preparador de una solicitud ENVIADA a otro empleado mientras no haya firmado
+   * (`signature.request.manage`). La identidad 8879 sale del perfil del nuevo; queda auditado.
+   */
+  changePreparer(requestId: string, newPreparerUserId: string): Observable<void> {
+    const body: ChangePreparerBody = { newPreparerUserId };
+    return this.http.post<void>(`${this.base}/requests/${requestId}/preparer/change`, body);
+  }
+
+  /** Empleados activos con identidad 8879 declarada: a quién se le puede pasar el preparador. */
+  listPreparerCandidates(): Observable<PreparerCandidate[]> {
+    return this.http.get<PreparerCandidate[]>(`${this.base}/requests/preparer-candidates`);
   }
 
   // ---------- Plantillas ----------

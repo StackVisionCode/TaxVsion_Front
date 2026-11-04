@@ -27,7 +27,7 @@ export class GuestMeetingService {
     return this.http.post<GuestMeetingContext>(`${this.base}/guest/context`, { token }, { context: anonymousRequestContext() });
   }
 
-  /** POST /communication/meetings/join-by-token — 404 uniforme; 403 `Meeting.GuestsNotAllowed`. */
+  /** POST /communication/meetings/join-by-token — 404 uniforme; 403 `Meeting.GuestsNotAllowed` / `Meeting.Locked`. */
   joinByToken(token: string, displayName: string): Observable<GuestJoinByTokenResponse> {
     return this.http.post<GuestJoinByTokenResponse>(
       `${this.base}/join-by-token`,

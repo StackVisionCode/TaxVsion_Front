@@ -270,6 +270,7 @@
           }
           <div class="relative">
             <input type="file" (change)="uploadTemplateAttachment($event)" [disabled]="uploadingAttachment()"
+              [attr.accept]="attachmentPolicy()?.accept ?? null"
               class="absolute inset-0 h-full w-full cursor-pointer opacity-0 z-10" />
             <button type="button" [disabled]="uploadingAttachment()"
               class="w-full flex items-center justify-center gap-2 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors">

@@ -28,6 +28,9 @@ export interface RecordingTranscriptDto {
 }
 
 export interface RecordingDetailsDto {
+  /** D-71: id y número de la grabación (una reunión puede tener varias). */
+  recordingId?: string;
+  sequence?: number;
   state: RecordingState;
   captureMode: RecordingCaptureMode | null;
   startedAtUtc: string | null;
@@ -40,6 +43,8 @@ export interface RecordingDetailsDto {
   failureReason: string | null;
   playback: PresignedUrlDto | null;
   transcript: RecordingTranscriptDto | null;
+  /** D-71: todas las grabaciones, de la primera a la última (los campos de arriba son de la última). */
+  recordings?: RecordingDetailsDto[];
 }
 
 /** Segmento del transcript (JSON v2 o línea del TXT). */

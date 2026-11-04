@@ -133,21 +133,29 @@
         <span class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-400">Expiration</span>
         <input type="date" [ngModel]="expires()" (ngModelChange)="expires.set($event)" [min]="minExpiry" [max]="maxExpiry"
           class="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20" />
-        <span class="mt-1 block text-[0.6875rem] text-gray-400">
-          @if (access() === 'ExternalLink') { Secure links last up to 30 days. } @else { Leave empty for the default 7 days. }
-        </span>
+        <span class="mt-1 block text-[0.6875rem] text-gray-400">{{ expiryHint }}</span>
       </label>
 
       <label class="block">
         <span class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-400">Password</span>
-        <input type="text" [ngModel]="password()" (ngModelChange)="password.set($event)" placeholder="Optional"
+        <input type="text" [ngModel]="password()" (ngModelChange)="password.set($event)"
+          [placeholder]="passwordRequired ? 'Required' : 'Optional'" [attr.aria-invalid]="passwordError ? true : null"
           class="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20" />
+        @if (passwordError) {
+          <span class="mt-1 block text-[0.6875rem] text-red-600">{{ passwordError }}</span>
+        } @else if (policy && password().trim()) {
+          <span class="mt-1 block text-[0.6875rem] text-gray-400">At least {{ policy.minPasswordLength }} characters.</span>
+        }
       </label>
 
       <label class="block">
         <span class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-400">Maximum opens</span>
-        <input type="text" inputmode="numeric" [ngModel]="maxAccess()" (ngModelChange)="maxAccess.set($event)" placeholder="Unlimited"
+        <input type="text" inputmode="numeric" [ngModel]="maxAccess()" (ngModelChange)="maxAccess.set($event)"
+          [placeholder]="maxDownloads !== null ? 'Up to ' + maxDownloads : 'Unlimited'" [attr.aria-invalid]="maxAccessError ? true : null"
           class="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20" />
+        @if (maxAccessError) {
+          <span class="mt-1 block text-[0.6875rem] text-red-600">{{ maxAccessError }}</span>
+        }
       </label>
     </div>
   </div>
@@ -174,7 +182,8 @@
 
   <div class="mt-6 flex items-center justify-end gap-2">
     <button type="button" (click)="cancelled.emit()" class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900">Cancel</button>
-    <button type="button" (click)="submit()" class="flex items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink">
+    <button type="button" (click)="submit()" [disabled]="!canSubmit"
+      class="flex items-center gap-1.5 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:cursor-not-allowed disabled:opacity-50">
       <ion-icon name="link-outline"></ion-icon> Generate link
     </button>
   </div>

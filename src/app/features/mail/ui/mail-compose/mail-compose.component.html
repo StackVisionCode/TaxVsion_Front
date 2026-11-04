@@ -2,7 +2,7 @@
   <!-- Header -->
   <div class="flex items-start justify-between gap-4 border-b border-gray-100 pb-4">
     <div class="min-w-0">
-      <h2 class="text-xl font-bold text-gray-900">{{ state.draft ? 'Continue draft' : 'New message' }}</h2>
+      <h2 class="text-xl font-bold text-gray-900">{{ state.resendTo ? 'Resend email' : (state.draft ? 'Continue draft' : 'New message') }}</h2>
       <!-- Contexto real del envío: el buzón desde el que sale y el cliente en cuya ficha se archiva
            (o ninguno, si se escribe a alguien que no es cliente). -->
       <p class="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 text-sm text-gray-500">
@@ -27,7 +27,7 @@
   <!-- Carga del draft retomado -->
   <div *ngIf="state.loadingDraft" class="flex flex-1 items-center justify-center gap-2 text-sm text-gray-400">
     <app-infinity-loader size="sm" />
-    Loading draft…
+    {{ state.resendTo ? 'Preparing the email…' : 'Loading draft…' }}
   </div>
 
   <div *ngIf="state.loadError as loadErr"
@@ -38,6 +38,11 @@
   </div>
 
   <ng-container *ngIf="!state.loadingDraft && !state.loadError">
+    <!-- Reenvío de un aviso de no entrega: solo al destinatario que falló (los demás ya lo recibieron) -->
+    <p *ngIf="state.resendTo" class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
+      {{ state.highlightRecipient ? 'Fix the address, then send.' : 'Review the email, then send it again.' }}
+      It goes only to {{ state.resendTo }}; the other recipients already got it.
+    </p>
     <!-- Destinatarios (Bcc no se expone: el store no lo incluye en su payload de envío).
          To y Cc autocompletan contra /customers: se elige el cliente y se pega su dirección,
          o se usa tal cual lo tecleado cuando ya es un correo. -->
@@ -45,7 +50,7 @@
       <div class="relative">
         <div class="flex h-10 items-center rounded-full border border-gray-200 bg-white px-4 focus-within:border-gray-300 transition-colors">
           <span class="mr-2 w-14 shrink-0 text-sm text-gray-400">To</span>
-          <input type="text" placeholder="Search a client or type an email" [ngModel]="to()" name="to"
+          <input #toInput type="text" placeholder="Search a client or type an email" [ngModel]="to()" name="to"
             autocomplete="off" [disabled]="state.sending" (ngModelChange)="onRecipientInput('to', $event)"
             (focus)="onRecipientFocus('to')" (blur)="closeRecipientPickerSoon()"
             class="h-full w-full bg-transparent text-sm text-gray-700 placeholder-gray-400 focus:outline-none" />
@@ -146,7 +151,7 @@
           [class.opacity-40]="state.sending" title="Attach files">
           <ion-icon name="attach-outline" class="text-lg"></ion-icon>
           Attach files
-          <input type="file" multiple class="hidden" [disabled]="state.sending" (change)="onFilesSelected($event)" />
+          <input type="file" multiple class="hidden" [disabled]="state.sending" [attr.accept]="attachmentPolicy()?.accept ?? null" (change)="onFilesSelected($event)" />
         </label>
       </div>
 

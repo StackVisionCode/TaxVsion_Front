@@ -2,18 +2,25 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
-import { EmailActivityDetail, EmailActivityFilter, EmailActivityPage } from './email-activity.model';
+import {
+  EmailActivityDetail,
+  EmailActivityFilter,
+  EmailActivityPage,
+  EmailEngagementFilter,
+} from './email-activity.model';
 
 export interface EmailActivityQuery {
   status: EmailActivityFilter;
   recipient: string;
+  /** Null/ausente = sin filtro de interacción. */
+  engagement?: EmailEngagementFilter | null;
   page: number;
   size: number;
 }
 
 /**
  * Cliente HTTP de "Email activity" (Postmaster):
- *   - GET /postmaster/messages?status&recipient&page&size → página del historial.
+ *   - GET /postmaster/messages?status&recipient&engagement&page&size → página del historial.
  *   - GET /postmaster/messages/{id} → detalle con destinatarios y línea de tiempo.
  * Permiso: postmaster.messages.read. El backend enmascara las direcciones para quien no es admin.
  */
@@ -34,6 +41,9 @@ export class EmailActivityService {
     const recipient = query.recipient.trim();
     if (recipient) {
       params = params.set('recipient', recipient);
+    }
+    if (query.engagement) {
+      params = params.set('engagement', query.engagement);
     }
     return this.http.get<EmailActivityPage>(this.base, { params });
   }

@@ -1,3 +1,4 @@
+import { roleLabel } from '@core/auth/actor-labels';
 import { SwitchComponent } from '@shared/ui/switch/switch.component';
 import { DrawerComponent } from '@shared/ui/drawer/drawer.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
@@ -91,6 +92,7 @@ export class EditAccessDrawerComponent implements OnInit {
   private readonly openKeys = signal<ReadonlySet<string>>(new Set());
   private accordionInitialized = false;
 
+  readonly roleLabel = roleLabel;
   readonly seatLabel = computed(() => actorTypeLabel(this.store.actorType() || this.member.actorType));
 
   /** All module views for the loaded user (granted + locked), before the text filter. */

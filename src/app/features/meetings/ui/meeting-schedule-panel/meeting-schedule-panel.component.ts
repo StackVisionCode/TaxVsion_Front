@@ -25,6 +25,9 @@ import { MeetingsService } from '../../data-access/meetings.service';
 import {
   CreatedMeetingInvitation,
   MeetingFormValue,
+  MeetingGuestAccess,
+  recognizedInviteesNotice,
+  skippedInviteesNotice,
   MeetingLimits,
   buildDurationOptions,
   MeetingInvitationListItem,
@@ -40,6 +43,7 @@ import {
   invitationStateLabel,
   invitationTone,
 } from '../../utils/invitation-state';
+import { MeetingGuestAccessComponent } from '../meeting-guest-access/meeting-guest-access.component';
 
 const INVITEE_SEARCH_DEBOUNCE_MS = 250;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -61,7 +65,17 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 @Component({
   selector: 'app-meeting-schedule-panel',
-  imports: [InfinityLoaderComponent, CommonModule, FormsModule, ModalComponent, AvatarComponent, AvatarUrlPipe, StatusPillComponent, ClickOutsideDirective],
+  imports: [
+    InfinityLoaderComponent,
+    CommonModule,
+    FormsModule,
+    ModalComponent,
+    AvatarComponent,
+    AvatarUrlPipe,
+    StatusPillComponent,
+    ClickOutsideDirective,
+    MeetingGuestAccessComponent,
+  ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meeting-schedule-panel.component.html',
 })
@@ -97,6 +111,8 @@ export class MeetingSchedulePanelComponent implements OnChanges {
   readonly time = signal('');
   // ---------- Opciones de la reunión (solo al crear) ----------
   readonly requireWaitingRoom = signal(false);
+  /** D-69: arranca con lo que permita la oficina (`limits.guestsAllowed`). */
+  readonly guestsAllowed = signal(true);
   readonly passcode = signal('');
   readonly recordingRequested = signal(false);
   /** Idioma del transcript (INV-T01 R-7); null = automático. En gestionar se guarda al cambiarlo. */
@@ -130,6 +146,14 @@ export class MeetingSchedulePanelComponent implements OnChanges {
   /** Links recién emitidos desde "Send invitations" (única vez que se ven). */
   readonly newInvitationLinks = signal<CreatedMeetingInvitation[]>([]);
   readonly invitationsBusy = signal(false);
+  /** MNT-01: aviso tras enviar (ya invitados / reconocidos como equipo o cliente). */
+  readonly invitationsNotice = signal<string | null>(null);
+  /** D-69 (gestionar): acceso de externos de la reunión; null hasta cargarlo. */
+  readonly manageGuestAccess = signal<MeetingGuestAccess | null>(null);
+  /** Se pueden agregar externos por email: la oficina y la reunión los admiten. */
+  readonly externalsAllowed = computed(() =>
+    this.isEditMode() ? (this.manageGuestAccess()?.guestsAllowed ?? true) : this.guestsAllowed() && (this.limits()?.guestsAllowed ?? true),
+  );
 
   /** Feedback de copiado (key = id de invitación o 'code'). */
   readonly copiedKey = signal<string | null>(null);
@@ -214,8 +238,25 @@ export class MeetingSchedulePanelComponent implements OnChanges {
 
   addExternal(): void {
     const email = this.externalCandidate();
-    if (email) {
+    if (email && this.externalsAllowed()) {
       this.addInvitee({ kind: 'external', userId: null, email, name: email.split('@')[0] });
+    }
+  }
+
+  /** Crear: al quitar los externos, los ya elegidos salen de la lista (no podrían entrar). */
+  setGuestsAllowed(allowed: boolean): void {
+    this.guestsAllowed.set(allowed);
+    this.dropExternalsIfBlocked();
+  }
+
+  onGuestAccessChange(access: MeetingGuestAccess): void {
+    this.manageGuestAccess.set(access);
+    this.dropExternalsIfBlocked();
+  }
+
+  private dropExternalsIfBlocked(): void {
+    if (!this.externalsAllowed()) {
+      this.invitees.update(list => list.filter(invitee => invitee.kind !== 'external'));
     }
   }
 
@@ -319,8 +360,11 @@ export class MeetingSchedulePanelComponent implements OnChanges {
     }
     this.invitationsBusy.set(true);
     this.invitationsError.set(null);
+    this.invitationsNotice.set(null);
     this.store.createInvitations(meeting.id, drafts).subscribe({
-      next: created => {
+      next: ({ invitations: created, skipped }) => {
+        const notices = [skippedInviteesNotice(skipped), recognizedInviteesNotice(drafts, created)].filter(Boolean);
+        this.invitationsNotice.set(notices.length ? notices.join(' ') : null);
         this.newInvitationLinks.update(list => [...list, ...created]);
         this.invitees.set([]);
         this.invitationsBusy.set(false);
@@ -380,6 +424,7 @@ export class MeetingSchedulePanelComponent implements OnChanges {
       recordingRequested: this.recordingRequested(),
       transcriptLanguage: this.transcriptLanguage(),
       scheduledDurationMinutes: this.scheduledDurationMinutes(),
+      guestsAllowed: this.guestsAllowed() && (this.limits()?.guestsAllowed ?? true),
     });
   }
 
@@ -419,6 +464,8 @@ export class MeetingSchedulePanelComponent implements OnChanges {
       next: limits => {
         this.limits.set(limits);
         this.scheduledDurationMinutes.set(Math.min(limits.defaultDurationMinutes, limits.maxDurationMinutes));
+        this.guestsAllowed.set(limits.guestsAllowed);
+        this.dropExternalsIfBlocked();
       },
       error: () => {
         this.limits.set(null);
@@ -447,6 +494,9 @@ export class MeetingSchedulePanelComponent implements OnChanges {
     }
     this.description.set('');
     this.requireWaitingRoom.set(false);
+    this.guestsAllowed.set(this.limits()?.guestsAllowed ?? true);
+    this.manageGuestAccess.set(null);
+    this.invitationsNotice.set(null);
     this.passcode.set('');
     this.recordingRequested.set(false);
     this.transcriptLanguage.set(meeting?.transcriptLanguage ?? null);

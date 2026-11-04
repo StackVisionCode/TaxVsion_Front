@@ -25,8 +25,11 @@
             <p class="text-xs text-gray-500">{{ formatDateTime(item.sentAtUtc ?? item.queuedAtUtc) }} · {{ laneLabel(item.lane) }}</p>
           </div>
           <span class="flex items-center gap-2">
-            @if (item.opened || item.clicked) {
-              <span class="text-xs text-gray-400" [attr.title]="engagementHint">{{ item.clicked ? 'Clicked' : 'Opened' }}</span>
+            @for (badge of engagementBadges(item); track badge.kind) {
+              <span role="img" class="flex text-base text-gray-400" [attr.data-engagement]="badge.kind"
+                [attr.title]="badge.hint" [attr.aria-label]="badge.hint">
+                <ion-icon [name]="badge.icon" aria-hidden="true"></ion-icon>
+              </span>
             }
             <app-status-pill [tone]="statusTone(item.status)">{{ statusLabel(item.status) }}</app-status-pill>
           </span>

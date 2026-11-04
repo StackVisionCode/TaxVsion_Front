@@ -60,12 +60,38 @@ describe('SignatureWizardClientStepComponent', () => {
     expect(emitted).toEqual([chosen]);
   });
 
-  it('un cliente nuevo cierra el buscador de "Change"', () => {
+  it('"Change" de un cliente emite el reemplazo con el cliente anterior', () => {
     const { c } = setup();
-    c.changing.set(true);
+    const replaced: { previousId: string; customer: CustomerSummary }[] = [];
+    const picked: CustomerSummary[] = [];
+    c.replaced.subscribe(x => replaced.push(x));
+    c.picked.subscribe(x => picked.push(x));
 
-    c.ngOnChanges({ selected: new SimpleChange(null, null, false) });
+    c.toggleSearch('old');
+    const chosen = customer({ id: 'new' });
+    c.onPicked(chosen);
 
-    expect(c.changing()).toBe(false);
+    expect(replaced).toEqual([{ previousId: 'old', customer: chosen }]);
+    expect(picked).toEqual([]);
+  });
+
+  it('el buscador no ofrece clientes que ya están en la solicitud', () => {
+    const { c } = setup();
+    c.selected = [
+      { id: 'a', displayName: 'Ana', email: 'a@x.com', phone: '', type: 'individual', isActive: true, createdAt: '' },
+    ];
+    c.ngOnChanges({ selected: new SimpleChange(null, c.selected, false) });
+
+    expect(c.typeFilterFn()(customer({ id: 'a' }))).toBe(false);
+    expect(c.typeFilterFn()(customer({ id: 'b' }))).toBe(true);
+  });
+
+  it('elegir clientes cierra el buscador abierto', () => {
+    const { c } = setup();
+    c.toggleSearch('add');
+
+    c.ngOnChanges({ selected: new SimpleChange(null, [], false) });
+
+    expect(c.searching()).toBeNull();
   });
 });

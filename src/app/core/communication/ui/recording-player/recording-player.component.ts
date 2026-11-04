@@ -87,7 +87,18 @@ export class RecordingPlayerComponent {
 
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
-  readonly details = signal<RecordingDetailsDto | null>(null);
+  /** Respuesta completa: la última grabación + `recordings` (D-71). */
+  private readonly response = signal<RecordingDetailsDto | null>(null);
+  private readonly selectedId = signal<string | null>(null);
+  /** D-71: grabaciones de la reunión (una sola en backends previos o en llamadas). */
+  readonly recordings = computed(() => {
+    const response = this.response();
+    return response?.recordings?.length ? response.recordings : response ? [response] : [];
+  });
+  /** La grabación que se ve: la elegida o, por defecto, la última. */
+  readonly details = computed(
+    () => this.recordings().find(r => !!r.recordingId && r.recordingId === this.selectedId()) ?? this.response(),
+  );
   readonly playbackUrl = signal<string | null>(null);
   readonly playbackError = signal<string | null>(null);
   readonly transcriptLoading = signal(false);
@@ -138,6 +149,24 @@ export class RecordingPlayerComponent {
       untracked(() => this.load(scope, id));
     });
     inject(DestroyRef).onDestroy(() => this.request?.unsubscribe());
+  }
+
+  /** D-71: cambiar de grabación (video y transcript de esa grabación). */
+  selectRecording(recordingId: string | undefined): void {
+    if (!recordingId || recordingId === this.details()?.recordingId) {
+      return;
+    }
+    this.selectedId.set(recordingId);
+    this.resetPlayback();
+    const details = this.details();
+    if (details) {
+      this.playbackUrl.set(details.state === 'Ready' ? (details.playback?.url ?? null) : null);
+      void this.loadTranscript(details, ++this.loadSeq);
+    }
+  }
+
+  recordingLabel(recording: RecordingDetailsDto, index: number): string {
+    return `Recording ${recording.sequence ?? index + 1}`;
   }
 
   /** Recarga todo (botón Retry / Refresh). */
@@ -202,8 +231,8 @@ export class RecordingPlayerComponent {
     this.request?.unsubscribe();
     this.request = this.service.getRecording(this.scope(), this.targetId()).subscribe({
       next: details => {
-        this.details.set(details);
-        this.playbackUrl.set(details.playback?.url ?? null);
+        this.response.set(details);
+        this.playbackUrl.set(this.details()?.playback?.url ?? null);
       },
       error: () => this.playbackError.set('The recording could not be played. Try again later.'),
     });
@@ -236,10 +265,11 @@ export class RecordingPlayerComponent {
     this.service.getRecording(this.scope(), this.targetId()).subscribe({
       next: details => {
         this.downloading.set(false);
-        this.details.set(details);
-        this.playbackUrl.set(details.playback?.url ?? null);
-        if (details.playback) {
-          triggerDownload(details.playback.url);
+        this.response.set(details);
+        const playback = this.details()?.playback;
+        this.playbackUrl.set(playback?.url ?? null);
+        if (playback) {
+          triggerDownload(playback.url);
         }
       },
       error: () => {
@@ -254,19 +284,13 @@ export class RecordingPlayerComponent {
     this.request?.unsubscribe();
     this.loading.set(true);
     this.error.set(null);
-    this.playbackError.set(null);
-    this.details.set(null);
-    this.playbackUrl.set(null);
-    this.segments.set(null);
-    this.transcriptSource.set(null);
-    this.query.set('');
-    this.currentMs.set(0);
-    this.refreshAttempts = 0;
-    this.resumeAtSec = null;
+    this.response.set(null);
+    this.selectedId.set(null);
+    this.resetPlayback();
     this.request = this.service.getRecording(scope, id).subscribe({
       next: details => {
         this.loading.set(false);
-        this.details.set(details);
+        this.response.set(details);
         this.playbackUrl.set(details.state === 'Ready' ? (details.playback?.url ?? null) : null);
         void this.loadTranscript(details, seq);
       },
@@ -281,6 +305,18 @@ export class RecordingPlayerComponent {
         );
       },
     });
+  }
+
+  private resetPlayback(): void {
+    this.playbackError.set(null);
+    this.playbackUrl.set(null);
+    this.segments.set(null);
+    this.transcriptSource.set(null);
+    this.transcriptLoading.set(false);
+    this.query.set('');
+    this.currentMs.set(0);
+    this.refreshAttempts = 0;
+    this.resumeAtSec = null;
   }
 
   private async loadTranscript(details: RecordingDetailsDto, seq: number): Promise<void> {

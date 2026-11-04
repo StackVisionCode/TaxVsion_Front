@@ -1,0 +1,78 @@
+@if (canManage()) {
+  <div class="rounded-2xl border border-gray-100 bg-white p-4 sm:p-5">
+    <div class="flex items-center gap-2">
+      <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-indigo-50 text-brand-bold">
+        <ion-icon name="link-outline" class="text-base"></ion-icon>
+      </span>
+      <h3 class="text-sm font-bold text-gray-900">Sharing rules</h3>
+    </div>
+    <p class="mt-1.5 text-sm text-gray-500">
+      Apply to links that leave your office: secure links, public links and external recipients.
+    </p>
+
+    @if (loading()) {
+      <p class="mt-3 text-xs text-gray-400">Loading current rules…</p>
+    } @else if (draft(); as d) {
+      <div class="mt-3 divide-y divide-gray-100">
+        <div class="flex items-start justify-between gap-4 py-3">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Allow secure links</p>
+            <p class="mt-0.5 text-xs text-gray-500">Anyone with the link can open it, without an email address.</p>
+          </div>
+          <app-switch [checked]="d.allowLinkOnlyExternalShares" (checkedChange)="patch('allowLinkOnlyExternalShares', $event)"
+            ariaLabel="Allow secure links"></app-switch>
+        </div>
+
+        <div class="flex items-start justify-between gap-4 py-3">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Require a password on links</p>
+            <p class="mt-0.5 text-xs text-gray-500">For secure and public links, which open without signing in.</p>
+          </div>
+          <app-switch [checked]="d.requirePasswordOnLinkShares" (checkedChange)="patch('requirePasswordOnLinkShares', $event)"
+            ariaLabel="Require a password on links"></app-switch>
+        </div>
+
+        <div class="grid grid-cols-1 gap-3 py-3 sm:grid-cols-2">
+          <label class="block">
+            <span class="text-xs font-semibold text-gray-600">Default lifetime (days)</span>
+            <input type="number" min="1" [ngModel]="d.defaultLifetimeDays" (ngModelChange)="patchNumber('defaultLifetimeDays', $event)"
+              class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+            <span class="mt-0.5 block text-[0.6875rem] text-gray-400">Used when whoever shares does not pick a date.</span>
+          </label>
+          <label class="block">
+            <span class="text-xs font-semibold text-gray-600">Longest lifetime (days)</span>
+            <input type="number" min="1" [ngModel]="d.maxLifetimeDays" (ngModelChange)="patchNumber('maxLifetimeDays', $event)"
+              class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+            <span class="mt-0.5 block text-[0.6875rem] text-gray-400">Also applies when a link is extended.</span>
+          </label>
+          <label class="block">
+            <span class="text-xs font-semibold text-gray-600">Minimum password length</span>
+            <input type="number" min="1" [ngModel]="d.minPasswordLength" (ngModelChange)="patchNumber('minPasswordLength', $event)"
+              class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+          </label>
+          <label class="block">
+            <span class="text-xs font-semibold text-gray-600">Wrong passwords before locking</span>
+            <input type="number" min="1" [ngModel]="d.maxPasswordAttempts" (ngModelChange)="patchNumber('maxPasswordAttempts', $event)"
+              class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+            <span class="mt-0.5 block text-[0.6875rem] text-gray-400">The link stops accepting passwords for a while.</span>
+          </label>
+          <label class="block sm:col-span-2">
+            <span class="text-xs font-semibold text-gray-600">Maximum opens per link</span>
+            <input type="text" inputmode="numeric" placeholder="No limit" [ngModel]="maxDownloadsText()"
+              (ngModelChange)="maxDownloadsText.set($event)" class="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
+            <span class="mt-0.5 block text-[0.6875rem] text-gray-400">Leave empty for no limit. Also the default for new links.</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="mt-2 flex justify-end">
+        <button type="button" (click)="save()" [disabled]="saving()"
+          class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:cursor-not-allowed disabled:opacity-50">
+          {{ saving() ? 'Saving…' : 'Save sharing rules' }}
+        </button>
+      </div>
+    } @else {
+      <p class="mt-3 text-xs text-gray-400">We couldn't load the sharing rules. Reload the page to try again.</p>
+    }
+  </div>
+}

@@ -1,4 +1,4 @@
-<app-modal [isOpen]="true" [heading]="'Remove ' + member.name" [subheading]="member.email" size="xl"
+<app-modal [isOpen]="true" [heading]="'Offboard ' + member.name" [subheading]="member.email" size="xl"
   (closed)="cancelled.emit()">
 
   <!-- Warning: acción terminal -->
@@ -9,24 +9,44 @@
     </p>
   </div>
 
-  <!-- Preview de impacto (fan-out a los 7 servicios) -->
+  <!-- Selector de sucesor: va primero porque decide lo que pasa con cada renglón de abajo -->
+  <div class="mt-5">
+    <label for="offboard-successor" class="mb-1.5 block text-sm font-medium text-gray-700">Hand their work over to</label>
+    <select id="offboard-successor" [ngModel]="successorId()" (ngModelChange)="successorId.set($event)"
+      class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-bold focus:outline-none focus:ring-1 focus:ring-brand-bold">
+      <option value="">No one — handle it as shown below</option>
+      <option *ngFor="let successor of successors()" [value]="successor.id">
+        {{ successor.name }} · {{ successor.subtitle }}
+      </option>
+    </select>
+  </div>
+
+  <!-- Preview de impacto: solo lo que tiene algo, con lo que de verdad pasa según el sucesor -->
   <p class="mb-2 mt-5 text-xs font-medium uppercase tracking-wide text-gray-400">What happens to their work</p>
 
   <p *ngIf="impactLoading()" class="text-sm text-gray-400">Loading impact…</p>
 
-  <div *ngIf="!impactLoading()" class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-    <div *ngFor="let item of impact()" class="flex items-center gap-2.5 rounded-xl bg-gray-50 px-3 py-2.5">
+  <p *ngIf="!impactLoading() && impactUnknown()" class="rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-700"
+    data-testid="offboard-unknown">
+    We couldn't load what's assigned to them. Offboarding still hands their work over as usual.
+  </p>
+
+  <p *ngIf="!impactLoading() && !impactUnknown() && affected().length === 0" class="rounded-xl bg-gray-50 px-3 py-2.5 text-sm text-gray-600"
+    data-testid="offboard-nothing">
+    Nothing is assigned to them. Offboarding only removes their access.
+  </p>
+
+  <ul *ngIf="!impactLoading() && affected().length > 0" class="flex flex-col gap-2" data-testid="offboard-impact">
+    <li *ngFor="let item of affected()" class="flex items-center gap-2.5 rounded-xl bg-gray-50 px-3 py-2.5">
       <ion-icon [name]="item.icon" class="text-base text-gray-400"></ion-icon>
       <span class="text-sm text-gray-700">
-        <span class="font-semibold text-gray-900">{{ item.available ? item.count : '—' }}</span> {{ item.label }}
+        <span class="font-semibold text-gray-900">{{ item.count }}</span> {{ item.label }}
       </span>
-      <span class="ml-auto text-[0.6875rem]" [class.text-gray-400]="item.available" [class.text-amber-500]="!item.available">
-        {{ item.available ? item.action : 'unavailable' }}
-      </span>
-    </div>
-  </div>
+      <span class="ml-auto text-right text-xs text-gray-500" [attr.data-impact]="item.key">{{ actionFor(item) }}</span>
+    </li>
+  </ul>
 
-  <p *ngIf="!impactLoading() && hasUnavailable()" class="mt-2 text-xs text-amber-600">
+  <p *ngIf="!impactLoading() && hasUnavailable() && !impactUnknown()" class="mt-2 text-xs text-amber-600">
     Some services couldn't be reached — those counts may be incomplete.
   </p>
 
@@ -36,16 +56,25 @@
     <span>Signed documents, 8879, the audit trail and chat history are kept for legal retention.</span>
   </div>
 
-  <!-- Selector de sucesor -->
-  <div class="mt-5">
-    <label for="offboard-successor" class="mb-1.5 block text-sm font-medium text-gray-700">Reassign their work to</label>
-    <select id="offboard-successor" [ngModel]="successorId()" (ngModelChange)="successorId.set($event)"
+  <!-- Motivo (opcional, solo para la ficha que ven los admins) -->
+  <div class="mt-5 border-t border-gray-100 pt-4">
+    <label for="offboard-reason" class="mb-1.5 block text-sm font-medium text-gray-700">
+      Reason for leaving <span class="font-normal text-gray-400">(optional)</span>
+    </label>
+    <select id="offboard-reason" [ngModel]="reason()" (ngModelChange)="reason.set($event)" data-testid="offboard-reason"
       class="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-bold focus:outline-none focus:ring-1 focus:ring-brand-bold">
-      <option value="">Leave unassigned — route to the office</option>
-      <option *ngFor="let successor of successors()" [value]="successor.id">
-        {{ successor.name }} · {{ successor.subtitle }}
-      </option>
+      <option value="">Don't record a reason</option>
+      <option *ngFor="let option of reasons" [value]="option.value">{{ option.label }}</option>
     </select>
+    <ng-container *ngIf="reason()">
+      <textarea [ngModel]="reasonNote()" (ngModelChange)="reasonNote.set($event)" [attr.maxlength]="noteMax" rows="2"
+        placeholder="Add a note (optional)" aria-label="Reason note" data-testid="offboard-reason-note"
+        class="mt-2 w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-bold focus:outline-none focus:ring-1 focus:ring-brand-bold"></textarea>
+      <p class="mt-1 flex justify-between text-xs text-gray-400">
+        <span>Only admins can see this, in the offboarding record.</span>
+        <span>{{ reasonNote().length }}/{{ noteMax }}</span>
+      </p>
+    </ng-container>
   </div>
 
   <!-- Confirmación de seguridad -->
@@ -57,13 +86,13 @@
 
   <!-- Pie -->
   <div class="mt-6 flex items-center justify-end gap-2">
-    <button type="button" (click)="cancelled.emit()"
+    <button type="button" (click)="cancelled.emit()" [disabled]="busy"
       class="rounded-full px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors">
       Cancel
     </button>
-    <button type="button" (click)="confirm()" [disabled]="!acknowledged() || submitting()"
+    <button type="button" (click)="confirm()" [disabled]="!acknowledged() || busy" data-testid="offboard-confirm"
       class="rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-ink disabled:cursor-not-allowed disabled:opacity-50">
-      Remove from office
+      {{ busy ? 'Offboarding…' : 'Offboard' }}
     </button>
   </div>
 </app-modal>

@@ -70,7 +70,12 @@ export class ApiConfigService {
         'ApiConfigService: no hay tenant (slug) resuelto todavía. Resolvé el slug (email/campo/login) antes de una llamada de tenant.',
       );
     }
-    return `https://${slug}.${platformConfig().baseDomain}`;
+    return this.officeBase(slug);
+  }
+
+  /** Base de una oficina concreta (su subdominio), sin depender de la oficina resuelta en este navegador. */
+  officeBase(slug: string): string {
+    return environment.production ? `https://${slug}.${platformConfig().baseDomain}` : environment.apiUrl;
   }
 
   /** URL absoluta de un endpoint del sistema. */

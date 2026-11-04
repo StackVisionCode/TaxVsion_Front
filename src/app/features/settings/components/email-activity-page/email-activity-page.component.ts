@@ -9,10 +9,14 @@ import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.componen
 import { parseUtcDateOrNull } from '@shared/utils/utc-date.util';
 import {
   EMAIL_ACTIVITY_FILTERS,
+  EMAIL_ENGAGEMENT_FILTERS,
   ENGAGEMENT_HINT,
   EmailActivityFilter,
   EmailActivityItem,
+  engagementBadges,
   laneLabel,
+  SENT_STATUS_HINT,
+  statusHint,
   statusLabel,
   statusTone,
 } from '@core/postmaster/email-activity.model';
@@ -43,10 +47,14 @@ export class EmailActivityPageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
 
   readonly filters = EMAIL_ACTIVITY_FILTERS;
+  readonly engagementFilters = EMAIL_ENGAGEMENT_FILTERS;
+  readonly engagementBadges = engagementBadges;
   readonly pageSize = EMAIL_ACTIVITY_PAGE_SIZE;
   readonly engagementHint = ENGAGEMENT_HINT;
   readonly statusTone = statusTone;
   readonly statusLabel = statusLabel;
+  readonly statusHint = statusHint;
+  readonly sentStatusHint = SENT_STATUS_HINT;
   readonly laneLabel = laneLabel;
 
   ngOnInit(): void {

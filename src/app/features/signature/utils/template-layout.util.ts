@@ -1,5 +1,6 @@
 import { FieldType } from '../ui/signature-request-panel/signature-wizard.model';
 import { NormalizedRect, PageSize, denormalizeFieldRect, normalizeFieldRect } from './field-normalize.util';
+import { hasFontSize } from './stamp-font-size.util';
 
 /**
  * Lógica pura del editor de plantillas (`ui/signature-template-editor`): conversión del layout
@@ -13,9 +14,6 @@ import { NormalizedRect, PageSize, denormalizeFieldRect, normalizeFieldRect } fr
 /** slotOrder sentinela para los campos del PREPARADOR (los slots reales son >= 1). */
 export const PREPARER_SLOT = 0;
 
-/** Tamaño mínimo de un campo en px de pantalla. */
-export const MIN_FIELD_W = 48;
-export const MIN_FIELD_H = 28;
 
 /** Campo colocado sobre la superficie de layout (px de pantalla a la escala actual). */
 export interface TemplateFieldLocal {
@@ -31,6 +29,8 @@ export interface TemplateFieldLocal {
   height: number;
   /** Instrucción/etiqueta que verá el firmante (solo `text`). */
   label?: string;
+  /** Letra del estampado en pt (iniciales/fecha/texto); null/omitido = automática. */
+  fontSizePt?: number | null;
 }
 
 /** Página de la superficie: número 1-based + tamaño en px a la escala actual. */
@@ -50,6 +50,7 @@ export interface NormalizedSignerField extends NormalizedRect {
   type: FieldType;
   page: number;
   label?: string;
+  fontSizePt?: number | null;
 }
 
 export interface NormalizedPreparerField extends NormalizedRect {
@@ -89,6 +90,7 @@ export function buildNormalizedSignerFields(
       page: field.page,
       ...rect,
       label: field.type === 'text' ? field.label?.trim() || undefined : undefined,
+      fontSizePt: hasFontSize(field.type) ? (field.fontSizePt ?? null) : null,
     });
   }
   return out;

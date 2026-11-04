@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { UserManagementService } from './user-management.service';
-import { EligibleSuccessor, OffboardImpactItem, UserEffectiveAccess } from './user-management.model';
+import { EligibleSuccessor, UserEffectiveAccess } from './user-management.model';
 
 /**
  * Contract of the deny-layer service methods against the Auth endpoints (`/auth/users/{id}/...`).
@@ -109,47 +109,19 @@ describe('UserManagementService — offboarding', () => {
 
   afterEach(() => httpMock.verify());
 
-  it('offboardUser POSTs the chosen successor', () => {
-    service.offboardUser('u1', 's1').subscribe();
+  it('offboardUser POSTs the chosen successor and the optional reason', () => {
+    service.offboardUser('u1', { successorUserId: 's1', reason: 'Resigned', reasonNote: 'New job' }).subscribe();
     const request = httpMock.expectOne('http://test/auth/users/u1/offboard');
     expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({ successorUserId: 's1' });
+    expect(request.request.body).toEqual({ successorUserId: 's1', reason: 'Resigned', reasonNote: 'New job' });
     request.flush(null);
   });
 
   it('offboardUser sends a null successor to route work to the office', () => {
-    service.offboardUser('u1', null).subscribe();
+    service.offboardUser('u1', { successorUserId: null, reason: null, reasonNote: null }).subscribe();
     const request = httpMock.expectOne('http://test/auth/users/u1/offboard');
-    expect(request.request.body).toEqual({ successorUserId: null });
+    expect(request.request.body).toEqual({ successorUserId: null, reason: null, reasonNote: null });
     request.flush(null);
-  });
-
-  it('getOffboardImpact fans out to the 7 services and degrades per-service on error', () => {
-    let result: OffboardImpactItem[] | undefined;
-    service.getOffboardImpact('u1').subscribe((items) => (result = items));
-
-    const flush = (path: string, field: string, count: number) => {
-      const request = httpMock.expectOne(`http://test${path}/offboarding-impact/u1`);
-      expect(request.request.method).toBe('GET');
-      request.flush({ [field]: count });
-    };
-    flush('/customers', 'assignedClients', 12);
-    flush('/tasks', 'openTasks', 8);
-    flush('/calendar', 'futureAppointments', 3);
-    flush('/correspondence', 'openDrafts', 2);
-    flush('/storage', 'activeShareLinks', 4);
-    // Connectors no responde → ese renglón degrada (available:false, count:0), sin tumbar el resto.
-    httpMock
-      .expectOne('http://test/connectors/offboarding-impact/u1')
-      .error(new ProgressEvent('network error'));
-    flush('/communication', 'activeMeetings', 1);
-
-    const byKey = (key: string): OffboardImpactItem => result!.find((item) => item.key === key)!;
-    expect(result!.length).toBe(7);
-    expect(byKey('clients').count).toBe(12);
-    expect(byKey('clients').available).toBe(true);
-    expect(byKey('mailboxes').available).toBe(false);
-    expect(byKey('mailboxes').count).toBe(0);
   });
 
   // Los clientes de portal los descarta el backend (accountKind=Staff): acá solo se quita al que se va.

@@ -5,6 +5,8 @@ import { AppNotification } from '../ui/notification-list/notification-list.compo
 export interface NavigationTarget {
   commands: readonly string[];
   queryParams?: Readonly<Record<string, string>>;
+  /** Sección de la página destino (p. ej. `compliance` en /company/settings). */
+  fragment?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -13,7 +15,7 @@ export class NotificationRouteResolver {
 
   navigate(notification: AppNotification): Promise<boolean> {
     const target = this.resolve(notification);
-    return this.router.navigate([...target.commands], { queryParams: target.queryParams });
+    return this.router.navigate([...target.commands], { queryParams: target.queryParams, fragment: target.fragment });
   }
 
   resolve(notification: AppNotification): NavigationTarget {
@@ -33,6 +35,8 @@ export class NotificationRouteResolver {
   ): NavigationTarget {
 
     switch (resourceType) {
+      // Correo de un cliente o aviso de no entrega (`correspondence.delivery_failed`): abre la conversación.
+      // `customerId` puede faltar (aviso a quien no es cliente): mail-page abre el hilo por id.
       case 'email_thread':
         return {
           commands: ['/email'],
@@ -91,10 +95,12 @@ export class NotificationRouteResolver {
               commands: ['/clients', context['customerId']],
               queryParams: compact({ tab: 'documents', fileId: context['fileId'] ?? id }),
             }
-          : { commands: ['/storage'], queryParams: compact({ fileId: id }) };
+          : { commands: ['/documents'], queryParams: compact({ fileId: id }) };
+      // Los avisos de archivo llegan también a empleados: van al gestor de archivos (Documents);
+      // /storage es la administración del almacenamiento (solo settings.manage).
       case 'file':
       case 'document':
-        return { commands: ['/storage'], queryParams: compact({ fileId: id }) };
+        return { commands: ['/documents'], queryParams: compact({ fileId: id }) };
       case 'storage_settings':
         // No hay pagina dedicada: el gestor de almacenamiento es /storage.
         return { commands: ['/storage'] };
@@ -106,12 +112,20 @@ export class NotificationRouteResolver {
         // profile-page no honra ?section=security; aterrizar en /profile y el usuario
         // elige la pestaña (anadir ancla/section en una fase posterior si hace falta).
         return { commands: ['/profile'] };
+      case 'compliance_settings':
+        return { commands: ['/company/settings'], fragment: 'compliance' };
       case 'import_job':
         return { commands: ['/clients/import'], queryParams: compact({ jobId: id }) };
       case 'support_ticket':
         return { commands: ['/support'], queryParams: compact({ ticketId: id }) };
       case 'seats':
         return { commands: ['/company/users'] };
+      // Retiro que no terminó: abre el avance del handover de esa persona.
+      case 'user_management':
+        return { commands: ['/company/users'], queryParams: compact({ handover: id }) };
+      // Campañas pausadas al retirarse quien las enviaba: se revisan en el listado.
+      case 'campaign':
+        return { commands: ['/campaigns'] };
       default:
         return this.detailFallback(fallbackNotificationId);
     }

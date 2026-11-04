@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '@core/config/api-config.service';
 import { readOnlyRequestContext } from '@core/http/read-only-request';
-import { ClientChatDirectoryEntry } from './client-chat.model';
+import { ClientChatDirectoryEntry, ClosedChatMessagesPage, ClosedClientChat } from './client-chat.model';
 
 /**
  * Cliente HTTP fino sobre el directorio de Communication (`/communication/directory/customers`,
@@ -25,6 +25,26 @@ export class ClientChatService {
       `${this.api.tenantUrl('/communication/directory')}/customers/search`,
       { q: term, limit },
       { context: readOnlyRequestContext() },
+    );
+  }
+
+  /** Chats del cliente cerrados al retirarse su preparador (solo lectura para la oficina con acceso). */
+  listClosedChats(customerId: string): Observable<{ items: ClosedClientChat[] }> {
+    return this.http.get<{ items: ClosedClientChat[] }>(
+      `${this.api.tenantUrl('/communication/customers')}/${customerId}/closed-chats`,
+      { context: readOnlyRequestContext() },
+    );
+  }
+
+  /** Historial de un chat, de lo más nuevo a lo más viejo; `before` pide la página anterior. */
+  getMessages(conversationId: string, before: string | null = null): Observable<ClosedChatMessagesPage> {
+    const params: Record<string, string> = { take: '50' };
+    if (before) {
+      params['before'] = before;
+    }
+    return this.http.get<ClosedChatMessagesPage>(
+      `${this.api.tenantUrl('/communication/conversations')}/${conversationId}/messages`,
+      { params, context: readOnlyRequestContext() },
     );
   }
 }

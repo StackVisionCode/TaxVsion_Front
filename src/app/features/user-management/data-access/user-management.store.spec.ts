@@ -71,13 +71,15 @@ describe('UserManagementStore — offboardUser', () => {
     store.loadMembers(1);
   });
 
-  it('marks the member as removed after a successful offboard', () => {
-    store.offboardUser('u1', 's1').subscribe();
-    expect(store.members().find((member) => member.id === 'u1')?.status).toBe('removed');
+  it('marks the member as removed and shows the offboarding date after a successful offboard', () => {
+    store.offboardUser('u1', { successorUserId: 's1', reason: null, reasonNote: null }).subscribe();
+    const member = store.members().find((m) => m.id === 'u1');
+    expect(member?.status).toBe('removed');
+    expect(member?.activity).toMatch(/^Offboarded /);
   });
 
   it('refreshes the tenant limits (offboard frees the seat)', () => {
-    store.offboardUser('u1', null).subscribe();
+    store.offboardUser('u1', { successorUserId: null, reason: null, reasonNote: null }).subscribe();
     expect(limitsCalls).toBeGreaterThan(0);
   });
 });

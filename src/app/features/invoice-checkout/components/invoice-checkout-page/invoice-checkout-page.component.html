@@ -55,13 +55,17 @@
     <!-- Formulario de pago -->
     <ng-container *ngIf="phase() === 'ready' || phase() === 'paying'">
       <div class="pay-to" *ngIf="checkout() as c">
-        <span class="office-tile">{{ officeInitials() }}</span>
+        @if (officeLogoUrl(); as logo) {
+          <img class="office-logo" [src]="logo" [alt]="c.tenantName + ' logo'" (error)="onLogoError()" />
+        } @else {
+          <span class="office-tile" aria-hidden="true">{{ officeInitials() }}</span>
+        }
         <span class="office-name">{{ c.tenantName }}</span>
       </div>
       <p class="amount-caption">AMOUNT DUE</p>
       <p class="amount">{{ amountLabel() }}</p>
       <p class="ref" *ngIf="checkout()?.purposeDescription || checkout()?.purposeExternalReferenceId as label">
-        Factura {{ checkout()?.purposeDescription || label }}
+        {{ checkout()?.purposeKind === 'InvoicePayment' ? 'Invoice ' : '' }}{{ checkout()?.purposeDescription || label }}
       </p>
 
       <!-- Selector de proveedor (solo si hay mas de uno) -->
@@ -88,7 +92,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4DD8FF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>
           </svg>
-          {{ phase() === 'paying' ? 'Procesando…' : 'Pagar ' + amountLabel() }}
+          {{ phase() === 'paying' ? 'Processing…' : 'Pay ' + amountLabel() }}
         </button>
        </ng-container>
 
@@ -105,8 +109,8 @@
       <!-- Otros proveedores: aun sin flujo de pago en el frontend -->
       <ng-container *ngIf="!isSupportedSelected()">
         <p class="muted">
-          {{ selectedMethod()?.displayName || selectedMethod()?.providerCode }} is not available for
-          pagar en línea. Elegí otro método o contactá al comercio.
+          {{ selectedMethod()?.displayName || selectedMethod()?.providerCode }} can't be used to pay
+          online yet. Choose another method or contact the office.
         </p>
       </ng-container>
     </ng-container>

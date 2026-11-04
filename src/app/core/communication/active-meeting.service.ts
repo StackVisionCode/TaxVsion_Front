@@ -22,6 +22,7 @@ import { IceServer } from './call.model';
 import {
   MeetingDurationWarningDto,
   MeetingEndReason,
+  MeetingGuestIdentity,
   MeetingParticipantDto,
   MeetingRecordingState,
   MeetingRecordingStateChangedDto,
@@ -67,6 +68,7 @@ import { SoundsService } from './media/sounds.service';
 import {
   RecordingCaptureMode,
   RecordingClock,
+  isRecordingCapturing,
   isRecordingProcessing,
   recordingLimitWarningMessage,
   recordingStartErrorMessage,
@@ -185,11 +187,11 @@ export class ActiveMeetingService {
   readonly errorMessage = signal<string | null>(null);
   readonly myUserId = signal<string | null>(null);
   /**
-   * F6 (D-47) — entré como INVITADO EXTERNO (`joinAsGuest`): sin JWT, userId = invitationId, sin
+   * F6 (D-47) — entré como INVITADO EXTERNO (`joinAsGuest`): sin JWT, userId = el del ticket, sin
    * acciones de host ni grabación, chat solo texto; el ICE viene en el ack del join (no hay `GET /webrtc/ice`).
    */
   readonly isGuest = signal(false);
-  private guestInvitationId: string | null = null;
+  private guestIdentity: MeetingGuestIdentity | null = null;
   /** Último nombre con el que el roster me mostró: el tile "You" lo conserva aunque mi fila ya no esté (expulsión). */
   private readonly lastSelfDisplayName = signal<string | null>(null);
   /** F6 — motivo del último `meeting.you.removed` (p. ej. `Revoked` al guest); null hasta que ocurre. Se limpia al entrar. */
@@ -299,9 +301,17 @@ export class ActiveMeetingService {
   /** userId del que pidió grabar cuando ME toca responder el consentimiento (null = sin prompt). */
   readonly recordingConsentFrom = signal<string | null>(null);
   private readonly _recordingRequesterId = signal<string | null>(null);
+  /** D-71: grabación a la que corresponde el estado mostrado (puede haber varias por reunión). */
+  private currentRecordingId: string | null = null;
   readonly isRecordingRequester = computed(
     () => !!this._recordingRequesterId() && this._recordingRequesterId() === (this.auth.currentUser()?.id ?? null),
   );
+  /** MNT-01: la grabación es de la reunión; la detiene el host o un cohost (o quien la pidió). */
+  readonly canStopRecording = computed(
+    () => this.recordingState() === 'Recording' && (this.isHost() || this.isRecordingRequester()),
+  );
+  /** D-71: se puede volver a grabar cuando la grabación anterior ya no captura. */
+  readonly canStartRecording = computed(() => !isRecordingCapturing(this.recordingState()));
   private readonly recording = new ClientRecordingSession();
 
   /** Host o cohost: ven los controles de host. */
@@ -652,7 +662,12 @@ export class ActiveMeetingService {
     });
 
     this.rtc.onParticipantDenied().subscribe(dto => {
-      if (dto.meetingId !== this.meetingId() || dto.participantUserId !== this.myUserId()) {
+      if (dto.meetingId !== this.meetingId()) {
+        return;
+      }
+      // Rechazaron a otro (Deny, o D-69 al quitar externos): sale de la sala de espera del host.
+      if (dto.participantUserId !== this.myUserId()) {
+        this.participants.update(list => list.filter(p => !(p.userId === dto.participantUserId && p.status === 'Waiting')));
         return;
       }
       this.errorMessage.set('The host declined your request to join.');
@@ -745,6 +760,7 @@ export class ActiveMeetingService {
     this.hostUserId.set(snap.hostUserId);
     this.isLocked.set(snap.isLocked);
     this.applyLifecycle(snap);
+    this.applySnapshotRecording(snap);
     this.participants.set(mergeMeetingRoster(this.participants(), snap.participants));
     const mine = snap.participants.find(p => p.userId === this.myUserId())?.displayName;
     if (mine) this.lastSelfDisplayName.set(mine);
@@ -898,27 +914,28 @@ export class ActiveMeetingService {
    * F6 (D-47) — entra como INVITADO EXTERNO desde la página pública `/meet/:token`: el socket ya está
    * conectado con `auth.ticket` (`CommunicationRealtimeService.connectAsGuest`), la política de media ya
    * está en `MediaPolicyService.prime` (del contexto público) y el ICE llega en el ack de `meeting.join`.
-   * Mi userId es el propio `guestInvitationId` (así me nombra el servidor en el roster).
+   * Mi userId es el `guestUserId` del ticket (así me nombra el servidor en el roster); con invitación
+   * personal coincide con la invitación, con el enlace de la reunión (D-68) es uno nuevo por persona.
    */
-  async joinAsGuest(meetingId: string, title: string, guestInvitationId: string, media: MeetingJoinMediaOptions = {}): Promise<void> {
+  async joinAsGuest(meetingId: string, title: string, guest: MeetingGuestIdentity, media: MeetingJoinMediaOptions = {}): Promise<void> {
     if (this.phase() !== 'idle') {
       return;
     }
-    await this.start(meetingId, title, media, guestInvitationId);
+    await this.start(meetingId, title, media, guest);
   }
 
   /** Arranque común de `join` / `joinAsGuest`: estado limpio → política → ICE → captura local → `meeting.join`. */
-  private async start(meetingId: string, title: string, media: MeetingJoinMediaOptions, guestInvitationId: string | null): Promise<void> {
+  private async start(meetingId: string, title: string, media: MeetingJoinMediaOptions, guest: MeetingGuestIdentity | null): Promise<void> {
     this.bindListenersOnce();
     this.errorMessage.set(null);
     this.removedReason.set(null);
     this.meetingId.set(meetingId);
     this.meetingTitle.set(title);
-    this.isGuest.set(guestInvitationId !== null);
-    this.guestInvitationId = guestInvitationId;
+    this.isGuest.set(guest !== null);
+    this.guestIdentity = guest;
     this.lastSelfDisplayName.set(null);
-    // F6: el userId del guest es el propio invitationId (UUID), igual que el principal del servidor.
-    this.myUserId.set(guestInvitationId ?? (this.auth.currentUser()?.id ?? null));
+    // F6: el userId del guest es el del ticket (UUID), igual que el principal del servidor.
+    this.myUserId.set(guest?.guestUserId ?? (this.auth.currentUser()?.id ?? null));
     this.participants.set([]);
     this.peers.set(new Map());
     this.leftUserIds.clear();
@@ -945,7 +962,7 @@ export class ActiveMeetingService {
     }
 
     // El guest no tiene JWT para `GET /webrtc/ice`: usa el `iceServers` del ack del join (ver `attemptJoin`).
-    if (guestInvitationId) {
+    if (guest) {
       this.iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
     } else {
       try {
@@ -990,8 +1007,8 @@ export class ActiveMeetingService {
     }
     this.phase.set('joining');
     try {
-      const guest = this.guestInvitationId;
-      const opts = { ...(passcode ? { passcode } : {}), ...(guest ? { guestInvitationId: guest } : {}) };
+      const invitationId = this.guestIdentity?.invitationId;
+      const opts = { ...(passcode ? { passcode } : {}), ...(invitationId ? { guestInvitationId: invitationId } : {}) };
       const ack = await this.rtc.join(meetingId, Object.keys(opts).length ? opts : undefined);
       this.errorMessage.set(null);
       // ICE del ack (paridad con el Portal): es la ÚNICA fuente para el guest; al staff le vale también.
@@ -1047,6 +1064,7 @@ export class ActiveMeetingService {
       this.hostUserId.set(snapshot.hostUserId);
       this.isLocked.set(snapshot.isLocked);
       this.applyLifecycle(snapshot);
+      this.applySnapshotRecording(snapshot);
       this.participants.set(mergeMeetingRoster(this.participants(), snapshot.participants));
       this.reconcileMeshPeers(snapshot.participants);
       this.reconcileOwnHand(snapshot.participants);
@@ -1825,7 +1843,7 @@ export class ActiveMeetingService {
 
   requestRecording(): void {
     const meetingId = this.meetingId();
-    if (!meetingId || this.phase() !== 'joined' || this.recordingState() !== 'Idle') {
+    if (!meetingId || this.phase() !== 'joined' || !this.canStartRecording()) {
       return;
     }
     this.rtc.requestRecording(meetingId).catch(err => {
@@ -1840,10 +1858,21 @@ export class ActiveMeetingService {
    * F7 — aplica `meeting.recording.state_changed`. Con `captureMode: 'Server'` el navegador NO mezcla
    * ni sube (el recorder captura del SFU); la mezcla local queda para `Client` o sin campo.
    */
-  private applyRecordingState(dto: MeetingRecordingStateChangedDto): void {
+  private applyRecordingState(dto: MeetingRecordingStateChangedDto, silent = false): void {
+    // D-71: el cierre de una grabación anterior ("Ready" tarde) no pisa la que se está capturando.
+    const otherRecording = !!dto.recordingId && !!this.currentRecordingId && dto.recordingId !== this.currentRecordingId;
+    if (otherRecording && isRecordingCapturing(this.recordingState()) && !isRecordingCapturing(dto.state)) {
+      return;
+    }
+    if (dto.recordingId) {
+      this.currentRecordingId = dto.recordingId;
+    }
     this.recordingState.set(dto.state);
     if (dto.captureMode !== undefined) {
       this.recordingCaptureMode.set(dto.captureMode);
+    }
+    if (dto.requestedByUserId) {
+      this._recordingRequesterId.set(dto.requestedByUserId);
     }
     if (dto.state === 'Recording') {
       this.recordingClock.start(dto.startedAtUtc, dto.maxDurationSeconds);
@@ -1854,7 +1883,7 @@ export class ActiveMeetingService {
       return;
     }
     this.recordingClock.stop();
-    const notice = recordingStateNotice(dto);
+    const notice = silent ? null : recordingStateNotice(dto);
     if (notice?.tone === 'error') {
       this.toast.error(notice.message);
     } else if (notice) {
@@ -1864,6 +1893,19 @@ export class ActiveMeetingService {
       this.recordingConsentFrom.set(null);
       this._recordingRequesterId.set(null);
     }
+  }
+
+  /** MNT-01 (G-2): al entrar o volver, el snapshot dice si se está grabando (sin avisos de cambios viejos). */
+  private applySnapshotRecording(snap: MeetingSnapshotDto): void {
+    if (snap.recording === undefined) {
+      return; // backend sin el campo: se espera al próximo evento
+    }
+    if (snap.recording === null) {
+      this.recordingState.set('Idle');
+      this.recordingClock.stop();
+      return;
+    }
+    this.applyRecordingState(snap.recording, true);
   }
 
   respondRecordingConsent(accepted: boolean): void {
@@ -1876,13 +1918,16 @@ export class ActiveMeetingService {
 
   async stopRecording(): Promise<void> {
     const meetingId = this.meetingId();
-    if (!meetingId || !this.isRecordingRequester() || this.recordingState() !== 'Recording') {
+    if (!meetingId || !this.canStopRecording()) {
       return;
     }
     try {
       await this.rtc.stopRecording(meetingId);
     } catch {
       /* noop */
+    }
+    if (!this.recording.active) {
+      return; // captura del servidor: el navegador no tiene nada que subir
     }
     const blob = await this.recording.stop();
     if (blob) {
@@ -1961,9 +2006,10 @@ export class ActiveMeetingService {
 
   async leave(): Promise<void> {
     const meetingId = this.meetingId();
-    // Si estoy grabando, capturo el blob ANTES de cortar las pistas (la subida va en background).
+    // MNT-01: salir NO detiene la grabación (es de la reunión). Solo la mezcla del navegador (Client),
+    // que vive en esta pestaña, se cierra y se sube antes de cortar las pistas.
     let pendingBlob: Blob | null = null;
-    if (this.isRecordingRequester() && this.recordingState() === 'Recording') {
+    if (this.recording.active && this.recordingCaptureMode() !== 'Server') {
       if (meetingId) {
         try {
           await this.rtc.stopRecording(meetingId);
@@ -2122,9 +2168,10 @@ export class ActiveMeetingService {
     this.recordingClock.stop();
     this.recordingConsentFrom.set(null);
     this._recordingRequesterId.set(null);
+    this.currentRecordingId = null;
     this.myUserId.set(null);
     this.isGuest.set(false);
-    this.guestInvitationId = null;
+    this.guestIdentity = null;
   }
 }
 

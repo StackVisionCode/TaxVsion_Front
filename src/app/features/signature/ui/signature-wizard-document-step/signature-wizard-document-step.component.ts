@@ -4,6 +4,7 @@ import {
   EventEmitter,
   Input,
   Output,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -21,8 +22,8 @@ import { SignatureDocumentLibraryComponent } from '../signature-document-library
 import { DocumentValidationIssue, ValidateDocumentResponse } from '../../data-access/signature.model';
 import { SignatureStore } from '../../data-access/signature.store';
 import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
 
-const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 /** Fase del pipeline preflight → CloudStorage del documento elegido. */
 type UploadPhase = 'idle' | 'validating' | 'uploading' | 'ready' | 'rejected' | 'failed';
@@ -56,8 +57,8 @@ type DocSource = 'upload' | 'library';
 export class SignatureWizardDocumentStepComponent {
   @Input() documents: WizardDocument[] = [];
   @Input() activeDocumentId: string | null = null;
-  /** Cliente elegido en el paso 1: acota la librería a sus PDF (opcional). */
-  @Input() clientId: string | null = null;
+  /** Clientes elegidos en el paso 1: acotan la librería a sus PDF (opcional). */
+  @Input() clientIds: readonly string[] = [];
   @Output() documentSelected = new EventEmitter<WizardDocument>();
   @Output() documentRemoved = new EventEmitter<string>();
   @Output() documentsReordered = new EventEmitter<WizardDocument[]>();
@@ -70,7 +71,13 @@ export class SignatureWizardDocumentStepComponent {
 
   private readonly store = inject(SignatureStore);
 
-  readonly maxUploadBytes = MAX_UPLOAD_BYTES;
+  /** Tamaño de PDF y cantidad de documentos vigentes (0/null mientras cargan: valida el backend). */
+  readonly maxUploadBytes = computed(() => this.store.limits()?.maxPdfBytes ?? 0);
+  readonly maxDocuments = computed(() => this.store.limits()?.plan.maxDocumentsPerRequest ?? null);
+  readonly sizeLabel = computed(() => (this.maxUploadBytes() ? formatBytes(this.maxUploadBytes()) : ''));
+  readonly uploadHint = computed(() =>
+    this.sizeLabel() ? `PDF only, up to ${this.sizeLabel()} · validated before sending` : 'PDF only · validated before sending',
+  );
 
   /** Origen del documento: subir o reusar de la oficina. */
   readonly docSource = signal<DocSource>('upload');
@@ -129,7 +136,7 @@ export class SignatureWizardDocumentStepComponent {
     const first = rejections[0];
     if (first) {
       this.uploadError.set(
-        first.reason === 'size' ? 'The file must be smaller than 25MB.' : 'Only PDF documents can be sent for signature.',
+        first.reason === 'size' ? `The file must be smaller than ${this.sizeLabel()}.` : 'Only PDF documents can be sent for signature.',
       );
     }
   }
@@ -204,7 +211,7 @@ export class SignatureWizardDocumentStepComponent {
         name: file.originalName,
         kind: 'pdf',
         size: formatBytes(file.sizeBytes),
-        date: new Date(file.createdAtUtc).toLocaleDateString('en-US', {
+        date: parseUtcDate(file.createdAtUtc).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
           year: 'numeric',
@@ -230,8 +237,8 @@ export class SignatureWizardDocumentStepComponent {
     if (this.isBusy()) {
       return;
     }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      this.uploadError.set('The file must be smaller than 25MB.');
+    if (this.maxUploadBytes() && file.size > this.maxUploadBytes()) {
+      this.uploadError.set(`The file must be smaller than ${this.sizeLabel()}.`);
       return;
     }
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');

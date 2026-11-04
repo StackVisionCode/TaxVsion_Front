@@ -31,6 +31,7 @@ import {
 import { ModalComponent } from '@shared/ui/modal/modal.component';
 import {
   CustomerDirectoryEntry,
+  DEPARTED_PRESENCE_LABEL,
   EmployeeDirectoryEntry,
   presenceDotClass,
   presenceLabel,
@@ -215,7 +216,8 @@ export class ChatPageComponent {
   /** Es un 1:1 llamable (Direct/Support con par conocido). */
   private get isCallableConversation(): boolean {
     const conv = this.activeConversation;
-    return !!conv.peerUserId && (conv.kind === 'Direct' || conv.kind === 'Support');
+    // Sin llamadas a quien ya no está en la oficina (chat en solo lectura).
+    return !!conv.peerUserId && !conv.departedParticipant && (conv.kind === 'Direct' || conv.kind === 'Support');
   }
 
   get canCallActiveConversation(): boolean {
@@ -336,6 +338,9 @@ export class ChatPageComponent {
 
   // Presencia del participante activo (etiqueta/colores accesibles, no solo color).
   get presenceLabel(): string {
+    if (this.activeConversation.departedParticipant) {
+      return DEPARTED_PRESENCE_LABEL;
+    }
     return presenceLabel(this.activeConversation.presence, this.activeConversation.busyReason);
   }
 
@@ -348,7 +353,7 @@ export class ChatPageComponent {
   }
 
   get showPresenceDot(): boolean {
-    return this.activeConversation.presence !== 'Offline';
+    return this.activeConversation.presence !== 'Offline' && !this.activeConversation.departedParticipant;
   }
 
   // ---------- Rail directorio (Clients / Team) ----------

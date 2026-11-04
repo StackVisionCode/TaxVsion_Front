@@ -151,10 +151,11 @@ export class MediaControlsComponent {
     }
   });
 
+  /** 'bare' salta de fila si no caben (mini-player angosto): ningún botón queda recortado. */
   readonly wrapClass = computed(() =>
     this.variant() === 'pill'
       ? 'flex max-w-full items-center gap-2 overflow-x-auto rounded-full bg-black/60 p-2 shadow-lg backdrop-blur-md'
-      : 'flex max-w-full items-center justify-center gap-2',
+      : 'flex max-w-full flex-wrap items-center justify-center gap-2',
   );
 
   protected onShareClick(): void {

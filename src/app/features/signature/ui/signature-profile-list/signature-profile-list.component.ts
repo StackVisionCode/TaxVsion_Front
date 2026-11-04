@@ -13,7 +13,8 @@ import { toApiError } from '@core/models/api-error.model';
 import { SignatureProfile, SignatureProfileScope } from '../../data-access/signature.model';
 import { SignatureStore } from '../../data-access/signature.store';
 import { CreatedSignature, SignatureCreatorComponent } from '../signature-creator/signature-creator.component';
-import { toPngOnWhiteBase64 } from '../../utils/signature-png.util';
+import { base64Bytes, toPngOnWhiteBase64 } from '../../utils/signature-png.util';
+import { formatBytes } from '@shared/utils/format.util';
 
 /**
  * Lista + CRUD INLINE de perfiles de firma de UN ámbito (personal o de oficina). Reemplaza el modal
@@ -76,6 +77,7 @@ export class SignatureProfileListComponent {
   );
 
   constructor() {
+    this.store.loadLimits();
     // Carga no-forzada: la página que hospeda esta lista ya refresca al abrir; aquí solo garantizamos
     // que haya datos si se montó en frío. Evita el doble fetch página + hija.
     this.store.loadSignatureProfiles();
@@ -122,6 +124,13 @@ export class SignatureProfileListComponent {
     this.error.set('');
     try {
       const imageBase64 = await toPngOnWhiteBase64(signature.dataUrl);
+      // La firma final (PNG ya procesado) no pasa el tope de la plataforma; mejor decirlo antes de subir.
+      const maxBytes = this.store.limits()?.maxSignatureImageBytes;
+      if (maxBytes !== undefined && base64Bytes(imageBase64) > maxBytes) {
+        this.savingAdd.set(false);
+        this.error.set(`The signature image must be smaller than ${formatBytes(maxBytes)}. Try a simpler or smaller image.`);
+        return;
+      }
       this.store.createSignatureProfile({ label: signature.displayName, scope: this.scope, imageBase64 }).subscribe({
         next: created => {
           // Preview instantáneo con el dataUrl recién dibujado, sin esperar la URL presignada del reload.

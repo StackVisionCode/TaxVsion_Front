@@ -12,6 +12,10 @@ import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
 import { StatusPillComponent } from '@shared/ui/status-pill/status-pill.component';
 import { SignatureDownloadKind } from '../../utils/download-filename.util';
+import { documentVerificationLabel } from '../../utils/document-verification.util';
+import { SignatureDeliveriesPanelComponent } from '../signature-deliveries-panel/signature-deliveries-panel.component';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
+import { SignatureCapabilities } from '../../data-access/signature-permissions';
 
 /**
  * Vista previa de solo lectura de una solicitud de firma (mismo patrón
@@ -25,12 +29,13 @@ import { SignatureDownloadKind } from '../../utils/download-filename.util';
  */
 @Component({
   selector: 'app-signature-preview',
-  imports: [AvatarUrlPipe, CommonModule, AvatarComponent, StatusPillComponent],
+  imports: [AvatarUrlPipe, CommonModule, AvatarComponent, StatusPillComponent, SignatureDeliveriesPanelComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './signature-preview.component.html',
 })
 export class SignaturePreviewComponent {
   private readonly store = inject(SignatureStore);
+  private readonly can = inject(SignatureCapabilities);
 
   private _request: SignatureRequest | null = null;
   @Input() set request(value: SignatureRequest | null) {
@@ -67,6 +72,34 @@ export class SignaturePreviewComponent {
     kind: SignatureDownloadKind;
   }>();
   @Output() resendSigner = new EventEmitter<{ request: SignatureRequest; signer: Signer }>();
+  /** Admin: pasar el preparador (Form 8879) de una solicitud enviada a otro empleado. */
+  @Output() changePreparer = new EventEmitter<SignatureRequest>();
+  /** El preparador asignado firma su parte (canal paralelo del 8879). */
+  @Output() signAsPreparer = new EventEmitter<SignatureRequest>();
+
+  /**
+   * Cambiar el preparador solo mientras no haya firmado y ningún documento esté sellado (el sellado ya
+   * lleva estampado al actual), con la solicitud enviada o programada — igual que el backend.
+   */
+  canChangePreparer(request: SignatureRequest): boolean {
+    return (
+      (request.status === 'in-progress' || request.status === 'scheduled') &&
+      !!request.preparerUserId &&
+      !request.isPreparerSigned &&
+      !request.documents.some((document) => !!document.sealedFileId) &&
+      this.can.canManageRequests()
+    );
+  }
+
+  /** Solo el preparador asignado firma como tal, una vez enviada la solicitud. */
+  canSignAsPreparer(request: SignatureRequest): boolean {
+    return (
+      (request.status === 'in-progress' || request.status === 'completed') &&
+      !!request.isActorPreparer &&
+      !request.isPreparerSigned &&
+      this.can.canSign()
+    );
+  }
 
   /**
    * Un borrador aun no enviado (Draft, o Ready historico pre-F2) puede enviarse desde el preview.
@@ -83,12 +116,12 @@ export class SignaturePreviewComponent {
     return new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   }
 
-  /** F3 — fecha+hora programada; el ISO completo del backend viene en UTC, la pintamos en la TZ local. */
+  /** Instante del backend (UTC, con o sin "Z") en la hora local del navegador. */
   formatScheduledDateTime(iso: string | null | undefined): string {
     if (!iso) {
       return '—';
     }
-    return new Date(iso).toLocaleString('en-US', {
+    return parseUtcDate(iso).toLocaleString('en-US', {
       month: 'long',
       day: 'numeric',
       year: 'numeric',
@@ -210,13 +243,7 @@ export class SignaturePreviewComponent {
   }
 
   documentHashLabel(document: SignatureRequestDocumentItem): string {
-    if (document.hashPost) {
-      return 'Sealed and verified';
-    }
-    if (document.hashPre) {
-      return 'Original verified';
-    }
-    return 'Verification pending';
+    return documentVerificationLabel(document);
   }
 
   canResendSigner(request: SignatureRequest, signer: Signer): boolean {

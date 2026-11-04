@@ -41,7 +41,7 @@
         *ngFor="let role of member.roleNames"
         class="inline-flex items-center gap-1.5 rounded-full border border-brand-bold/25 bg-brand-surface px-2.5 py-1 text-xs font-semibold text-brand-ink"
       >
-        <span class="h-1.5 w-1.5 rounded-full bg-current"></span>{{ role }}
+        <span class="h-1.5 w-1.5 rounded-full bg-current"></span>{{ roleLabel(role) }}
       </span>
       <span
         class="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700"

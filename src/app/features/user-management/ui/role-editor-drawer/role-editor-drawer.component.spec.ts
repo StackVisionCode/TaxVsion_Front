@@ -58,6 +58,9 @@ describe('RoleEditorDrawerComponent', () => {
     // Esconderlo sería peor: el administrador que busca "billing.view" y no lo encuentra cree que
     // la aplicación está rota.
     const { fixture, component } = render();
+    // Las áreas arrancan plegadas en un rol nuevo: se despliegan para mirar.
+    component.setAllExpanded(true);
+    fixture.detectChanges();
     const text = document.body.textContent as string;
 
     expect(text).toContain('See billing');
@@ -139,6 +142,73 @@ describe('RoleEditorDrawerComponent', () => {
     expect(component.canSave()).toBe(false);
 
     component.toggle(CATALOG[1]);
+    expect(component.isSelected('customers.manage')).toBe(false);
+  });
+
+  // ---------- Áreas: interruptor, plegado y filtros ----------
+
+  it('el interruptor del área marca todo lo concedible y deja fuera lo bloqueado', () => {
+    const { component } = render();
+
+    component.setModule('customers', true);
+    component.setModule('billing', true);
+
+    expect(component.isSelected('customers.view')).toBe(true);
+    expect(component.isSelected('customers.manage')).toBe(true);
+    expect(component.isSelected('billing.view')).toBe(false);
+    expect(component.moduleOn('customers')).toBe(true);
+    expect(component.moduleSwitchDisabled('billing')).toBe(true);
+    expect(component.selectedIn('customers')).toBe(2);
+    expect(component.selectedAreas()).toBe(1);
+
+    component.setModule('customers', false);
+    expect(component.selectedCount()).toBe(0);
+  });
+
+  it('un rol existente abre desplegadas solo las áreas que usa', () => {
+    const { component } = render({
+      id: 'r1',
+      name: 'Senior',
+      description: null,
+      isSystem: false,
+      isActive: true,
+      permissionCodes: ['customers.view'],
+      assignableActorTypes: ['TenantEmployee'],
+    });
+
+    expect(component.isOpen('customers')).toBe(true);
+    expect(component.isOpen('campaigns')).toBe(false);
+    component.toggleModule('campaigns');
+    expect(component.isOpen('campaigns')).toBe(true);
+    expect(component.isOpen('customers')).toBe(true);
+  });
+
+  it('"solo lo marcado" y el buscador por área filtran la lista', () => {
+    const { component } = render();
+    component.toggle(CATALOG[0]);
+
+    component.onlySelected.set(true);
+    expect(component.visibleModules().map(group => group.module)).toEqual(['customers']);
+    expect(component.visibleModules()[0].permissions.map(p => p.code)).toEqual(['customers.view']);
+
+    component.onlySelected.set(false);
+    component.search.set('Campaigns');
+    expect(component.visibleModules().map(group => group.module)).toEqual(['campaigns']);
+  });
+
+  it('un rol integrado se abre mostrando solo lo que trae', () => {
+    const { component } = render({
+      id: 'sys',
+      name: 'Employee',
+      description: null,
+      isSystem: true,
+      isActive: true,
+      permissionCodes: ['customers.view'],
+      assignableActorTypes: ['TenantEmployee'],
+    });
+
+    expect(component.onlySelected()).toBe(true);
+    component.setModule('customers', true);
     expect(component.isSelected('customers.manage')).toBe(false);
   });
 });

@@ -10,6 +10,7 @@ import {
   CreateInvoiceRequest,
   CreateInvoiceResult,
   CreatePaymentLinkResult,
+  TenantPaymentDetail,
   InvoiceBranding,
   InvoiceDetail,
   InvoiceLineDraft,
@@ -20,6 +21,7 @@ import {
   IssuerProfile,
   NewCatalogItemInput,
   PaymentConfig,
+  PaymentProviderDescriptor,
   PaymentLink,
   PaymentLinkStatus,
   PaymentPurposeKind,
@@ -69,8 +71,8 @@ export class BillingService {
 
   /**
    * `POST /billing/invoices`. Convierte el borrador de la UI (dólares y %) al contrato
-   * (centavos y puntos básicos). `issuer: null` a propósito: Billing estampa solo el perfil de
-   * empresa guardado en `/billing/issuer-profile`.
+   * (centavos y puntos básicos). `issuer: null` a propósito: Billing estampa su proyección del perfil
+   * de la oficina (`/billing/issuer-profile`, que viene de Tenant).
    */
   createInvoice(
     customer: CustomerSummary,
@@ -192,27 +194,10 @@ export class BillingService {
     });
   }
 
-  // ---------- Perfil del emisor ----------
+  // ---------- Perfil del emisor (solo lectura: proyección del perfil de Tenant) ----------
 
   getIssuerProfile(): Observable<IssuerProfile> {
     return this.http.get<IssuerProfile>(`${this.base}/billing/issuer-profile`);
-  }
-
-  /** `PUT /billing/issuer-profile` → 204. Solo `name` es obligatorio; el resto viaja como null. */
-  saveIssuerProfile(profile: IssuerProfile): Observable<unknown> {
-    return this.http.put(`${this.base}/billing/issuer-profile`, {
-      name: profile.name.trim(),
-      taxId: profile.taxId || null,
-      line1: profile.line1 || null,
-      city: profile.city || null,
-      state: profile.state || null,
-      zip: profile.zip || null,
-      country: profile.country || 'US',
-      phone: profile.phone || null,
-      email: profile.email || null,
-      website: profile.website || null,
-      defaultCurrency: profile.defaultCurrency || 'USD',
-    });
   }
 
   // ---------- Marca del PDF ----------
@@ -221,16 +206,24 @@ export class BillingService {
     return this.http.get<InvoiceBranding>(`${this.base}/documents/branding`);
   }
 
-  saveBranding(branding: InvoiceBranding): Observable<unknown> {
-    return this.http.put(`${this.base}/documents/branding`, {
-      displayName: branding.displayName || null,
-      logoDataUri: branding.logoDataUri || null,
-      brandColorHex: branding.brandColorHex || null,
-      footerText: branding.footerText || null,
-    });
+  // ---------- Proveedor de cobro ----------
+
+  /**
+   * Catálogo de proveedores con adaptador (`GET /payments-client/config/providers`). Ruta asumida
+   * mientras el backend la confirma: si cambia, se ajusta solo acá.
+   */
+  listPaymentProviders(): Observable<PaymentProviderDescriptor[]> {
+    return this.http.get<PaymentProviderDescriptor[]>(`${this.base}/payments-client/config/providers`);
   }
 
-  // ---------- Proveedor de cobro ----------
+  /** Base absoluta de la API del tenant (para armar el webhook que se pega en el proveedor); vacía sin oficina resuelta. */
+  publicApiBase(): string {
+    try {
+      return this.base;
+    } catch {
+      return '';
+    }
+  }
 
   listPaymentConfigs(): Observable<PaymentConfig[]> {
     return this.http.get<PaymentConfig[]>(`${this.base}/payments-client/config`);
@@ -297,6 +290,11 @@ export class BillingService {
       taxpayerId: null,
       ...body,
     });
+  }
+
+  /** `GET /payments-client/payments/{id}` — el pago que cerró un link (estado, proveedor y pagador). */
+  getTenantPayment(tenantPaymentId: string): Observable<TenantPaymentDetail> {
+    return this.http.get<TenantPaymentDetail>(`${this.base}/payments-client/payments/${tenantPaymentId}`);
   }
 
   revokePaymentLink(paymentLinkId: string, reason: string): Observable<unknown> {

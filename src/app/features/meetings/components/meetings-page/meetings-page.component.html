@@ -7,12 +7,20 @@
           <h2 class="text-xl font-bold text-gray-900">Meetings</h2>
           <p class="mt-1 text-sm text-gray-500">{{ subtitle() }}</p>
         </div>
-        <!-- Agendar exige el permiso communication.meeting.create -->
-        <button *ngIf="store.canCreate()" type="button" (click)="openSchedulePanel()"
-          class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
-          <ion-icon name="add-outline" class="text-base"></ion-icon>
-          Schedule meeting
-        </button>
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- MNT-01: entrar con el código que compartió el host (communication.meeting.join) -->
+          <button *ngIf="store.canJoin()" type="button" (click)="joinCodeOpen.set(true)" data-role="join-with-code"
+            class="flex items-center gap-2 rounded-full border border-gray-200 px-5 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 transition-colors">
+            <ion-icon name="keypad-outline" class="text-base"></ion-icon>
+            Join with code
+          </button>
+          <!-- Agendar exige el permiso communication.meeting.create -->
+          <button *ngIf="store.canCreate()" type="button" (click)="openSchedulePanel()"
+            class="flex items-center gap-2 rounded-full bg-brand-bold px-5 py-2 text-sm font-semibold text-white hover:bg-brand-ink transition-colors">
+            <ion-icon name="add-outline" class="text-base"></ion-icon>
+            Schedule meeting
+          </button>
+        </div>
       </div>
 
       <!-- Tabs + search (búsqueda client-side sobre lo cargado) -->
@@ -65,6 +73,8 @@
   [errorMessage]="panelError()" [creationOutcome]="creationOutcome()" [initialInvitees]="initialInvitees()"
   (closed)="closePanel()"
   (createRequested)="handleCreate($event)" (rescheduleRequested)="handleReschedule($event)"></app-meeting-schedule-panel>
+
+<app-meeting-join-code-dialog [isOpen]="joinCodeOpen()" (closed)="joinCodeOpen.set(false)" (resolved)="joinByCode($event)" />
 
 <!-- Ficha de la reunión (diferida: solo se descarga al abrir una) -->
 @defer (when detailsMeeting()) {

@@ -399,7 +399,7 @@
             }
           </div>
         }
-        <button *ngIf="showRecordButton() || (isRecording() && isRecordingRequester())" type="button" (click)="toggleRecording()"
+        <button *ngIf="showRecordButton() || canStopRecording()" type="button" (click)="toggleRecording()"
           [disabled]="isRecordingBusy()" [attr.aria-label]="isRecording() ? 'Stop recording' : 'Record meeting'" [title]="isRecording() ? 'Stop recording' : 'Record meeting'"
           class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-50"
           [ngClass]="isRecording() ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-white/10 text-white hover:bg-white/20'">
@@ -419,7 +419,7 @@
             <ion-icon name="person-add-outline" class="text-base text-gray-400"></ion-icon> Invite
           </button>
         }
-        @if (showRecordButton() || (isRecording() && isRecordingRequester())) {
+        @if (showRecordButton() || canStopRecording()) {
           <button moreItem appMenuItem type="button" (click)="toggleRecording()">
             <ion-icon [name]="isRecording() ? 'stop-circle-outline' : 'radio-button-on-outline'" class="text-base text-gray-400"></ion-icon>
             {{ isRecording() ? 'Stop recording' : 'Record meeting' }}

@@ -52,7 +52,8 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let link of links; trackBy: trackByLinkId; let last = last" class="group">
+        <tr *ngFor="let link of links; trackBy: trackByLinkId; let last = last" class="group cursor-pointer"
+          data-testid="link-row" (click)="detailRequested.emit(link)">
           <td class="px-4 py-3.5 transition-colors group-hover:bg-[#F8F4ED]" [class.border-b]="!last"
             [class.border-[#E4DCCF]]="!last">
             <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
@@ -80,12 +81,18 @@
           <td class="px-4 py-3.5 text-right transition-colors group-hover:bg-[#F8F4ED]"
             [class.border-b]="!last" [class.border-[#E4DCCF]]="!last">
             <div class="flex items-center justify-end gap-1">
-              <button type="button" (click)="copy(link)" title="Copy link"
+              <button type="button" (click)="$event.stopPropagation(); detailRequested.emit(link)" title="Details"
+                data-testid="link-details"
+                class="flex h-8 w-8 items-center justify-center rounded-full text-[#057BC1] hover:bg-[#F4EDE4] transition-colors"
+                aria-label="View payment link details">
+                <ion-icon name="eye-outline" class="text-base"></ion-icon>
+              </button>
+              <button type="button" (click)="$event.stopPropagation(); copy(link)" title="Copy link"
                 class="flex h-8 w-8 items-center justify-center rounded-full text-[#057BC1] hover:bg-[#F4EDE4] transition-colors"
                 aria-label="Copy payment link">
                 <ion-icon name="copy-outline" class="text-base"></ion-icon>
               </button>
-              <button *ngIf="canRevoke(link)" type="button" (click)="askRevoke(link)" title="Revoke"
+              <button *ngIf="canRevoke(link)" type="button" (click)="$event.stopPropagation(); askRevoke(link)" title="Revoke"
                 class="flex h-8 w-8 items-center justify-center rounded-full text-[#3E5F6B] hover:bg-[#F4EDE4] hover:text-[#083645] transition-colors"
                 aria-label="Revoke payment link">
                 <ion-icon name="ban-outline" class="text-base"></ion-icon>

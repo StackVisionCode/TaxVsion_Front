@@ -56,21 +56,15 @@ import { CommInheritSwitchComponent } from '../../ui/inherit-switch/inherit-swit
             <app-comm-setting-row label="Microphone off when joining">
               <app-switch [checked]="d.defaultMicrophoneOff" (checkedChange)="store.set('defaultMicrophoneOff', $event)" ariaLabel="Microphone off when joining"></app-switch>
             </app-comm-setting-row>
-            <app-comm-setting-row label="Guests" hint="People without an account can join with an invitation link."
+            <app-comm-setting-row label="Guests"
+              hint="People without an account can join with an invitation or the meeting link. The host always admits them."
               [locked]="!e.ceilings.guestsAllowed" lockedReason="Not included in your plan.">
               <app-switch [checked]="d.guestsAllowed && e.ceilings.guestsAllowed" [disabled]="!e.ceilings.guestsAllowed"
                 (checkedChange)="store.set('guestsAllowed', $event)" ariaLabel="Guests"></app-switch>
             </app-comm-setting-row>
-            <app-comm-setting-row label="Guests wait to be admitted" hint="The host lets each guest in.">
-              <app-comm-inherit-switch label="Guests wait to be admitted" [value]="d.guestsWaitingRoom" [inherited]="e.meeting.guestsWaitingRoom"
-                (valueChange)="store.set('guestsWaitingRoom', $event)"></app-comm-inherit-switch>
-            </app-comm-setting-row>
           </app-comm-settings-section>
 
-          <app-comm-settings-section heading="Meeting chat">
-            <app-comm-setting-row label="Keep the chat after the meeting" hint="Participants can read the meeting chat once it ends.">
-              <app-switch [checked]="d.persistChatOnEnd" (checkedChange)="store.set('persistChatOnEnd', $event)" ariaLabel="Keep the chat after the meeting"></app-switch>
-            </app-comm-setting-row>
+          <app-comm-settings-section heading="Meeting chat" description="Meeting chats are kept as long as other messages.">
             <app-comm-setting-row label="Files per person per minute">
               <app-comm-number-setting label="Files per minute" [nullable]="true" [value]="d.meetingChatAttachmentsPerMinute"
                 [inherited]="e.meeting.chatAttachmentsPerMinute" [min]="store.range('meetingChatAttachmentsPerMinute').min"

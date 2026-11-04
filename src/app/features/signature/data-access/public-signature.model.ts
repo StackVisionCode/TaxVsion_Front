@@ -74,7 +74,8 @@ export type SignatureAuditEventKind =
   | 'RequestExpired'
   | 'RequestCompleted'
   | 'RequestSealed'
-  | 'PreparerSigned';
+  | 'PreparerSigned'
+  | 'PreparerChanged';
 
 // ---------- GET /signature/public/{token} ----------
 
@@ -93,6 +94,8 @@ export interface PublicSignerFieldView {
   height: number;
   label: string | null;
   isRequired: boolean;
+  /** Letra del estampado en pt; null = automática según la caja. */
+  fontSizePt?: number | null;
 }
 
 export interface PublicSignerDocumentView {
@@ -148,6 +151,16 @@ export interface PublicSignerView {
   tenantSubDomain: string;
   /** F7 — true si al firmar este signer recibirá una copia inmediata. */
   partialCopyWillBeSent: boolean;
+  /** Cómo se estampan sus campos: formato de fecha y la regla de la letra automática. */
+  stampStyle?: PublicStampStyleView | null;
+}
+
+export interface PublicStampStyleView {
+  datePattern: string;
+  autoFontMinPt: number;
+  autoFontMaxPt: number;
+  autoHeightRatio: number;
+  minFontSizePt: number;
 }
 
 // ---------- Bodies de las mutaciones ----------
@@ -285,6 +298,7 @@ export const AUDIT_EVENT_KIND_LABEL: Record<SignatureAuditEventKind, string> = {
   RequestCompleted: 'All signers completed',
   RequestSealed: 'Final document sealed',
   PreparerSigned: 'Preparer signed',
+  PreparerChanged: 'Preparer changed',
 };
 
 /**
@@ -308,6 +322,7 @@ export const AUDIT_EVENT_KIND_ICON: Record<SignatureAuditEventKind, string> = {
   RequestCompleted: 'checkmark-done-outline',
   RequestSealed: 'ribbon-outline',
   PreparerSigned: 'person-outline',
+  PreparerChanged: 'swap-horizontal-outline',
 };
 
 /** Filas que reportan un intento fallido: se resaltan en rojo, no rompen la cadena. */

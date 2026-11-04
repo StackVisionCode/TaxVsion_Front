@@ -46,6 +46,7 @@ import {
   peerOf,
   seedAvatarsFromHistory,
   toChatParticipants,
+  toDepartedParticipant,
   withParticipants,
 } from './chat-participants';
 import { chatStartErrorMessage } from './chat-start-error';
@@ -435,6 +436,9 @@ export class ChatStore {
         this.toast.error(SOCKET_RATE_LIMITED_MESSAGE);
       } else if (ack.code === 'Chat.Message.TooLong') {
         this.toast.error(MESSAGE_TOO_LONG_TEXT);
+      } else if (ack.code === 'Chat.Conversation.ParticipantLeft') {
+        // El servidor ya trae el copy: "{name} is no longer with the office."
+        this.toast.error(ack.message);
       }
       return;
     }
@@ -1100,15 +1104,18 @@ export class ChatStore {
     const other = others[0];
     const participants = toChatParticipants(summary.participants);
     const peer = peerOf(participants, currentUserId);
+    // Direct cuyo otro participante se retiró: ya no figura entre los participantes, pero da nombre y foto.
+    const departed = toDepartedParticipant(summary.departedParticipant);
     return {
       id: summary.id,
-      name: summary.title ?? other?.displayName ?? 'Conversation',
+      name: summary.title ?? other?.displayName ?? departed?.displayName ?? 'Conversation',
       kind: summary.kind,
       // Solo hay "par" en un 1:1 real (2 participantes) — en grupo no aplica llamar.
       peerUserId: others.length === 1 ? others[0].userId : null,
-      avatarColor: conversationAvatarColor(summary.id, peer?.userId),
+      avatarColor: conversationAvatarColor(summary.id, peer?.userId ?? departed?.userId),
       // Foto del par en un 1:1; los grupos van con iniciales.
-      avatarFileId: peer?.avatarFileId ?? null,
+      avatarFileId: peer?.avatarFileId ?? departed?.avatarFileId ?? null,
+      departedParticipant: departed,
       participants,
       // Sin estado inicial confiable del backend (la lista no lo trae) — se actualiza en vivo vía chat.presence.changed.
       presence: 'Offline',
@@ -1150,6 +1157,7 @@ export class ChatStore {
           }),
       // System = evento del sistema en el hilo (p.ej. "Missed call", "Call ended 2:34") → se pinta centrado.
       isSystem: !dto.isDeleted && dto.kind === 'System',
+      ...(dto.kind === 'System' && dto.systemKind ? { systemKind: dto.systemKind } : {}),
       ...(dto.reactions?.length ? { reactions: dto.reactions } : {}),
       // F7 — System con archivo (transcript de la llamada): enlace "View transcript".
       ...(!dto.isDeleted && dto.kind === 'System' && dto.attachmentFileId ? { systemAttachmentFileId: dto.attachmentFileId } : {}),

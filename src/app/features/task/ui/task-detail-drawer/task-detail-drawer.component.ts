@@ -29,6 +29,8 @@ import {
 import { priorityChipClass } from '@core/tasks/task-format';
 import { AuthService } from '@core/auth/auth.service';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
+import { StoragePolicyService, uploadRejection } from '@core/cloud-storage/storage-policy.service';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { formatBytes } from '@shared/utils/format.util';
 import { DrawerComponent } from '@shared/ui/drawer/drawer.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
@@ -74,6 +76,13 @@ export class TaskDetailDrawerComponent implements OnChanges {
   private readonly service = inject(TaskService);
   private readonly auth = inject(AuthService);
   private readonly cloud = inject(CloudStorageUploadService);
+  private readonly storagePolicy = inject(StoragePolicyService);
+  /** Qué admite la carpeta de destino (tipos y tamaño); null mientras carga: valida el backend. */
+  readonly attachmentPolicy = toSignal(this.storagePolicy.uploadPolicy('Tasks').pipe(catchError(() => of(null))), {
+    initialValue: null,
+  });
+  /** Motivo por el que el último archivo no se subió (tipo o tamaño). */
+  readonly attachmentError = signal('');
 
   /** Tarjeta del tablero (nombres ya resueltos). null = drawer cerrado. */
   @Input() task: TaskItem | null = null;
@@ -229,6 +238,12 @@ export class TaskDetailDrawerComponent implements OnChanges {
     const file = input.files?.[0];
     const task = this.task;
     if (!file || !task || this.uploadingAttachment()) {
+      input.value = '';
+      return;
+    }
+    const rejection = uploadRejection(file, this.attachmentPolicy());
+    this.attachmentError.set(rejection ?? '');
+    if (rejection) {
       input.value = '';
       return;
     }

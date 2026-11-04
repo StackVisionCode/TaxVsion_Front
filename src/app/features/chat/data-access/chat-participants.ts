@@ -1,6 +1,6 @@
 import { avatarColorFor } from '@shared/utils/avatar.util';
 import { ChatConversation } from '../ui/chat-conversation-list/chat-conversation-list.component';
-import { ChatParticipant, ConversationParticipant, MessageDto } from './chat.model';
+import { ChatParticipant, ConversationParticipant, DepartedParticipantDto, MessageDto } from './chat.model';
 
 /**
  * Reglas de participantes y fotos del chat (puras, para testearlas sin el store).
@@ -43,7 +43,25 @@ export function withParticipants(
   currentUserId: string | null,
 ): ChatConversation {
   const peer = peerOf(participants, currentUserId);
-  return { ...conv, participants, avatarFileId: peer?.avatarFileId ?? null };
+  // Sin par (el otro se retiró) la foto es la de quien se fue.
+  return { ...conv, participants, avatarFileId: peer?.avatarFileId ?? conv.departedParticipant?.avatarFileId ?? null };
+}
+
+/** Quien salió de un Direct → vista; la foto que ya conocíamos de él se conserva si el DTO no la trae. */
+export function toDepartedParticipant(
+  departed: DepartedParticipantDto | null | undefined,
+  known: readonly ChatParticipant[] = [],
+): ChatParticipant | null {
+  if (!departed) {
+    return null;
+  }
+  const avatarFileId = departed.avatarFileId !== undefined ? departed.avatarFileId : known.find(p => p.userId === departed.userId)?.avatarFileId;
+  return {
+    userId: departed.userId,
+    displayName: departed.displayName,
+    actorType: departed.actorType,
+    ...(avatarFileId !== undefined ? { avatarFileId } : {}),
+  };
 }
 
 /**

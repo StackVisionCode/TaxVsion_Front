@@ -1,164 +1,394 @@
 <div class="flex flex-col gap-6">
-  <!-- Proveedores ya configurados -->
-  <div class="rounded-[1.75rem] border border-[#E4DCCF] bg-white p-7">
-    <h2 class="font-display text-[1.75rem] font-semibold tracking-tight text-[#083645]">Payment providers</h2>
-    <p class="mt-2 text-[0.8125rem] text-[#3E5F6B]">
-      Invoices are collected online through your own payment providers. You can configure more than one and
-      enable each independently. Without an active provider you can still issue invoices and record offline
-      payments, but they won't get a payment link.
-    </p>
-
-    <div *ngIf="loading" class="mt-5 flex items-center gap-2 text-sm text-[#3E5F6B]">
-      <app-infinity-loader size="xs" />
-      Loading providers…
-    </div>
-
-    <div *ngIf="!loading && configs.length === 0"
-      class="mt-5 flex items-start gap-3 rounded-[1.375rem] border border-[#E4DCCF] bg-[#F8F4ED] px-5 py-4">
-      <ion-icon name="card-outline" class="mt-0.5 shrink-0 text-base text-[#3E5F6B]"></ion-icon>
-      <p class="text-sm text-[#3E5F6B]">No provider connected yet. Add one below.</p>
-    </div>
-
-    <div *ngIf="configs.length > 0" class="mt-5 flex flex-col gap-3">
-      <div *ngFor="let config of configs; trackBy: trackByConfigId"
-        class="flex flex-col gap-3 rounded-[1.375rem] border border-[#E4DCCF] bg-[#F8F4ED] p-5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div class="flex min-w-0 items-center gap-4">
-            <div
-              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#083645] font-display text-lg font-bold uppercase text-[#4DD8FF]">
-              {{ (config.providerCode || '?').charAt(0) }}
-            </div>
-            <div class="min-w-0">
-              <p class="flex items-center gap-2 text-[0.9375rem] font-bold text-[#083645]">
-                {{ config.providerCode }}
-                <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[0.6875rem] font-semibold"
-                  [ngClass]="config.isActive
-                    ? 'bg-[#4DD8FF40] text-[#083645]'
-                    : 'bg-[#F4EDE4] text-[#3E5F6B]'">
-                  <span class="h-1.5 w-1.5 rounded-full"
-                    [ngClass]="config.isActive ? 'bg-[#057BC1]' : 'bg-[#3E5F6B]/40'"></span>
-                  {{ config.isActive ? 'Active' : 'Inactive' }}
-                </span>
-              </p>
-              <p class="mt-0.5 truncate text-xs text-[#3E5F6B]">
-                {{ config.mode }} · {{ config.statementDescriptor }}
-                <span *ngIf="!config.hasSecretKey" class="font-semibold text-[#083645]">· secret key missing</span>
-                <span *ngIf="config.hasSecretKey && !config.hasWebhookSecret" class="font-semibold text-[#083645]">
-                  · webhook secret missing
-                </span>
-              </p>
-              <p class="mt-0.5 truncate text-xs text-[#3E5F6B]">
-                URL: <span class="text-[#083645]">{{ config.apiBaseUrl || 'default' }}</span>
-              </p>
-            </div>
-          </div>
-          <div class="flex shrink-0 items-center gap-2">
-            <button *ngIf="canManage" type="button" (click)="startEditUrl(config)"
-              class="rounded-full border border-[#E4DCCF] bg-white px-4 py-1.5 text-xs font-semibold text-[#083645] hover:bg-[#F4EDE4] transition-colors">
-              Edit URL
-            </button>
-            <button *ngIf="canManage" type="button" (click)="providerToggleRequested.emit(config)"
-              class="rounded-full border border-[#E4DCCF] bg-white px-4 py-1.5 text-xs font-semibold text-[#083645] hover:bg-[#F4EDE4] transition-colors">
-              {{ config.isActive ? 'Deactivate' : 'Activate' }}
-            </button>
-            <button *ngIf="canManage" type="button" (click)="confirmDelete(config)"
-              class="rounded-full border border-[#E4DCCF] bg-white px-4 py-1.5 text-xs font-semibold text-[#3E5F6B] hover:bg-[#F4EDE4] hover:text-[#083645] transition-colors">
-              Delete
-            </button>
-          </div>
+  <!-- ================= Proveedores conectados ================= -->
+  <section class="pf-reveal pf-card" style="--i: 1" aria-labelledby="providers-connected-title">
+    <div class="flex items-start gap-3">
+      <span class="pf-icon-tile"><ion-icon name="card-outline"></ion-icon></span>
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center gap-2">
+          <h2 id="providers-connected-title" class="text-lg font-bold text-gray-900">Connected providers</h2>
+          @if (loading() && configs().length > 0) {
+            <app-infinity-loader size="xs" />
+          }
         </div>
-
-        <!-- Edición inline de la URL -->
-        <div *ngIf="editingUrlFor() === config.providerCode"
-          class="flex flex-wrap items-center gap-2 border-t border-[#E4DCCF] pt-3">
-          <input type="text" name="editUrl" placeholder="https://api.mi-proveedor.com"
-            [ngModel]="editingUrlValue()" (ngModelChange)="editingUrlValue.set($event)"
-            class="h-10 min-w-0 flex-1 rounded-full border border-[#E4DCCF] bg-white px-[1.125rem] text-sm text-[#083645] placeholder-[#3E5F6B]/60 focus:border-[#083645] focus:outline-none transition-colors" />
-          <button type="button" (click)="saveEditUrl(config)"
-            class="rounded-full bg-[#083645] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[#057BC1] transition-colors">
-            Save
-          </button>
-          <button type="button" (click)="cancelEditUrl()"
-            class="rounded-full border border-[#E4DCCF] bg-white px-4 py-1.5 text-xs font-semibold text-[#083645] hover:bg-[#F4EDE4] transition-colors">
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Alta de un proveedor -->
-  <div class="rounded-[1.75rem] border border-[#E4DCCF] bg-white p-7">
-    <h2 class="font-display text-[1.75rem] font-semibold tracking-tight text-[#083645]">Connect a provider</h2>
-    <p class="mt-2 text-[0.8125rem] text-[#3E5F6B]">
-      Saving creates the configuration, stores the secrets and activates the provider in one go. Only Stripe
-      processes payments today; other providers can be configured but won't charge yet.
-    </p>
-
-    <div class="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div>
-        <label for="providerCode" class="text-[0.8125rem] font-semibold text-[#083645]">
-          Provider
-        </label>
-        <select id="providerCode" name="providerCode" [disabled]="saving" [ngModel]="providerCode()"
-          (ngModelChange)="providerCode.set($event)"
-          class="mt-2 h-[3.125rem] w-full rounded-full border border-[#E4DCCF] bg-[#F8F4ED] px-[1.125rem] text-sm text-[#083645] focus:border-[#083645] focus:outline-none transition-colors">
-          <option *ngFor="let p of providers" [value]="p.code">{{ p.name }}</option>
-        </select>
-      </div>
-      <div>
-        <label for="apiBaseUrl" class="text-[0.8125rem] font-semibold text-[#083645]">
-          API URL / endpoint (optional)
-        </label>
-        <input id="apiBaseUrl" type="text" name="apiBaseUrl" placeholder="https://api.mi-proveedor.com"
-          [disabled]="saving" [ngModel]="apiBaseUrl()" (ngModelChange)="apiBaseUrl.set($event)"
-          class="mt-2 h-[3.125rem] w-full rounded-full border border-[#E4DCCF] bg-[#F8F4ED] px-[1.125rem] text-sm text-[#083645] placeholder-[#3E5F6B]/60 focus:border-[#083645] focus:outline-none transition-colors" />
-        <p class="mt-1.5 text-xs text-[#3E5F6B]">Leave empty to use the provider's default endpoint (e.g. Stripe).</p>
-      </div>
-      <div>
-        <label for="publishableKey" class="text-[0.8125rem] font-semibold text-[#083645]">
-          Publishable key
-        </label>
-        <input id="publishableKey" type="text" name="publishableKey" placeholder="pk_live_…" [disabled]="saving"
-          [ngModel]="publishableKey()" (ngModelChange)="publishableKey.set($event)"
-          class="mt-2 h-[3.125rem] w-full rounded-full border border-[#E4DCCF] bg-[#F8F4ED] px-[1.125rem] text-sm text-[#083645] placeholder-[#3E5F6B]/60 focus:border-[#083645] focus:outline-none transition-colors" />
-      </div>
-      <div>
-        <label for="secretKey" class="text-[0.8125rem] font-semibold text-[#083645]">Secret key</label>
-        <input id="secretKey" type="password" name="secretKey" placeholder="sk_live_…" autocomplete="off"
-          [disabled]="saving" [ngModel]="secretKey()" (ngModelChange)="secretKey.set($event)"
-          class="mt-2 h-[3.125rem] w-full rounded-full border border-[#E4DCCF] bg-[#F8F4ED] px-[1.125rem] text-sm text-[#083645] placeholder-[#3E5F6B]/60 focus:border-[#083645] focus:outline-none transition-colors" />
-      </div>
-      <div>
-        <label for="webhookSecret" class="text-[0.8125rem] font-semibold text-[#083645]">
-          Webhook secret
-        </label>
-        <input id="webhookSecret" type="password" name="webhookSecret" placeholder="whsec_…" autocomplete="off"
-          [disabled]="saving" [ngModel]="webhookSecret()" (ngModelChange)="webhookSecret.set($event)"
-          class="mt-2 h-[3.125rem] w-full rounded-full border border-[#E4DCCF] bg-[#F8F4ED] px-[1.125rem] text-sm text-[#083645] placeholder-[#3E5F6B]/60 focus:border-[#083645] focus:outline-none transition-colors" />
-        <p class="mt-1.5 text-xs text-[#3E5F6B]">Needed for the provider to confirm payments back to us.</p>
-      </div>
-      <div>
-        <label for="statementDescriptor" class="text-[0.8125rem] font-semibold text-[#083645]">
-          Statement descriptor
-        </label>
-        <input id="statementDescriptor" type="text" name="statementDescriptor" [disabled]="saving"
-          [ngModel]="statementDescriptor()" (ngModelChange)="statementDescriptor.set($event)"
-          class="mt-2 h-[3.125rem] w-full rounded-full border border-[#E4DCCF] bg-[#F8F4ED] px-[1.125rem] text-sm text-[#083645] focus:border-[#083645] focus:outline-none transition-colors" />
-        <p class="mt-1.5 text-xs text-[#3E5F6B]">What your clients see on their card statement.</p>
+        <p class="mt-0.5 text-sm text-gray-500">
+          Turn each one on or off on its own. Clients choose among the active ones when they pay.
+        </p>
       </div>
     </div>
 
-    <div class="mt-6 flex items-center justify-start">
-      <button *ngIf="canManage" type="button" (click)="save()" [disabled]="!canSave"
-        class="flex h-12 items-center gap-2 rounded-full bg-[#083645] px-6 text-[0.8125rem] font-semibold text-white hover:bg-[#057BC1] disabled:opacity-50 disabled:hover:bg-[#083645] transition-colors">
-        @if (saving) {
-          <app-infinity-loader size="xs" tone="light" />
-        } @else {
-          <ion-icon name="power-outline" class="text-base text-[#4DD8FF]"></ion-icon>
+    <app-state-block class="mt-5 block" icon="card-outline" loadingText="Loading providers…"
+      [loading]="loading() && configs().length === 0" [empty]="configs().length === 0"
+      emptyTitle="No providers connected yet"
+      emptyMessage="Connect one below so clients can pay invoices online. Until then you can still issue invoices and record offline payments.">
+      <ul class="flex flex-col gap-3">
+        @for (config of configs(); track config.id) {
+          @let name = providerName(config.providerCode);
+          @let meta = descriptorFor(config.providerCode);
+          <li class="pf-row rounded-2xl border border-gray-100 p-4" [attr.data-provider]="config.providerCode">
+            <div class="flex items-start gap-3">
+              <app-provider-logo [code]="config.providerCode" [name]="name" [decorative]="true" />
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="text-[0.9375rem] font-semibold text-gray-900">{{ name }}</p>
+                  <app-status-pill data-testid="provider-status" size="xs" [tone]="config.isActive ? 'success' : 'neutral'">
+                    {{ config.isActive ? 'Active' : 'Inactive' }}
+                  </app-status-pill>
+                </div>
+                <p class="mt-0.5 truncate text-xs text-gray-500">
+                  On card statements: <span class="font-medium text-gray-700">{{ config.statementDescriptor }}</span>
+                </p>
+                @if (meta?.acceptsApiBaseUrl) {
+                  <p class="mt-0.5 truncate text-xs text-gray-500">
+                    Environment: <span class="font-medium text-gray-700">{{ config.apiBaseUrl ? 'Custom link' : 'Live' }}</span>
+                  </p>
+                }
+                @if (config.webhookSetup === 'Automatic' && config.hasWebhookSecret) {
+                  <p class="mt-0.5 flex items-center gap-1 text-xs text-emerald-700" data-testid="webhook-auto">
+                    <ion-icon name="checkmark-circle" aria-hidden="true"></ion-icon>Refunds and disputes sync automatically
+                  </p>
+                } @else if (config.webhookSetup === 'Pending') {
+                  <p class="mt-0.5 flex items-center gap-1 text-xs text-gray-500" data-testid="webhook-pending">
+                    <ion-icon name="sync-outline" aria-hidden="true"></ion-icon>Setting up refund sync…
+                  </p>
+                }
+                @if (!config.hasSecretKey || webhookSecretMissing(config)) {
+                  <div class="mt-2 flex flex-wrap gap-1.5">
+                    @if (!config.hasSecretKey) {
+                      <span class="pf-badge pf-badge--warn" data-warning="secret-key">
+                        <ion-icon name="warning-outline" aria-hidden="true"></ion-icon>Secret key missing
+                      </span>
+                    }
+                    @if (webhookSecretMissing(config)) {
+                      <span class="pf-badge pf-badge--warn" data-warning="webhook-secret"
+                        [title]="'Add the ' + webhookSecretLabelFor(config.providerCode) + ' with Update keys so refunds and disputes show up here.'">
+                        <ion-icon name="warning-outline" aria-hidden="true"></ion-icon>Refunds won't sync
+                      </span>
+                    }
+                  </div>
+                }
+              </div>
+              <div class="flex shrink-0 items-center gap-1">
+                <app-switch [checked]="config.isActive" [disabled]="!canManage()"
+                  [busy]="togglingCode() === config.providerCode" [ariaLabel]="'Accept payments with ' + name"
+                  (checkedChange)="providerToggleRequested.emit(config)" />
+                @if (canManage()) {
+                  <app-dropdown-menu [ariaLabel]="'More actions for ' + name">
+                    <button appMenuItem type="button" data-action="update-keys" (click)="startUpdateKeys(config)">
+                      <ion-icon name="key-outline" class="text-base"></ion-icon> Update keys
+                    </button>
+                    @if (meta?.acceptsApiBaseUrl) {
+                      <button appMenuItem type="button" data-action="edit-url" (click)="startEditUrl(config)">
+                        <ion-icon name="create-outline" class="text-base"></ion-icon> Change environment
+                      </button>
+                    }
+                    <button appMenuItem [danger]="true" type="button" data-action="delete" [disabled]="!!config.hasPayments"
+                      (click)="askDelete(config)">
+                      <ion-icon name="trash-outline" class="text-base"></ion-icon>
+                      @if (config.hasPayments) {
+                        <span class="flex flex-col">
+                          Delete
+                          <span class="text-xs text-gray-500">Has payments — turn it off instead</span>
+                        </span>
+                      } @else {
+                        Delete
+                      }
+                    </button>
+                  </app-dropdown-menu>
+                }
+              </div>
+            </div>
+
+            <!-- Edición inline de la URL -->
+            @if (editingUrlFor() === config.providerCode) {
+              <div class="pf-flow mt-3 flex items-center gap-2 border-t border-gray-100 pt-3">
+                <input type="url" class="pf-input min-w-0 flex-1" name="providerEditApiBaseUrl" autocomplete="off" spellcheck="false"
+                  [id]="'editApiBaseUrl-' + config.providerCode" [attr.aria-label]="name + ' environment link'"
+                  [attr.placeholder]="meta?.apiBaseUrlPlaceholder || null"
+                  [ngModel]="editingUrlValue()" (ngModelChange)="editingUrlValue.set($event)"
+                  (keydown.enter)="saveEditUrl(config)" (keydown.escape)="cancelEditUrl()" />
+                <div class="flex gap-2">
+                  <button type="button" class="pf-btn pf-btn--primary pf-btn--sm" (click)="saveEditUrl(config)">Save</button>
+                  <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm" (click)="cancelEditUrl()">Cancel</button>
+                </div>
+              </div>
+            }
+          </li>
         }
-        {{ saving ? 'Connecting…' : 'Save and activate' }}
-      </button>
+      </ul>
+    </app-state-block>
+  </section>
+
+  <!-- ================= Conectar un proveedor (campos según el catálogo) ================= -->
+  @let updating = updatingCode();
+  <section class="pf-reveal pf-card" style="--i: 2" aria-labelledby="provider-connect-title" data-testid="provider-connect">
+    <div class="flex items-start gap-3">
+      @if (updating) {
+        <app-provider-logo [code]="updating" [name]="providerName(updating)" [decorative]="true" />
+      } @else {
+        <span class="pf-icon-tile"><ion-icon name="add-circle-outline"></ion-icon></span>
+      }
+      <div class="min-w-0 flex-1">
+        @if (updating) {
+          <h2 id="provider-connect-title" class="text-lg font-bold text-gray-900">Update {{ providerName(updating) }} keys</h2>
+          <p class="mt-0.5 text-sm text-gray-500">Paste the keys again. They replace the saved ones, and saving turns it on.</p>
+        } @else {
+          <h2 id="provider-connect-title" class="text-lg font-bold text-gray-900">Connect a provider</h2>
+          <p class="mt-0.5 text-sm text-gray-500">Pick a provider and paste your keys. Saving activates it right away.</p>
+        }
+      </div>
     </div>
-  </div>
+
+    @if (!canManage()) {
+      <p class="mt-5 flex items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+        <ion-icon name="lock-closed-outline" class="text-base text-gray-400"></ion-icon>
+        Only someone who manages payment providers can connect one.
+      </p>
+    } @else if (providersFailed()) {
+      <app-state-block class="mt-5 block" error="We couldn't load the available providers." retryLabel="Try again"
+        (retry)="providersRetryRequested.emit()" />
+    } @else if (providersLoading()) {
+      <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" role="status" aria-busy="true" data-testid="providers-loading">
+        <span class="sr-only">Loading providers…</span>
+        <div class="h-16 animate-pulse rounded-2xl bg-gray-100"></div>
+        <div class="h-16 animate-pulse rounded-2xl bg-gray-100"></div>
+      </div>
+    } @else if (providers().length === 0) {
+      <app-state-block class="mt-5 block" icon="card-outline" [empty]="true"
+        emptyTitle="No payment providers are available right now." />
+    } @else {
+      @if (!updating) {
+      <p id="provider-choice-label" class="pf-field__label mt-5">Provider</p>
+      <div #group role="radiogroup" aria-labelledby="provider-choice-label"
+        class="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" (keydown)="onProviderKeydown($event, group)">
+        @for (p of providers(); track p.code) {
+          @let connected = connectedCodes().has(p.code);
+          @let checked = !connected && selected()?.code === p.code;
+          <button type="button" role="radio" [attr.data-provider-option]="p.code" [attr.aria-checked]="checked"
+            [attr.tabindex]="checked ? 0 : -1" [disabled]="connected || saving()" (click)="selectProvider(p.code)"
+            class="flex min-w-0 items-center gap-3 rounded-2xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-bold disabled:cursor-not-allowed"
+            [class.border-brand-bold]="checked" [class.bg-indigo-50]="checked"
+            [class.border-gray-200]="!checked" [class.bg-white]="!checked && !connected" [class.bg-gray-50]="connected">
+            <app-provider-logo [code]="p.code" [name]="p.displayName" size="sm" [decorative]="true" />
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-semibold" [class.text-gray-900]="!connected"
+                [class.text-gray-500]="connected">{{ p.displayName }}</span>
+              @if (connected) {
+                <span class="mt-0.5 flex items-center gap-1 text-xs text-emerald-700">
+                  <ion-icon name="checkmark-circle" aria-hidden="true"></ion-icon>Connected
+                </span>
+              }
+            </span>
+            @if (!connected) {
+              <span class="flex size-5 shrink-0 items-center justify-center rounded-full border" aria-hidden="true"
+                [class.border-brand-bold]="checked" [class.border-gray-300]="!checked">
+                @if (checked) {
+                  <span class="size-2.5 rounded-full bg-brand-bold"></span>
+                }
+              </span>
+            }
+          </button>
+        }
+      </div>
+
+      }
+
+      @if (allConnected() && !updating) {
+        <div class="mt-4 flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3" role="status"
+          data-testid="all-connected">
+          <ion-icon name="checkmark-circle-outline" class="mt-0.5 shrink-0 text-lg text-emerald-600"></ion-icon>
+          <p class="text-sm text-emerald-800">
+            Every available provider is already connected. Turn them on or off in Connected providers above.
+          </p>
+        </div>
+      } @else if (selected(); as current) {
+        <div class="mt-6 grid gap-4 sm:grid-cols-2">
+          @if (current.acceptsApiBaseUrl && !updating) {
+            <div class="pf-field sm:col-span-2">
+              <label for="apiBaseUrl" class="pf-field__label">{{ current.displayName }} environment</label>
+              <input id="apiBaseUrl" type="url" class="pf-input" name="providerApiBaseUrl" autocomplete="off" spellcheck="false"
+                aria-describedby="apiBaseUrlHelp" [attr.placeholder]="current.apiBaseUrlPlaceholder || null"
+                [disabled]="saving()" [ngModel]="apiBaseUrl()" (ngModelChange)="apiBaseUrl.set($event)" />
+              <p id="apiBaseUrlHelp" class="text-xs text-gray-500">Leave empty for live payments. For testing, paste the sandbox link.</p>
+            </div>
+          }
+          @if (!updating) {
+          <div class="pf-field">
+            <label for="publishableKey" class="pf-field__label">{{ current.publicKeyLabel }}</label>
+            <input id="publishableKey" type="text" class="pf-input" name="providerPublicKey" autocomplete="off" spellcheck="false"
+              [attr.placeholder]="current.publicKeyPlaceholder || null" [disabled]="saving()"
+              [attr.aria-invalid]="shownError('publishableKey') ? 'true' : null"
+              [attr.aria-describedby]="shownError('publishableKey') ? 'publishableKeyError' : null"
+              [ngModel]="publishableKey()" (ngModelChange)="publishableKey.set($event)" />
+            @if (shownError('publishableKey'); as error) {
+              <p id="publishableKeyError" class="text-xs text-red-600">{{ error }}</p>
+            }
+          </div>
+          }
+          <div class="pf-field">
+            <label for="secretKey" class="pf-field__label">{{ current.secretKeyLabel }}</label>
+            <div class="relative">
+              <input id="secretKey" class="pf-input" style="padding-right: 2.75rem" name="providerSecretKey" autocomplete="new-password" spellcheck="false"
+                [type]="showSecretKey() ? 'text' : 'password'" [attr.placeholder]="current.secretKeyPlaceholder || null"
+                [attr.aria-invalid]="shownError('secretKey') ? 'true' : null"
+                [attr.aria-describedby]="shownError('secretKey') ? 'secretKeyError' : null"
+                [disabled]="saving()" [ngModel]="secretKey()" (ngModelChange)="secretKey.set($event)" />
+              <button type="button" data-reveal="secretKey" [attr.aria-pressed]="showSecretKey()"
+                [attr.aria-label]="'Show ' + current.secretKeyLabel" (click)="showSecretKey.set(!showSecretKey())"
+                class="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-gray-400 transition-colors hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-bold">
+                <ion-icon [name]="showSecretKey() ? 'eye-off-outline' : 'eye-outline'" class="text-lg" aria-hidden="true"></ion-icon>
+              </button>
+            </div>
+            @if (shownError('secretKey'); as error) {
+              <p id="secretKeyError" class="text-xs text-red-600">{{ error }}</p>
+            }
+          </div>
+        </div>
+
+        @if (current.credentialsHelpUrl) {
+          <a [href]="current.credentialsHelpUrl" target="_blank" rel="noopener noreferrer" data-testid="credentials-help"
+            class="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-brand-bold hover:underline">
+            Where do I find these?
+            <ion-icon name="open-outline" class="text-base" aria-hidden="true"></ion-icon>
+            <span class="sr-only">(opens in a new tab)</span>
+          </a>
+        }
+
+        @if (current.usesWebhookSecret && autoWebhook()) {
+          <!-- Configuración automática: el backend crea el webhook al guardar; la guía manual queda a mano -->
+          <div class="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 sm:p-5" data-testid="webhook-auto-setup">
+            <span class="pf-icon-tile pf-icon-tile--sm bg-white"><ion-icon name="sparkles-outline"></ion-icon></span>
+            <div class="min-w-0 flex-1">
+              <h3 class="text-sm font-semibold text-gray-900">Refunds and disputes sync automatically</h3>
+              <p class="mt-0.5 text-sm text-gray-600">
+                After you save, we connect {{ current.displayName }} for you. There's nothing else to set up.
+              </p>
+              <button type="button" class="mt-2 text-sm font-semibold text-brand-bold hover:underline" data-testid="webhook-manual"
+                (click)="manualWebhook.set(true)">Set it up manually instead</button>
+            </div>
+          </div>
+        } @else if (current.usesWebhookSecret) {
+          <!-- Guía del webhook en lenguaje simple: el enlace y los eventos se copian, no se muestran -->
+          <div class="mt-6 rounded-2xl border border-gray-100 bg-gray-50 p-4 sm:p-5" data-testid="webhook-setup">
+            <div class="flex items-start gap-3">
+              <span class="pf-icon-tile pf-icon-tile--sm bg-white"><ion-icon name="git-network-outline"></ion-icon></span>
+              <div class="min-w-0 flex-1">
+                <h3 class="flex flex-wrap items-center gap-2 text-sm font-semibold text-gray-900">
+                  Sync refunds and disputes
+                  <span class="pf-badge" data-testid="webhook-optional">Recommended</span>
+                </h3>
+                <p class="mt-0.5 text-sm text-gray-500">
+                  Optional. Clients can pay without it — this keeps refunds and disputes made in {{ current.displayName }} up to date here.
+                </p>
+              </div>
+            </div>
+
+            <ol class="mt-4 flex list-decimal flex-col gap-3 pl-5 text-sm text-gray-700">
+              <li>In {{ current.displayName }}, open the webhook settings and add a new webhook.</li>
+              @if (webhookUrl()) {
+                <li>
+                  <span class="flex flex-wrap items-center gap-2">
+                    Paste this link there.
+                    <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm" data-testid="copy-webhook-link" (click)="copy('link')">
+                      <ion-icon [name]="copied()?.what === 'link' && copied()?.ok ? 'checkmark-outline' : 'copy-outline'"
+                        class="text-base" aria-hidden="true"></ion-icon>
+                      {{ copyLabel('link', 'Copy webhook link') }}
+                    </button>
+                  </span>
+                </li>
+              }
+              @if (webhookEvents().length > 0) {
+                <li>
+                  <span class="flex flex-wrap items-center gap-2">
+                    Select the events {{ current.displayName }} should send.
+                    <button type="button" class="pf-btn pf-btn--ghost pf-btn--sm" data-testid="copy-webhook-events" (click)="copy('events')">
+                      <ion-icon [name]="copied()?.what === 'events' && copied()?.ok ? 'checkmark-outline' : 'copy-outline'"
+                        class="text-base" aria-hidden="true"></ion-icon>
+                      {{ copyLabel('events', 'Copy events') }}
+                    </button>
+                  </span>
+                </li>
+              }
+              <li>Paste the {{ webhookSecretLabelInSentence() }} {{ current.displayName }} shows you below.</li>
+            </ol>
+            <span class="sr-only" aria-live="polite">
+              @if (copied()?.ok) {
+                {{ copied()?.what === 'link' ? 'Webhook link copied' : 'Events copied' }}
+              }
+            </span>
+
+            <div class="pf-field mt-4">
+              <label for="webhookSecret" class="pf-field__label">{{ webhookSecretLabel() }} (optional)</label>
+              <div class="relative">
+                <input id="webhookSecret" class="pf-input" style="padding-right: 2.75rem" name="providerWebhookSecret" autocomplete="new-password"
+                  spellcheck="false" [type]="showWebhookSecret() ? 'text' : 'password'"
+                  aria-describedby="webhookSecretHelp"
+                  [disabled]="saving()" [ngModel]="webhookSecret()" (ngModelChange)="webhookSecret.set($event)" />
+                <button type="button" data-reveal="webhookSecret" [attr.aria-pressed]="showWebhookSecret()"
+                  [attr.aria-label]="'Show ' + webhookSecretLabelInSentence()" (click)="showWebhookSecret.set(!showWebhookSecret())"
+                  class="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-gray-400 transition-colors hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-bold">
+                  <ion-icon [name]="showWebhookSecret() ? 'eye-off-outline' : 'eye-outline'" class="text-lg" aria-hidden="true"></ion-icon>
+                </button>
+              </div>
+              <p id="webhookSecretHelp" class="text-xs text-gray-500">{{ current.displayName }} shows it right after you add the link. You can add it later with Update keys.</p>
+              @if (current.webhookAutoSetup) {
+                <button type="button" class="mt-1 self-start text-sm font-semibold text-brand-bold hover:underline"
+                  data-testid="webhook-automatic" (click)="useAutomaticWebhook()">Let us set it up for you</button>
+              }
+            </div>
+          </div>
+        }
+
+        @if (!updating) {
+        <div class="pf-field mt-6 max-w-md">
+          <div class="flex items-baseline justify-between gap-2">
+            <label for="statementDescriptor" class="pf-field__label">Name on card statements</label>
+            <span id="statementDescriptorCount" data-testid="descriptor-count" class="text-xs tabular-nums"
+              [class.text-red-600]="descriptorLength() > descriptorMax" [class.text-gray-400]="descriptorLength() <= descriptorMax">
+              {{ descriptorLength() }}/{{ descriptorMax }}
+            </span>
+          </div>
+          <input id="statementDescriptor" type="text" class="pf-input" name="providerStatementDescriptor" autocomplete="off"
+            spellcheck="false" [attr.aria-invalid]="descriptorMessage() ? 'true' : null"
+            [attr.aria-describedby]="(descriptorMessage() ? 'statementDescriptorError' : 'statementDescriptorHelp') + ' statementDescriptorCount'"
+            [disabled]="saving()" [ngModel]="statementDescriptor()" (ngModelChange)="statementDescriptor.set($event)"
+            (blur)="descriptorTouched.set(true)" />
+          @if (descriptorMessage(); as message) {
+            <p id="statementDescriptorError" class="text-xs text-red-600">{{ message }}</p>
+          } @else {
+            <p id="statementDescriptorHelp" class="text-xs text-gray-500">What your clients see on their bank statement (5–22 characters).</p>
+          }
+        </div>
+        }
+
+        <div class="mt-6 flex flex-wrap items-center gap-3">
+          <button type="button" class="pf-btn pf-btn--primary" data-testid="save-provider" (click)="save()" [disabled]="saving()"
+            [attr.aria-describedby]="missing().length > 0 ? 'providerMissing' : null">
+            @if (saving()) {
+              <app-infinity-loader size="xs" tone="light" />
+            } @else {
+              <ion-icon name="power-outline" class="text-base" aria-hidden="true"></ion-icon>
+            }
+            @if (updating) {
+              {{ saving() ? 'Saving…' : 'Save keys' }}
+            } @else {
+              {{ saving() ? 'Connecting…' : 'Save and activate' }}
+            }
+          </button>
+          @if (updating) {
+            <button type="button" class="pf-btn pf-btn--ghost" data-testid="cancel-update-keys" [disabled]="saving()"
+              (click)="cancelUpdateKeys()">Cancel</button>
+          }
+          @if (missing().length > 0 && !saving()) {
+            <p id="providerMissing" class="text-xs text-gray-500" data-testid="provider-missing">Missing: {{ missing().join(', ') }}</p>
+          }
+        </div>
+      }
+    }
+  </section>
 </div>
+
+@let deleting = pendingDelete();
+<app-confirm-dialog [isOpen]="!!deleting" confirmLabel="Remove"
+  [heading]="'Remove ' + providerName(deleting?.providerCode ?? '') + '?'"
+  [message]="'Clients won\'t be able to pay with ' + providerName(deleting?.providerCode ?? '') + ' anymore and its saved keys are deleted. You can connect it again later.'"
+  (confirmed)="confirmDelete()" (cancelled)="pendingDelete.set(null)" />

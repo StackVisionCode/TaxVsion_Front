@@ -17,10 +17,14 @@ export interface GuestMeetingContext {
   shortCode: string;
   /** Nombre que puso el host al invitar (prefill del campo de nombre). */
   inviteeName: string | null;
-  /** Política efectiva de la oficina (`meeting.guestsAllowed`). */
+  /** La oficina y la reunión admiten externos (D-69). */
   guestsAllowed: boolean;
-  /** El guest pasará por sala de espera (`meeting.guestsWaitingRoom`). */
+  /** El guest siempre espera a que lo admitan (D-67). */
   waitingRoom: boolean;
+  /** Entró por el enlace compartible de la reunión (D-68), no por una invitación personal. */
+  viaMeetingLink?: boolean;
+  /** La reunión está bloqueada: con el enlace nadie nuevo puede pedir entrar. */
+  isLocked?: boolean;
   /** Mismo DTO que `GET /communication/media-policy`, sin preferencias de usuario. */
   mediaPolicy: MediaPolicyDto;
 }
@@ -32,8 +36,13 @@ export interface GuestJoinByTokenResponse {
   meetingId: string;
   shortCode: string;
   tenantId: string;
-  invitationId: string;
+  /** Null si entró por el enlace de la reunión (D-68). */
+  invitationId: string | null;
+  /** Identidad con la que el servidor me nombra en la reunión (la del ticket). */
+  guestUserId: string;
 }
 
 /** 403 de `join-by-token` cuando la oficina no admite invitados externos. */
 export const GUESTS_NOT_ALLOWED_CODE = 'Meeting.GuestsNotAllowed';
+/** 403 de `join-by-token` con el enlace de la reunión cuando el host la bloqueó. */
+export const MEETING_LOCKED_CODE = 'Meeting.Locked';

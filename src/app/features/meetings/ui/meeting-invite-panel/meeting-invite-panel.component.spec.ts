@@ -4,7 +4,7 @@ import { Subject, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClipboardService } from '@shared/services/clipboard.service';
 import { MeetingsStore } from '../../data-access/meetings.store';
-import { CreatedMeetingInvitation, MeetingInvitationListItem } from '../../data-access/meeting.model';
+import { CreatedMeetingInvitation, MeetingGuestAccess, MeetingInvitationListItem } from '../../data-access/meeting.model';
 import { MeetingInvitePanelComponent } from './meeting-invite-panel.component';
 
 function invitation(overrides: Partial<MeetingInvitationListItem> = {}): MeetingInvitationListItem {
@@ -22,12 +22,16 @@ function invitation(overrides: Partial<MeetingInvitationListItem> = {}): Meeting
   };
 }
 
-function render(list: MeetingInvitationListItem[] = []) {
+function render(list: MeetingInvitationListItem[] = [], access: MeetingGuestAccess = { guestsAllowed: true, officeAllowsGuests: true, guestLinkUrl: null }) {
   const store = {
     listInvitations: vi.fn().mockReturnValue(of(list)),
     createInvitations: vi.fn(),
     revokeInvitation: vi.fn().mockReturnValue(of(undefined)),
     searchInvitees: vi.fn().mockReturnValue(of({ employees: [], customers: [] })),
+    getGuestAccess: vi.fn().mockReturnValue(of(access)),
+    setGuestAccess: vi.fn(),
+    enableGuestLink: vi.fn(),
+    disableGuestLink: vi.fn(),
   };
   const clipboard = { copy: vi.fn().mockResolvedValue(true) };
   TestBed.configureTestingModule({
@@ -78,7 +82,7 @@ describe('MeetingInvitePanelComponent (F6)', () => {
   it('agrega un externo con nombre, envía, muestra el link una sola vez y lo copia; Copy code copia el shortCode', async () => {
     const created: CreatedMeetingInvitation[] = [{ id: 'n1', tokenPreview: 'abc…', expiresAt: 'x', inviteeEmail: 'ana@ext.com', joinUrl: 'https://o.taxoffix.io/meet/tok' }];
     const { fixture, panel, store, clipboard, component } = render([]);
-    store.createInvitations.mockReturnValue(of(created));
+    store.createInvitations.mockReturnValue(of({ invitations: created, skipped: [] }));
 
     component.onInviteeSearchChange('ana@ext.com');
     component.externalName.set('Ana');
@@ -151,5 +155,38 @@ describe('MeetingInvitePanelComponent (F6)', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('MNT-01: avisa quién ya estaba invitado y quién se invitó como equipo o cliente', async () => {
+    const { fixture, panel, store, component } = render([]);
+    store.createInvitations.mockReturnValue(
+      of({
+        invitations: [{ id: 'n1', tokenPreview: 'a…', expiresAt: 'x', inviteeEmail: 'ana@office.com', joinUrl: 'u', inviteeKind: 'Employee' }],
+        skipped: [{ email: 'bob@ext.com', name: 'Bob', reason: 'AlreadyInvited' }],
+      }),
+    );
+    component.invitees.set([
+      { kind: 'external', userId: null, email: 'ana@office.com', name: 'ana' },
+      { kind: 'external', userId: null, email: 'bob@ext.com', name: 'Bob' },
+    ]);
+    component.send();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const notice = panel.querySelector('[data-role="invite-notice"]')?.textContent ?? '';
+    expect(notice).toContain('Already invited, not sent again: Bob.');
+    expect(notice).toContain('ana@office.com was invited as a team member.');
+  });
+
+  it('D-69: con externos apagados en la reunión no se agrega un email externo y se quitan los elegidos', () => {
+    const { fixture, panel, component } = render([], { guestsAllowed: false, officeAllowsGuests: true, guestLinkUrl: null });
+    component.invitees.set([{ kind: 'external', userId: null, email: 'x@ext.com', name: 'x' }]);
+    component.onGuestAccessChange({ guestsAllowed: false, officeAllowsGuests: true, guestLinkUrl: null });
+    component.onInviteeSearchChange('new@ext.com');
+    fixture.detectChanges();
+    expect(component.invitees()).toEqual([]);
+    expect(panel.querySelector('[data-role="externals-off"]')).not.toBeNull();
+    expect(panel.querySelector('[data-role="external-candidate"]')).toBeNull();
+    component.addExternal();
+    expect(component.invitees()).toEqual([]);
   });
 });

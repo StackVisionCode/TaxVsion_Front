@@ -28,7 +28,7 @@
           <div class="flex items-center gap-3">
             @if (d.expirationEnabledByDefault) {
               <span class="flex items-center gap-1.5">
-                <input type="number" [min]="minHours" [max]="maxHours" [ngModel]="d.defaultTokenExpirationHours"
+                <input type="number" [min]="hoursRange('defaultTokenExpirationHours')?.min ?? null" [max]="hoursRange('defaultTokenExpirationHours')?.max ?? null" [ngModel]="d.defaultTokenExpirationHours"
                   (ngModelChange)="setHours('defaultTokenExpirationHours', $event)"
                   class="w-20 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm" aria-label="Expiration hours" />
                 <span class="text-xs text-gray-500">hours</span>
@@ -49,7 +49,7 @@
             @if (d.remindersEnabledByDefault) {
               <span class="flex items-center gap-1.5 text-xs text-gray-500">
                 Every
-                <input type="number" [min]="minHours" [max]="maxHours" [ngModel]="d.defaultReminderIntervalHours"
+                <input type="number" [min]="hoursRange('defaultReminderIntervalHours')?.min ?? null" [max]="hoursRange('defaultReminderIntervalHours')?.max ?? null" [ngModel]="d.defaultReminderIntervalHours"
                   (ngModelChange)="setHours('defaultReminderIntervalHours', $event)"
                   class="w-20 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm" aria-label="Reminder interval hours" />
                 hours
@@ -132,6 +132,84 @@
       </div>
     </section>
 
+    <!-- Delivery of signed documents (enlace propio de Signature, no un share de Documents) -->
+    <section class="rounded-[1.5rem] bg-white p-6 border border-gray-100 shadow-sm">
+      <h2 class="text-lg font-bold text-gray-900">Delivery of signed documents</h2>
+      <p class="mt-1 text-sm text-gray-500">Signers get one email with a personal link to all their signed files.</p>
+
+      <div class="mt-4 divide-y divide-gray-100">
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Link valid for</p>
+            <p class="mt-0.5 text-xs text-gray-500">Days the download link works ({{ minLinkDays() }}–{{ maxLinkDays() }}).</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="number" [min]="minLinkDays()" [max]="maxLinkDays()" [ngModel]="d.delivery.linkLifetimeDays"
+              (ngModelChange)="setLinkDays($event)" class="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
+              aria-label="Link valid for (days)" />
+            <span class="text-sm text-gray-500">days</span>
+          </div>
+        </div>
+
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Let signers request a new link</p>
+            <p class="mt-0.5 text-xs text-gray-500">When it expires, the new link goes to the same email only.</p>
+          </div>
+          <app-switch [checked]="d.delivery.allowPublicReissue"
+            (checkedChange)="patchDelivery('allowPublicReissue', $event)" ariaLabel="Let signers request a new link"></app-switch>
+        </div>
+
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Also attach the PDFs to the email</p>
+            <p class="mt-0.5 text-xs text-gray-500">Only when all files together are under the limit; otherwise the link is sent alone.</p>
+          </div>
+          <div class="flex items-center gap-3">
+            @if (d.delivery.attachDocuments) {
+              <input type="number" [min]="minAttachmentMb()" [max]="maxAttachmentMb()" [ngModel]="attachmentMb(d.delivery.maxAttachmentBytes)"
+                (ngModelChange)="setAttachmentMb($event)" class="w-16 rounded-lg border border-gray-200 px-2 py-1.5 text-sm"
+                aria-label="Attachment limit (MB)" />
+              <span class="text-sm text-gray-500">MB</span>
+            }
+            <app-switch [checked]="d.delivery.attachDocuments"
+              (checkedChange)="patchDelivery('attachDocuments', $event)" ariaLabel="Attach the PDFs to the email"></app-switch>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stamping: cómo quedan los campos en el PDF sellado -->
+    <section class="rounded-[1.5rem] bg-white p-6 border border-gray-100 shadow-sm" data-testid="stamping-settings">
+      <h2 class="text-lg font-bold text-gray-900">Stamping</h2>
+      <p class="mt-1 text-sm text-gray-500">How signed fields look on the final PDF. Initials, dates and text are stamped as plain text, without boxes.</p>
+
+      <div class="mt-4 divide-y divide-gray-100">
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Frame around signatures</p>
+            <p class="mt-0.5 text-xs text-gray-500">Adds a thin frame with “Signed by” and the date and time. Off: only the signature ink.</p>
+          </div>
+          <app-switch [checked]="d.showSignatureFrame"
+            (checkedChange)="patch('showSignatureFrame', $event)" ariaLabel="Frame around signatures"></app-switch>
+        </div>
+
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Date format</p>
+            <p class="mt-0.5 text-xs text-gray-500">Used by date fields when the signer signs.</p>
+          </div>
+          <select [ngModel]="d.dateStampFormat" (ngModelChange)="patch('dateStampFormat', $event)" aria-label="Date format"
+            data-testid="date-stamp-format"
+            class="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-700">
+            @for (option of dateFormats; track option.value) {
+              <option [ngValue]="option.value">{{ option.label }}</option>
+            }
+          </select>
+        </div>
+      </div>
+    </section>
+
     <!-- Signer verification -->
     <section class="rounded-[1.5rem] bg-white p-6 border border-gray-100 shadow-sm">
       <h2 class="text-lg font-bold text-gray-900">Signer verification</h2>
@@ -144,7 +222,7 @@
             <p class="mt-0.5 text-xs text-gray-500">Which verification methods preparers can pick.</p>
           </div>
           <div class="flex flex-wrap justify-end gap-2">
-            @for (ch of channels; track ch) {
+            @for (ch of channels(); track ch) {
               <button type="button" (click)="toggleChannel(ch, !isChannelOn(ch))"
                 class="rounded-full border px-3 py-1 text-xs font-semibold transition-colors"
                 [class.border-blue-600]="isChannelOn(ch)" [class.bg-blue-600]="isChannelOn(ch)"
@@ -200,33 +278,87 @@
       </div>
     </section>
 
-    <!-- Limits & retention (plan, read-only) -->
+    <!-- Límites y retención: la oficina elige dentro de los techos del plan (que se muestran al lado) -->
     <section class="rounded-[1.5rem] bg-white p-6 border border-gray-100 shadow-sm">
       <div class="flex items-center justify-between gap-3">
         <div>
           <h2 class="text-lg font-bold text-gray-900">Limits &amp; retention</h2>
-          <p class="mt-1 text-sm text-gray-500">Set by your plan. Visible to the firm, changed by the platform.</p>
+          <p class="mt-1 text-sm text-gray-500">Choose your office limits within what your plan allows.</p>
         </div>
         <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[0.6875rem] font-semibold text-amber-700">
-          <ion-icon name="lock-closed-outline"></ion-icon> Plan
+          <ion-icon name="ribbon-outline"></ion-icon> Plan limits
         </span>
       </div>
-      <dl class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+
+      <div class="mt-4 divide-y divide-gray-100">
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Largest PDF (MB)</p>
+            <p class="mt-0.5 text-xs text-gray-500">Your plan allows up to {{ formatBytes(d.planConstraints.maxAllowedPdfBytes) }}.</p>
+          </div>
+          <input type="number" min="1" [max]="maxPdfMb()" [ngModel]="attachmentMb(d.maxPdfBytes)" (ngModelChange)="setPdfMb($event)"
+            class="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-sm" aria-label="Largest PDF in megabytes" />
+        </div>
+
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Pages per document</p>
+            <p class="mt-0.5 text-xs text-gray-500">Your plan allows up to {{ d.planConstraints.maxAllowedPages }}.</p>
+          </div>
+          <input type="number" min="1" [max]="d.planConstraints.maxAllowedPages" [ngModel]="d.maxPagesPerDocument" (ngModelChange)="setPages($event)"
+            class="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-sm" aria-label="Pages per document" />
+        </div>
+
+        <!-- Retención: solo lectura; la fija la oficina en Cumplimiento (el mínimo del plan sigue siendo el piso) -->
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p id="retention-years-label" class="text-sm font-semibold text-gray-900">Keep completed requests (years)</p>
+            <p class="mt-0.5 text-xs text-gray-500">
+              @if (d.retentionYearsSource === 'Office') {
+                Set in
+              } @else {
+                Default until your office sets it in
+              }
+              @if (canOpenCompliance()) {
+                <a routerLink="/company/settings" fragment="compliance" class="font-semibold text-blue-600 hover:underline">Office settings → Compliance</a>.
+              } @else {
+                Office settings → Compliance.
+              }
+              Your plan requires at least {{ d.planConstraints.minRetentionYears }} years.
+            </p>
+          </div>
+          <span class="shrink-0 rounded-lg bg-gray-50 px-3 py-1.5 text-sm font-semibold tabular-nums text-gray-900"
+            aria-labelledby="retention-years-label" data-testid="retention-years">{{ d.retentionYears }} years</span>
+        </div>
+
+        <div class="flex items-start justify-between gap-4 py-4">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-900">Delete requests after the retention period</p>
+            <p class="mt-0.5 text-xs text-gray-500">
+              @if (d.planConstraints.purgeAllowed) {
+                Requests past their retention (and not on legal hold) are deleted for good.
+              } @else {
+                Not included in your plan.
+              }
+            </p>
+          </div>
+          <app-switch [checked]="d.allowPurge && d.planConstraints.purgeAllowed" [disabled]="!d.planConstraints.purgeAllowed"
+            (checkedChange)="patch('allowPurge', $event)" ariaLabel="Delete requests after the retention period"></app-switch>
+        </div>
+      </div>
+
+      <dl class="mt-2 grid grid-cols-2 gap-4 rounded-2xl bg-gray-50 px-4 py-3 sm:grid-cols-3">
         <div>
-          <dt class="text-xs text-gray-400">Upload limit (PDF)</dt>
-          <dd class="mt-0.5 text-sm font-semibold text-gray-700">{{ formatBytes(d.maxPdfBytes) }}</dd>
+          <dt class="text-xs text-gray-400">Documents per request</dt>
+          <dd class="mt-0.5 text-sm font-semibold text-gray-700">{{ d.planConstraints.maxDocumentsPerRequest }}</dd>
         </div>
         <div>
-          <dt class="text-xs text-gray-400">Upload limit (image)</dt>
-          <dd class="mt-0.5 text-sm font-semibold text-gray-700">{{ formatBytes(d.maxImageBytes) }}</dd>
+          <dt class="text-xs text-gray-400">Signers per request</dt>
+          <dd class="mt-0.5 text-sm font-semibold text-gray-700">{{ d.planConstraints.maxSignersPerRequest }}</dd>
         </div>
         <div>
-          <dt class="text-xs text-gray-400">Pages per document</dt>
-          <dd class="mt-0.5 text-sm font-semibold text-gray-700">{{ d.maxPagesPerDocument }}</dd>
-        </div>
-        <div>
-          <dt class="text-xs text-gray-400">Retention</dt>
-          <dd class="mt-0.5 text-sm font-semibold text-gray-700">{{ d.retentionYears }} yr</dd>
+          <dt class="text-xs text-gray-400">Longest signing link</dt>
+          <dd class="mt-0.5 text-sm font-semibold text-gray-700">{{ d.planConstraints.maxTokenExpirationHours }} h</dd>
         </div>
       </dl>
     </section>

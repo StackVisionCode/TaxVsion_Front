@@ -28,10 +28,11 @@ import { ActiveMeetingService } from '@core/communication/active-meeting.service
 import { ActiveCallService } from '@core/communication/active-call.service';
 import { MeetingSessionState } from '@core/communication/meeting-session-state';
 import { MeetingCreationOutcome, MeetingsStore } from '../../data-access/meetings.store';
-import { MeetingFormValue, MeetingInviteeDraft, MeetingItem, MeetingsScope } from '../../data-access/meeting.model';
+import { MeetingCodeResolution, MeetingFormValue, MeetingInviteeDraft, MeetingItem, MeetingsScope } from '../../data-access/meeting.model';
 import { FileViewerComponent } from '@shared/ui/file-viewer/file-viewer.component';
 import { RecordingViewerComponent } from '@core/communication/ui/recording-viewer/recording-viewer.component';
 import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
+import { MeetingJoinCodeDialogComponent } from '../../ui/meeting-join-code-dialog/meeting-join-code-dialog.component';
 
 /**
  * Página del módulo Meetings conectada a Communication (`/communication/meetings`):
@@ -68,6 +69,7 @@ import { FileViewerItem } from '@shared/ui/file-viewer/file-viewer.model';
     LoadMoreComponent,
     FileViewerComponent,
     RecordingViewerComponent,
+    MeetingJoinCodeDialogComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './meetings-page.component.html',
@@ -429,6 +431,19 @@ export class MeetingsPageComponent implements OnInit {
       return;
     }
     this.pendingJoin.set({ meetingId: meeting.id, title: meeting.title });
+  }
+
+  // ---------- MNT-01: Join with code (staff) ----------
+  readonly joinCodeOpen = signal(false);
+
+  /** El código ya se resolvió en la oficina y la reunión está en curso: lobby normal con el id real. */
+  joinByCode(resolution: MeetingCodeResolution): void {
+    this.joinCodeOpen.set(false);
+    if (this.activeCall.phase() !== 'idle') {
+      void this.activeMeeting.join(resolution.meetingId, resolution.title);
+      return;
+    }
+    this.pendingJoin.set({ meetingId: resolution.meetingId, title: resolution.title });
   }
 
   copyCode(meeting: MeetingItem): void {

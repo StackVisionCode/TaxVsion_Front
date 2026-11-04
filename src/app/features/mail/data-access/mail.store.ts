@@ -5,6 +5,7 @@ import {
   Observable,
   Subject,
   catchError,
+  combineLatest,
   concatMap,
   debounceTime,
   distinctUntilChanged,
@@ -12,6 +13,7 @@ import {
   map,
   of,
   retry,
+  startWith,
   switchMap,
   throwError,
   timer,
@@ -19,36 +21,131 @@ import {
 import { toApiError } from '@core/models/api-error.model';
 import { CloudStorageUploadService } from '@core/cloud-storage/cloud-storage-upload.service';
 import { AuthService } from '@core/auth/auth.service';
-import { MailService } from './mail.service';
+import { InboxThreadsQuery, MailListFilters, MailSearchFiltersQuery, MailService } from './mail.service';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
 import { EmbeddedCustomer, injectEmbeddedCustomer } from '@core/customers/embedded-customer';
-import { MailSocketService, MailThreadStatePayload } from './mail-socket.service';
+import { MailIncomingEmailPayload, MailSocketService, MailThreadStatePayload } from './mail-socket.service';
 import { ToastService } from '@shared/ui/toast/toast.service';
 import { MailUnreadStore } from './mail-unread.store';
 import {
   AttachFileToDraftRequest,
+  AttachmentDownloadUrlResult,
   AttachmentSummary,
   ConnectManualAccountRequest,
+  DeliveryNoticeOriginal,
+  DeliveryNoticeSummary,
   DraftAttachmentSummary,
   DraftDetail,
   DraftListItem,
+  EmailSearchHit,
+  FileSearchHit,
   MailAccount,
   MailCustomerScope,
+  MailSearchFolder,
+  MailSearchGroup,
+  MailSearchResult,
   MessageSummary,
+  PersonSearchHit,
   SentMessageListItem,
   TestManualConnectionResult,
   ThreadSummary,
   TrashItem,
   isUsableAccount,
+  normalizeMailSearchResult,
   parseRecipients,
   plainTextToHtml,
 } from './mail.model';
 import { ProviderDetection, detectProvider } from './mail-provider-detect.util';
 import { ConnectorsCapabilities } from './connectors-permissions';
+import { parseUtcDate } from '@shared/utils/utc-date.util';
+import { MailDatePreset, mailDateRangeUtc } from '../utils/mail-search-dates';
+import { parseMailSearchOperators } from '../utils/mail-search-operators';
 
 /** Carpetas honestas: solo las que tienen respaldo real en Correspondence. */
 export type MailFolderId = 'inbox' | 'sent' | 'archived' | 'drafts' | 'trash';
+
+/** Pestañas del modo resultados de la búsqueda (Events llega con Calendar, F4). */
+export type MailSearchTab = 'all' | 'emails' | 'people' | 'files';
+/** Chip de fecha (en el servidor): presets relativos a ahora o rango personalizado (`dateFrom`/`dateTo`). */
+export type MailDateFilter = MailDatePreset;
+
+/**
+ * Estado completo de la búsqueda y los chips (vive en la URL de /email). `results` = modo resultados
+ * (todas las carpetas, `GET /search`); sin él, `q` filtra la carpeta activa. `folder` null = no cambiarla.
+ * `from`/`to`/`subject`/`searchFolder` solo existen en el modo resultados (filtros de `/search`).
+ */
+export interface MailSearchFilters {
+  q: string;
+  results: boolean;
+  tab: MailSearchTab;
+  clientId: string | null;
+  hasAttachments: boolean;
+  unread: boolean;
+  notClient: boolean;
+  date: MailDateFilter;
+  /** `YYYY-MM-DD` del rango personalizado (solo con `date: 'custom'`). */
+  dateFrom: string | null;
+  dateTo: string | null;
+  folder: MailFolderId | null;
+  from: string;
+  to: string;
+  subject: string;
+  /** Carpeta como filtro de `/search` (`in:sent`), distinta de la carpeta abierta (`folder`). */
+  searchFolder: MailFolderId | null;
+}
+
+/** Sugerencias del buscador agrupado: clientes del directorio + correos, archivos y personas del backend. */
+export interface MailSuggestions {
+  clients: CustomerSummary[];
+  emails: EmailSearchHit[];
+  files: FileSearchHit[];
+  people: PersonSearchHit[];
+  /** Algún grupo sigue en camino. */
+  pending: boolean;
+}
+
+/** Grupos de `/search` que pide cada pestaña (no se calcula lo que no se muestra). */
+export const SEARCH_TAB_GROUPS: Readonly<Record<MailSearchTab, readonly MailSearchGroup[]>> = {
+  all: ['emails', 'files', 'people'],
+  emails: ['emails'],
+  people: ['people'],
+  files: ['files'],
+};
+
+/** Carpeta del rail → valor de `folder` en `/search`. */
+export const SEARCH_FOLDER_PARAM: Readonly<Record<MailFolderId, MailSearchFolder>> = {
+  inbox: 'Inbox',
+  archived: 'Archived',
+  sent: 'Sent',
+  drafts: 'Drafts',
+  trash: 'Trash',
+};
+
+/**
+ * ¿Hay criterio para `/search`? Al menos un texto (q, from, to o subject) y cada texto presente con 2+
+ * caracteres (si no, el backend responde 400).
+ */
+export function hasValidSearchCriteria(state: Pick<MailSearchFilters, 'q' | 'from' | 'to' | 'subject'>): boolean {
+  const texts = [state.q, state.from, state.to, state.subject].map(text => (text ?? '').trim()).filter(Boolean);
+  return texts.length > 0 && texts.every(text => text.length >= SEARCH_MIN_CHARS && text.length <= 200);
+}
+
+/** Qué abrió un resultado de correo: la página decide la fila resaltada o la carpeta. */
+export type SearchHitOpened = 'thread' | 'sent' | 'draft' | 'trash' | 'none';
+
+/** Modal "View original notice". */
+export interface NoticeOriginalView {
+  notice: DeliveryNoticeSummary;
+  loading: boolean;
+  error: string | null;
+  original: DeliveryNoticeOriginal | null;
+}
+
+/** Resultados por grupo de las sugerencias y tope del modo resultados. */
+const SUGGESTION_LIMIT = 5;
+const SEARCH_RESULTS_LIMIT = 50;
+const SEARCH_MIN_CHARS = 2;
 
 /** Carpetas de lo que uno manda o redacta: las únicas donde existe correo a quien no es cliente. */
 export const OUTGOING_FOLDERS: ReadonlySet<MailFolderId> = new Set<MailFolderId>(['sent', 'drafts', 'trash']);
@@ -116,6 +213,10 @@ export interface ComposeState {
    * apaga si el usuario pidió explícitamente no archivarla en ninguno.
    */
   autoFile: boolean;
+  /** Reenvío de un aviso de no entrega: el destinatario que falló (se resalta en "To" si hay que corregirlo). */
+  resendTo?: string | null;
+  /** true = "Fix address and resend": el foco va al destinatario para corregirlo. */
+  highlightRecipient?: boolean;
 }
 
 /**
@@ -210,8 +311,24 @@ export class MailStore {
    * puede leer/enviar pero NO llega correo entrante). `Active` = watch OK, no aparece acá.
    */
   readonly attentionAccounts = computed(() =>
-    this._accounts().filter(account => account.status === 'Error' || account.status === 'Connected'),
+    this._accounts().filter(
+      account =>
+        account.status === 'Error' || account.status === 'Connected' || this.needsPermissionUpdate(account),
+    ),
   );
+
+  /** Conexión activa a la que le faltan permisos nuevos (p. ej. Mail.ReadWrite): se amplían reconectando. */
+  needsPermissionUpdate(account: MailAccount): boolean {
+    return account.status === 'Active' && (account.missingScopes?.length ?? 0) > 0;
+  }
+
+  /** Vuelve al consentimiento del proveedor para aceptar los permisos que faltan (misma cuenta). */
+  updatePermissions(account: MailAccount): void {
+    if (account.providerCode === 'Imap') {
+      return;
+    }
+    this.connectMailbox(account.providerCode, account.isOffice);
+  }
   readonly hasMailbox = computed(() => this.usableAccounts().length > 0);
 
   /**
@@ -309,8 +426,9 @@ export class MailStore {
   readonly activeFolderId = this._activeFolderId.asReadonly();
 
   /**
-   * Filtro "Not a client" de /email: Drafts/Sent/Trash solo del correo mandado a quien no es cliente.
-   * Excluye al filtro de cliente y no aplica al Inbox. Nunca en el perfil (embebido).
+   * Chip "Not a client" de /email: Drafts/Sent/Trash lo piden al servidor (`unlinked=true`); Inbox y
+   * Archived lo filtran en el cliente (`/threads` no tiene parámetro). Excluye al filtro de cliente.
+   * Nunca en el perfil (embebido).
    */
   private readonly _unlinkedView = signal(false);
   readonly unlinkedView = this._unlinkedView.asReadonly();
@@ -365,14 +483,80 @@ export class MailStore {
   readonly threadsError = this._threadsError.asReadonly();
   readonly threadsHasMore = this._threadsHasMore.asReadonly();
 
-  /** El listado del backend trae todos los estados: la UI separa activo/archivado por página cargada. */
+  /**
+   * El listado del backend trae todos los estados: la UI separa activo/archivado por página cargada.
+   * Los chips ya llegan aplicados por el servidor (paginación y totales reales).
+   */
   readonly activeThreads = computed(() => this._threads().filter(thread => thread.status === 'Active'));
   readonly archivedThreads = computed(() => this._threads().filter(thread => thread.status === 'Archived'));
 
-  /** Búsqueda en el servidor (asunto, remitente y vista previa) del Inbox y Archived. */
-  private readonly _threadSearch = signal('');
-  readonly threadSearch = this._threadSearch.asReadonly();
-  private readonly threadSearch$ = new Subject<string>();
+  // ---------- Búsqueda y chips (estado en la URL de /email) ----------
+
+  /** Término confirmado (Enter): filtra la carpeta activa en el servidor y alimenta el modo resultados. */
+  private readonly _query = signal('');
+  readonly query = this._query.asReadonly();
+  /** Modo resultados: todas las carpetas (`GET /search`), con pestañas All | Emails | People | Files. */
+  private readonly _resultsMode = signal(false);
+  readonly resultsMode = this._resultsMode.asReadonly();
+  private readonly _searchTab = signal<MailSearchTab>('all');
+  readonly searchTab = this._searchTab.asReadonly();
+  /** Chips, todos en el servidor. "Unread" no existe en Sent/Drafts/Trash (no hay nada que leer). */
+  private readonly _unreadOnly = signal(false);
+  readonly unreadOnly = this._unreadOnly.asReadonly();
+  private readonly _hasAttachmentsOnly = signal(false);
+  readonly hasAttachmentsOnly = this._hasAttachmentsOnly.asReadonly();
+  private readonly _dateFilter = signal<MailDateFilter>('any');
+  readonly dateFilter = this._dateFilter.asReadonly();
+  private readonly _dateFrom = signal<string | null>(null);
+  readonly dateFrom = this._dateFrom.asReadonly();
+  private readonly _dateTo = signal<string | null>(null);
+  readonly dateTo = this._dateTo.asReadonly();
+  /** Filtros de campo del modo resultados (operadores, panel o persona elegida). */
+  private readonly _fromFilter = signal('');
+  readonly fromFilter = this._fromFilter.asReadonly();
+  private readonly _toFilter = signal('');
+  readonly toFilter = this._toFilter.asReadonly();
+  private readonly _subjectFilter = signal('');
+  readonly subjectFilter = this._subjectFilter.asReadonly();
+  private readonly _searchFolder = signal<MailFolderId | null>(null);
+  readonly searchFolder = this._searchFolder.asReadonly();
+
+  private readonly _search = signal<Required<MailSearchResult> | null>(null);
+  /** Grupos que trae `_search` (al cambiar de pestaña se reutilizan si ya están). */
+  private readonly _searchGroups = signal<readonly MailSearchGroup[]>([]);
+  readonly searchGroups = this._searchGroups.asReadonly();
+  private readonly _searchLoading = signal(false);
+  private readonly _searchError = signal<string | null>(null);
+  readonly searchLoading = this._searchLoading.asReadonly();
+  readonly searchError = this._searchError.asReadonly();
+  private searchSeq = 0;
+  /** Las cargas de listas esperan al boot de cuentas: antes solo se guardan los filtros. */
+  private listsReady = false;
+
+  /** Estado completo, para compararlo con la URL. */
+  readonly searchState = computed<MailSearchFilters>(() => ({
+    q: this._query(),
+    results: this._resultsMode(),
+    tab: this._searchTab(),
+    clientId: this._selectedCustomerId(),
+    hasAttachments: this._hasAttachmentsOnly(),
+    unread: this._unreadOnly(),
+    notClient: this._unlinkedView(),
+    date: this._dateFilter(),
+    dateFrom: this._dateFrom(),
+    dateTo: this._dateTo(),
+    folder: this._activeFolderId(),
+    from: this._fromFilter(),
+    to: this._toFilter(),
+    subject: this._subjectFilter(),
+    searchFolder: this._searchFolder(),
+  }));
+
+  /** Correos, adjuntos y personas del modo resultados (los chips ya los aplicó `/search`). */
+  readonly searchEmails = computed(() => this._search()?.emails ?? []);
+  readonly searchFiles = computed(() => this._search()?.files ?? []);
+  readonly searchPeople = computed(() => this._search()?.people ?? []);
+
   /** Solo la última carga de hilos pinta: una respuesta vieja (búsqueda anterior) no pisa a la nueva. */
   private threadsRequestSeq = 0;
 
@@ -416,6 +600,16 @@ export class MailStore {
   readonly trashLoading = this._trashLoading.asReadonly();
   readonly trashError = this._trashError.asReadonly();
   readonly trashHasMore = this._trashHasMore.asReadonly();
+
+  // ---------- Avisos de no entrega: acciones de la tarjeta ----------
+
+  private readonly _noticeOriginal = signal<NoticeOriginalView | null>(null);
+  readonly noticeOriginal = this._noticeOriginal.asReadonly();
+  /** Aviso cuyo reenvío o desbloqueo está en curso. */
+  private readonly _noticeBusyId = signal<string | null>(null);
+  readonly noticeBusyId = this._noticeBusyId.asReadonly();
+  /** Mensaje a expandir cuando termine de cargar el hilo abierto desde fuera (búsqueda o notificación). */
+  private pendingOpenMessage: { threadId: string; messageId: string } | null = null;
 
   /**
    * Vista de UN mensaje enviado SIN hilo (compose nuevo: `EmailThreadId` null en el backend). Se
@@ -481,7 +675,6 @@ export class MailStore {
     this.subscribeIncomingMailRealtime();
     this.subscribeThreadStateRealtime();
     this.wireRecipientSearch();
-    this.wireThreadSearch();
     this.refreshBoot();
   }
 
@@ -506,22 +699,362 @@ export class MailStore {
       });
   }
 
-  /** Búsqueda debounced del Inbox/Archived contra el servidor; vacía = vuelve al listado normal. */
-  private wireThreadSearch(): void {
-    this.threadSearch$
-      .pipe(takeUntilDestroyed(this.destroyRef), debounceTime(300), distinctUntilChanged())
-      .subscribe(term => {
-        // Ya aplicada (p. ej. la vació un cambio de carpeta al instante): no se recarga dos veces.
-        if (term === this._threadSearch()) return;
-        this._threadSearch.set(term);
-        this.clearThreadSelection();
-        this.loadThreads(true);
+  // ---------- Búsqueda unificada ----------
+
+  /**
+   * Aplica el estado de búsqueda y chips (de la URL, o directo en el perfil). Compara con lo actual y
+   * recarga solo lo que cambia; todos los chips viajan al servidor. "Unread" no toca lo saliente; la
+   * pestaña no recarga nada.
+   */
+  applySearchState(next: MailSearchFilters): void {
+    const q = next.q.trim();
+    const embedded = this.embedded();
+    const clientId = embedded ? this._selectedCustomerId() : next.clientId;
+    const notClient = embedded || clientId ? false : next.notClient;
+    const from = (next.from ?? '').trim();
+    const to = (next.to ?? '').trim();
+    const subject = (next.subject ?? '').trim();
+    const searchFolder = next.searchFolder ?? null;
+    const criteria = hasValidSearchCriteria({ q, from, to, subject });
+    const results = next.results && criteria;
+    const custom = next.date === 'custom';
+    const dateFrom = custom ? (next.dateFrom ?? null) : null;
+    const dateTo = custom ? (next.dateTo ?? null) : null;
+
+    const qChanged = q !== this._query();
+    const clientChanged = clientId !== this._selectedCustomerId();
+    const notClientChanged = notClient !== this._unlinkedView();
+    const unreadChanged = next.unread !== this._unreadOnly();
+    const attachmentsChanged = next.hasAttachments !== this._hasAttachmentsOnly();
+    const dateChanged =
+      next.date !== this._dateFilter() || dateFrom !== this._dateFrom() || dateTo !== this._dateTo();
+    const fieldsChanged =
+      from !== this._fromFilter() ||
+      to !== this._toFilter() ||
+      subject !== this._subjectFilter() ||
+      searchFolder !== this._searchFolder();
+    const resultsTurnedOn = results && !this._resultsMode();
+    const folderChanged = !!next.folder && next.folder !== this._activeFolderId();
+    // La pestaña nueva necesita un grupo que la última respuesta no trajo.
+    const missingGroups = SEARCH_TAB_GROUPS[next.tab].some(group => !this._searchGroups().includes(group));
+
+    this._query.set(q);
+    this._searchTab.set(next.tab);
+    this._unreadOnly.set(next.unread);
+    this._hasAttachmentsOnly.set(next.hasAttachments);
+    this._dateFilter.set(next.date);
+    this._dateFrom.set(dateFrom);
+    this._dateTo.set(dateTo);
+    this._fromFilter.set(from);
+    this._toFilter.set(to);
+    this._subjectFilter.set(subject);
+    this._searchFolder.set(searchFolder);
+    this._unlinkedView.set(notClient);
+    this._resultsMode.set(results);
+    if (clientChanged) {
+      this._selectedCustomerId.set(clientId);
+      this.syncSelectedCustomer(clientId);
+    }
+    if (!criteria) {
+      this._search.set(null);
+      this._searchGroups.set([]);
+      this._searchError.set(null);
+    }
+
+    if (folderChanged) {
+      this.selectFolder(next.folder!);
+    } else if (resultsTurnedOn) {
+      // Entrar al modo resultados cierra lo que estaba abierto.
+      this.clearThreadSelection();
+      this.closeComposeSilently();
+    }
+
+    if (!this.listsReady) {
+      return;
+    }
+    const shared = qChanged || clientChanged || notClientChanged || attachmentsChanged || dateChanged;
+    const threads = shared || unreadChanged;
+    if (threads || shared) {
+      this.reloadLists(threads, shared);
+    }
+    if (results && (shared || unreadChanged || fieldsChanged || resultsTurnedOn || missingGroups || !this._search())) {
+      this.loadSearch();
+    }
+  }
+
+  /** Cliente del chip (nombre + email): del índice ya cargado o del directorio. */
+  private syncSelectedCustomer(clientId: string | null): void {
+    if (!clientId) {
+      this._selectedCustomer.set(null);
+      return;
+    }
+    if (this._selectedCustomer()?.id === clientId) {
+      return;
+    }
+    const known = this._customerIndex().get(clientId);
+    if (known) {
+      this._selectedCustomer.set(known);
+      return;
+    }
+    this.directory
+      .byId([clientId])
+      .pipe(catchError(() => of(new Map<string, CustomerSummary>())))
+      .subscribe(found => {
+        const customer = found.get(clientId);
+        if (customer && this._selectedCustomerId() === clientId) {
+          this._selectedCustomer.set(customer);
+          this.rememberCustomers([customer]);
+        }
       });
   }
 
-  /** La lista pide buscar en el servidor lo tecleado (Inbox y Archived). */
-  searchThreads(term: string): void {
-    this.threadSearch$.next(term.trim());
+  /**
+   * Modo resultados: correos, archivos y personas de todas las carpetas, solo los grupos que pide la
+   * pestaña. Solo pinta la última respuesta.
+   */
+  loadSearch(): void {
+    const q = this._query();
+    const fields = { from: this._fromFilter(), to: this._toFilter(), subject: this._subjectFilter() };
+    if (!hasValidSearchCriteria({ q, ...fields })) {
+      return;
+    }
+    const seq = ++this.searchSeq;
+    const groups = SEARCH_TAB_GROUPS[this._searchTab()];
+    const folder = this._searchFolder();
+    this._searchLoading.set(true);
+    this._searchError.set(null);
+    const filters: MailSearchFiltersQuery = {
+      ...this.customerFilter(),
+      hasAttachments: this._hasAttachmentsOnly() || undefined,
+      unreadOnly: this._unreadOnly() || undefined,
+      ...this.dateRange(),
+      ...(fields.from ? { from: fields.from } : {}),
+      ...(fields.to ? { to: fields.to } : {}),
+      ...(fields.subject ? { subject: fields.subject } : {}),
+      ...(folder ? { folder: SEARCH_FOLDER_PARAM[folder] } : {}),
+      groups,
+    };
+    this.service.search(q, SEARCH_RESULTS_LIMIT, filters).subscribe({
+      next: raw => {
+        if (seq !== this.searchSeq) return;
+        const result = normalizeMailSearchResult(raw);
+        this._search.set(result);
+        this._searchGroups.set(groups);
+        this._searchLoading.set(false);
+        this.resolveCustomers([
+          ...result.emails.map(hit => hit.customerId),
+          ...result.files.map(hit => hit.customerId),
+          ...result.people.map(hit => hit.customerId),
+        ]);
+      },
+      error: err => {
+        if (seq !== this.searchSeq) return;
+        this._searchLoading.set(false);
+        this._searchError.set(toApiError(err).message);
+      },
+    });
+  }
+
+  /**
+   * Sugerencias del buscador: clientes (directorio compartido) y correos/archivos (`/search`) EN PARALELO.
+   * Emite en cuanto llega cada grupo (`pending` mientras falte alguno); un error deja ese grupo vacío.
+   * Correos y archivos se acotan en el servidor al chip de cliente / "Not a client" (en el perfil, al
+   * cliente fijado); el grupo de clientes no existe en el perfil.
+   */
+  suggest(term: string): Observable<MailSuggestions> {
+    // Lo tecleado puede traer operadores (`from:ana factura`): van como filtros; el resto es `q`.
+    const parsed = parseMailSearchOperators(term);
+    const q = parsed.q;
+    const clients$: Observable<CustomerSummary[] | null> =
+      this.embedded() || q.length < SEARCH_MIN_CHARS
+        ? of([])
+        : this.directory.search({ term: q, status: 'NotArchived', page: 1, size: SUGGESTION_LIMIT }).pipe(
+            map(result => (result.items ?? []).slice(0, SUGGESTION_LIMIT)),
+            catchError(() => of<CustomerSummary[]>([])),
+            startWith(null),
+          );
+    const filters: MailSearchFiltersQuery = {
+      ...this.customerFilter(),
+      ...(parsed.from ? { from: parsed.from } : {}),
+      ...(parsed.to ? { to: parsed.to } : {}),
+      ...(parsed.subject ? { subject: parsed.subject } : {}),
+      ...(parsed.folder ? { folder: SEARCH_FOLDER_PARAM[parsed.folder] } : {}),
+      ...(parsed.hasAttachments ? { hasAttachments: true } : {}),
+      ...(parsed.unread ? { unreadOnly: true } : {}),
+      groups: SEARCH_TAB_GROUPS.all,
+    };
+    const mail$: Observable<Required<MailSearchResult> | null> = hasValidSearchCriteria(parsed)
+      ? this.service.search(q, SUGGESTION_LIMIT, filters).pipe(
+          map(raw => normalizeMailSearchResult(raw)),
+          catchError(() => of(normalizeMailSearchResult(null))),
+          startWith(null),
+        )
+      : of(normalizeMailSearchResult(null));
+    return combineLatest([clients$, mail$]).pipe(
+      map(([clients, mail]) => ({
+        clients: clients ?? [],
+        emails: mail?.emails ?? [],
+        files: mail?.files ?? [],
+        people: mail?.people ?? [],
+        pending: clients === null || mail === null,
+      })),
+    );
+  }
+
+  /**
+   * Abre un correo encontrado. Conversación (Inbox/Archived o respuesta enviada) → el hilo, aunque no esté
+   * cargado; enviado nuevo → su vista suelta; borrador → el composer; papelera → la página va a Trash.
+   */
+  openSearchEmail(hit: EmailSearchHit): SearchHitOpened {
+    if (hit.folder === 'Trash' || hit.source === 'Incoming') {
+      return 'trash';
+    }
+    if (hit.source === 'Outgoing' && hit.folder === 'Drafts') {
+      if (!hit.messageId) return 'none';
+      this.openDraft(hit.messageId);
+      return 'draft';
+    }
+    if (hit.threadId) {
+      this.openThreadById(hit.threadId, hit.messageId);
+      return 'thread';
+    }
+    if (hit.source === 'Outgoing' && hit.messageId) {
+      this.openSentMessage({
+        messageId: hit.messageId,
+        emailThreadId: null,
+        subject: hit.subject,
+        toAddresses: hit.toAddresses,
+        ccAddresses: hit.ccAddresses ?? null,
+        bccAddresses: hit.bccAddresses ?? null,
+        isReply: false,
+        sentAtUtc: hit.occurredAtUtc,
+        hasAttachments: hit.hasAttachments,
+        attachmentCount: 0,
+        customerId: hit.customerId,
+      });
+      return 'sent';
+    }
+    return 'none';
+  }
+
+  /**
+   * Abre una conversación por id aunque no esté en la página cargada (resultado de búsqueda, aviso en
+   * vivo, notificación de la campana): la pide con `GET /threads/{id}` y la mete en la lista.
+   * `messageId` = mensaje a expandir cuando carguen sus mensajes.
+   */
+  openThreadById(threadId: string, messageId: string | null = null): void {
+    const open = () => {
+      this.pendingOpenMessage = messageId ? { threadId, messageId } : null;
+      if (this._selectedThreadId() === threadId && !this._syntheticThread()) {
+        this.applyPendingOpenMessage(threadId);
+        return;
+      }
+      this.selectThread(threadId);
+    };
+    if (this._threads().some(thread => thread.threadId === threadId)) {
+      open();
+      return;
+    }
+    this.service.getThread(threadId).subscribe({
+      next: summary => {
+        this.upsertThread(summary, false);
+        this.resolveCustomers([summary.customerId]);
+        open();
+      },
+      error: err =>
+        this.toast.error(
+          err instanceof HttpErrorResponse && err.status === 404
+            ? 'This conversation is no longer available.'
+            : toApiError(err).message,
+        ),
+    });
+  }
+
+  /** Mete (o reemplaza) un hilo en la lista: arriba, o en su lugar por fecha de última actividad. */
+  private upsertThread(summary: ThreadSummary, toTop: boolean): void {
+    const rest = this._threads().filter(thread => thread.threadId !== summary.threadId);
+    let next: ThreadSummary[];
+    if (toTop) {
+      next = [summary, ...rest];
+    } else {
+      const existingIndex = this._threads().findIndex(thread => thread.threadId === summary.threadId);
+      if (existingIndex >= 0) {
+        next = this._threads().map(thread => (thread.threadId === summary.threadId ? summary : thread));
+      } else {
+        const at = parseUtcDate(summary.lastMessageAtUtc).getTime();
+        const index = rest.findIndex(thread => parseUtcDate(thread.lastMessageAtUtc).getTime() < at);
+        next = index < 0 ? [...rest, summary] : [...rest.slice(0, index), summary, ...rest.slice(index)];
+      }
+    }
+    this.patchThreads(() => next);
+  }
+
+  private applyPendingOpenMessage(threadId: string): void {
+    const pending = this.pendingOpenMessage;
+    if (!pending || pending.threadId !== threadId) {
+      return;
+    }
+    if (this.openMessage(pending.messageId)) {
+      this.pendingOpenMessage = null;
+    }
+  }
+
+  /**
+   * URL presignada de un adjunto encontrado. Saliente: ya está en CloudStorage (`fileId`). Entrante: el
+   * mismo flujo bajo demanda que en la conversación (POST /download y espera).
+   */
+  searchFileUrl(file: FileSearchHit): Observable<string> {
+    if (file.source === 'Outgoing') {
+      return this.uploads.getDownloadUrl(file.fileId ?? file.attachmentId).pipe(map(result => result.downloadUrl));
+    }
+    return this.inboundAttachmentUrl(file.messageId, file.attachmentId, file.downloadStatus === 'Downloaded').pipe(
+      map(result => result.downloadUrl),
+    );
+  }
+
+  /** Descarga un adjunto encontrado (pestaña Files); bloqueado o en revisión se avisa sin bajar nada. */
+  downloadSearchFile(file: FileSearchHit): void {
+    this.searchFileUrl(file).subscribe({
+      next: url => this.triggerDownload(url),
+      error: err => {
+        const apiError = toApiError(err);
+        if (apiError.code === 'IncomingEmailAttachment.Blocked') {
+          this.toast.error('This file was blocked because it may be unsafe.');
+        } else if (apiError.code === 'IncomingEmailAttachment.UnderReview') {
+          this.toast.info('This file is being reviewed. It will be available once approved.');
+        } else {
+          this.toast.error(apiError.message);
+        }
+      },
+    });
+  }
+
+  /**
+   * Cliente o "sin cliente" para el servidor: nunca los dos (400 `Correspondence.CustomerFilterConflict`).
+   * Manda el cliente (en el perfil, el fijado).
+   */
+  private customerFilter(): { customerId?: string; unlinked?: boolean } {
+    const customerId = this._selectedCustomerId();
+    if (customerId) {
+      return { customerId };
+    }
+    return this._unlinkedView() ? { unlinked: true } : {};
+  }
+
+  /** Chip de fecha → `fromUtc`/`toUtc` (preset: ahora menos N días, sin `toUtc`; personalizado: días locales). */
+  private dateRange(): { fromUtc?: string; toUtc?: string } {
+    return mailDateRangeUtc(this._dateFilter(), this._dateFrom(), this._dateTo());
+  }
+
+  /** Filtros de servidor de Sent/Drafts/Trash (el alcance de cliente va aparte, en `listScope`). */
+  private outgoingFilters(): MailListFilters {
+    const range = this.dateRange();
+    return {
+      q: this._query(),
+      hasAttachments: this._hasAttachmentsOnly() || undefined,
+      fromUtc: range.fromUtc,
+      ...(range.toUtc ? { toUtc: range.toUtc } : {}),
+    };
   }
 
   /** El composer pide sugerencias para el destinatario que se está tecleando. */
@@ -550,21 +1083,17 @@ export class MailStore {
   }
 
   /**
-   * Filtro "Not a client" de Sent/Drafts/Trash. Quita el de cliente (son excluyentes) y, si se estaba en
-   * el Inbox o Archived, pasa a Sent: allí no hay correo de quien no es cliente.
+   * Chip "Not a client". Quita el de cliente (son excluyentes) y se queda en la carpeta: desde los avisos
+   * de no entrega también hay conversaciones sin cliente en el Inbox. Todo se pide con `unlinked=true`.
    */
   showUnlinkedMail(): void {
     if (this.embedded() || this._unlinkedView()) {
       return;
     }
-    const hadCustomer = this._selectedCustomerId() !== null;
     this._unlinkedView.set(true);
     this._selectedCustomerId.set(null);
     this._selectedCustomer.set(null);
-    if (!OUTGOING_FOLDERS.has(this._activeFolderId())) {
-      this._activeFolderId.set('sent');
-    }
-    this.reloadForScope(hadCustomer);
+    this.reloadForScope(true);
   }
 
   /** Quita el filtro "Not a client": Sent/Drafts/Trash vuelven a mostrar todo. */
@@ -573,7 +1102,7 @@ export class MailStore {
       return;
     }
     this._unlinkedView.set(false);
-    this.reloadForScope(false);
+    this.reloadForScope(true);
   }
 
   /** Cierra el socket realtime al salir del módulo Mail (lo llama el componente en ngOnDestroy). */
@@ -594,10 +1123,36 @@ export class MailStore {
       if (filter && evt.customerId !== filter) {
         return;
       }
+      if (evt.kind === 'delivery_notice') {
+        this.refreshThreadFromNotice(evt);
+        return;
+      }
       this.loadThreads(true, true);
       if (evt.emailThreadId === this._selectedThreadId()) {
         this.loadMessages(true);
       }
+    });
+  }
+
+  /**
+   * Aviso de no entrega en vivo: se pide SOLO ese hilo (`GET /threads/{id}`) y sube arriba. Un "Delayed"
+   * no mueve la conversación (D-4): se reemplaza en su lugar. Si está abierta, se recargan sus mensajes.
+   */
+  private refreshThreadFromNotice(evt: MailIncomingEmailPayload): void {
+    const threadId = evt.emailThreadId;
+    this.service.getThread(threadId).subscribe({
+      next: summary => {
+        const toTop = evt.outcome !== 'Delayed';
+        if (toTop || this._threads().some(thread => thread.threadId === threadId)) {
+          this.upsertThread(summary, toTop);
+        }
+        this.resolveCustomers([summary.customerId]);
+        if (threadId === this._selectedThreadId()) {
+          this.loadMessages(true);
+        }
+      },
+      // Sin acceso o ya no existe: nada que pintar.
+      error: () => undefined,
     });
   }
 
@@ -652,8 +1207,7 @@ export class MailStore {
           this._activeAccountId.set(usable[0]?.id ?? null);
         }
         if (usable.length > 0) {
-          this.loadThreads(true);
-          this.loadDrafts(true);
+          this.loadInitialLists();
         }
       },
       error: err => {
@@ -693,8 +1247,7 @@ export class MailStore {
         if (!this._activeAccountId() || !usable.some(account => account.id === this._activeAccountId())) {
           this._activeAccountId.set(usable[0]?.id ?? null);
         }
-        this.loadThreads(true);
-        this.loadDrafts(true);
+        this.loadInitialLists();
       },
       error: err => {
         this._bootError.set(toApiError(err).message);
@@ -726,12 +1279,22 @@ export class MailStore {
           this._activeAccountId.set(usable[0]?.id ?? null);
         }
         if (usable.length > 0 && this._threads().length === 0) {
-          this.loadThreads(true);
-          this.loadDrafts(true);
+          this.loadInitialLists();
         }
       },
       error: err => this._bootError.set(toApiError(err).message),
     });
+  }
+
+  /** Primera carga tras el boot, con los filtros que ya trajo la URL (carpeta, `q`, chips, resultados). */
+  private loadInitialLists(): void {
+    this.listsReady = true;
+    this.loadThreads(true);
+    this.loadDrafts(true);
+    const folder = this._activeFolderId();
+    if (folder === 'sent' && !this._sentLoading()) this.loadSent(true);
+    if (folder === 'trash' && !this._trashLoading()) this.loadTrash(true);
+    if (this._resultsMode()) this.loadSearch();
   }
 
   setActiveAccount(accountId: string): void {
@@ -876,39 +1439,40 @@ export class MailStore {
    * `threadsToo` = false cuando el cambio solo toca a Sent/Drafts/Trash ("Not a client").
    */
   private reloadForScope(threadsToo: boolean): void {
+    this.reloadLists(threadsToo, true);
+  }
+
+  /** Recarga lo que cambió de alcance: hilos y/o lo saliente (Drafts siempre; Sent/Trash si están abiertas). */
+  private reloadLists(threads: boolean, outgoing: boolean): void {
     this.clearThreadSelection();
     this.closeComposeSilently();
-    this._drafts.set([]);
-    this._draftsTotal.set(0);
-    this._sent.set([]);
-    this._trash.set([]);
-    if (threadsToo) {
+    if (outgoing) {
+      this._drafts.set([]);
+      this._draftsTotal.set(0);
+      this._sent.set([]);
+      this._trash.set([]);
+    }
+    if (threads) {
       this._threads.set([]);
       this.loadThreads(true);
     }
-    this.loadDrafts(true);
-    const folder = this._activeFolderId();
-    if (folder === 'sent') this.loadSent(true);
-    if (folder === 'trash') this.loadTrash(true);
+    if (outgoing) {
+      this.loadDrafts(true);
+      const folder = this._activeFolderId();
+      if (folder === 'sent') this.loadSent(true);
+      if (folder === 'trash') this.loadTrash(true);
+    }
   }
 
+  /**
+   * Cambia de carpeta. La búsqueda (`q`) y los chips se conservan: con un término, la carpeta queda
+   * filtrada por él (como Outlook al elegir carpeta durante una búsqueda). Sale del modo resultados.
+   */
   selectFolder(folderId: MailFolderId): void {
     this._activeFolderId.set(folderId);
+    this._resultsMode.set(false);
     this.clearThreadSelection();
     this.closeComposeSilently();
-    // Cambiar de carpeta vacía el buscador de la lista: la búsqueda en el servidor deja de filtrar.
-    if (this._threadSearch()) {
-      this._threadSearch.set('');
-      this.threadSearch$.next('');
-      this.loadThreads(true);
-    }
-    // "Not a client" no existe en el Inbox ni en Archived: al volver ahí, Sent/Drafts/Trash vuelven a todo.
-    if (!OUTGOING_FOLDERS.has(folderId) && this._unlinkedView()) {
-      this._unlinkedView.set(false);
-      this._sent.set([]);
-      this._trash.set([]);
-      this.loadDrafts(true);
-    }
     // Carga perezosa al entrar (una vez); las demás ya vienen del boot.
     if (folderId === 'sent' && this._sent().length === 0 && !this._sentLoading()) {
       this.loadSent(true);
@@ -935,10 +1499,19 @@ export class MailStore {
         this._threads.set([]);
       }
     }
-    this.service.listInboxThreads({ customerId, search: this._threadSearch() }, page, LIST_PAGE_SIZE).subscribe({
+    // Cliente o "sin cliente", nunca ambos (`customerFilter`); el resto de chips también al servidor.
+    const query: InboxThreadsQuery = {
+      customerId,
+      ...(customerId ? {} : { unlinked: this._unlinkedView() || undefined }),
+      search: this._query(),
+      unreadOnly: this._unreadOnly() || undefined,
+      hasAttachments: this._hasAttachmentsOnly() || undefined,
+      ...this.dateRange(),
+    };
+    this.service.listInboxThreads(query, page, LIST_PAGE_SIZE).subscribe({
       next: result => {
         if (seq !== this.threadsRequestSeq) return;
-        this._threads.update(list => (reset ? result.items : [...list, ...result.items]));
+        this._threads.update(list => (reset ? this.keepOpenThread(list, result.items) : [...list, ...result.items]));
         this._threadsPage.set(result.page);
         this._threadsHasMore.set(result.hasMore);
         this._threadsLoading.set(false);
@@ -950,6 +1523,24 @@ export class MailStore {
         if (!silent) this._threadsError.set(toApiError(err).message);
       },
     });
+  }
+
+  /**
+   * Una recarga no debe cerrar la conversación abierta que no vino en la primera página (abierta desde
+   * una búsqueda, una notificación o un aviso): se conserva en su lugar por fecha.
+   */
+  private keepOpenThread(previous: readonly ThreadSummary[], items: ThreadSummary[]): ThreadSummary[] {
+    const selected = this._selectedThreadId();
+    if (!selected || selected.startsWith('sent:') || items.some(thread => thread.threadId === selected)) {
+      return items;
+    }
+    const kept = previous.find(thread => thread.threadId === selected);
+    if (!kept) {
+      return items;
+    }
+    const at = parseUtcDate(kept.lastMessageAtUtc).getTime();
+    const index = items.findIndex(thread => parseUtcDate(thread.lastMessageAtUtc).getTime() < at);
+    return index < 0 ? [...items, kept] : [...items.slice(0, index), kept, ...items.slice(index)];
   }
 
   /** Pide al directorio los clientes de las filas que aún no tienen nombre. */
@@ -988,7 +1579,7 @@ export class MailStore {
     if (reset) {
       this._drafts.set([]);
     }
-    this.service.listDrafts(scope, page, LIST_PAGE_SIZE).subscribe({
+    this.service.listDrafts(scope, page, LIST_PAGE_SIZE, this.outgoingFilters()).subscribe({
       next: result => {
         this._drafts.update(list => (reset ? result.items : [...list, ...result.items]));
         this._draftsPage.set(result.page);
@@ -1014,7 +1605,7 @@ export class MailStore {
     if (reset) {
       this._sent.set([]);
     }
-    this.service.listSent(scope, page, LIST_PAGE_SIZE).subscribe({
+    this.service.listSent(scope, page, LIST_PAGE_SIZE, this.outgoingFilters()).subscribe({
       next: result => {
         this._sent.update(list => (reset ? result.items : [...list, ...result.items]));
         this._sentPage.set(result.page);
@@ -1039,7 +1630,7 @@ export class MailStore {
     if (reset) {
       this._trash.set([]);
     }
-    this.service.listTrash(scope, page, LIST_PAGE_SIZE).subscribe({
+    this.service.listTrash(scope, page, LIST_PAGE_SIZE, this.outgoingFilters()).subscribe({
       next: result => {
         this._trash.update(list => (reset ? result.items : [...list, ...result.items]));
         this._trashPage.set(result.page);
@@ -1180,12 +1771,17 @@ export class MailStore {
       subject: item.subject,
       snippet: null,
       toAddresses: item.toAddresses,
+      ccAddresses: item.ccAddresses ?? null,
+      bccAddresses: item.bccAddresses ?? null,
       occurredAtUtc: item.sentAtUtc,
       hasAttachments: item.hasAttachments,
       attachmentCount: item.attachmentCount,
       bodyStatus: null,
       isRead: true,
       senderTrust: null,
+      kind: 'Email',
+      deliveryStatus: item.deliveryStatus ?? null,
+      deliveries: item.deliveries ?? null,
     };
   }
 
@@ -1207,6 +1803,10 @@ export class MailStore {
   }
 
   retryList(): void {
+    if (this._resultsMode()) {
+      this.loadSearch();
+      return;
+    }
     switch (this._activeFolderId()) {
       case 'drafts':
         this.loadDrafts(true);
@@ -1314,6 +1914,8 @@ export class MailStore {
         if (reset && result.items.length > 0 && !result.hasMore) {
           this.expandMessage(result.items[result.items.length - 1].messageId);
         }
+        // Abierto desde una búsqueda o notificación: manda el mensaje que coincidió.
+        this.applyPendingOpenMessage(threadId);
       },
       error: err => {
         this._messagesError.set(toApiError(err).message);
@@ -1344,8 +1946,12 @@ export class MailStore {
 
   private expandMessage(messageId: string): void {
     this._expandedMessageId.set(messageId);
-    this.ensureBody(messageId);
     const message = this._messages().find(item => item.messageId === messageId);
+    // Un aviso de entrega es una tarjeta: no tiene cuerpo ni adjuntos que pedir.
+    if (message?.kind === 'DeliveryNotice') {
+      return;
+    }
+    this.ensureBody(messageId);
     if (message?.hasAttachments && message.direction === 'Inbound') {
       this.ensureAttachments(messageId);
     }
@@ -1527,20 +2133,7 @@ export class MailStore {
       return this.uploads.getDownloadUrl(attachmentId).pipe(map(result => result.downloadUrl));
     }
     const item = this._attachments().get(messageId)?.items.find(att => att.attachmentId === attachmentId);
-    const slowPath$ = this.service
-      .requestAttachmentDownload(messageId, attachmentId)
-      .pipe(concatMap(() => this.waitForDownloadUrl(messageId, attachmentId)));
-    const url$ =
-      item?.downloadStatus === 'Downloaded'
-        ? this.service.getAttachmentDownloadUrl(messageId, attachmentId).pipe(
-            catchError(err =>
-              err instanceof HttpErrorResponse && err.status === 404
-                ? slowPath$
-                : throwError(() => err),
-            ),
-          )
-        : slowPath$;
-    return url$.pipe(
+    return this.inboundAttachmentUrl(messageId, attachmentId, item?.downloadStatus === 'Downloaded').pipe(
       map(result => {
         this.patchAttachment(messageId, attachmentId, { downloadStatus: 'Downloaded' });
         return result.downloadUrl;
@@ -1555,6 +2148,25 @@ export class MailStore {
         return throwError(() => err);
       }),
     );
+  }
+
+  /** Adjunto entrante: URL directa si ya se bajó (404 → ruta lenta) o POST /download y espera. */
+  private inboundAttachmentUrl(
+    messageId: string,
+    attachmentId: string,
+    downloaded: boolean,
+  ): Observable<AttachmentDownloadUrlResult> {
+    const slowPath$ = this.service
+      .requestAttachmentDownload(messageId, attachmentId)
+      .pipe(concatMap(() => this.waitForDownloadUrl(messageId, attachmentId)));
+    if (!downloaded) {
+      return slowPath$;
+    }
+    return this.service
+      .getAttachmentDownloadUrl(messageId, attachmentId)
+      .pipe(
+        catchError(err => (err instanceof HttpErrorResponse && err.status === 404 ? slowPath$ : throwError(() => err))),
+      );
   }
 
   /**
@@ -1853,13 +2465,14 @@ export class MailStore {
    * el cliente filtrado (en el perfil, siempre el del perfil); sin filtro, en el cliente que se elija
    * como destinatario (`fileComposeUnder`) o en ninguno.
    */
-  openCompose(initialTo: string | null = null): void {
+  /** `fileUnder` = cliente donde archivar si no hay uno filtrado (p. ej. escribirle a una persona que es cliente). */
+  openCompose(initialTo: string | null = null, fileUnder: string | null = null): void {
     this._reply.set(null);
     this._compose.set({
       ...EMPTY_COMPOSE,
       open: true,
       initialTo: initialTo?.trim() || null,
-      customerId: this._selectedCustomerId(),
+      customerId: this._selectedCustomerId() ?? fileUnder,
     });
   }
 
@@ -2050,6 +2663,109 @@ export class MailStore {
     return userId ? { ownerType: 'User', ownerId: userId } : null;
   }
 
+  // ---------- Avisos de no entrega ----------
+
+  /**
+   * "Fix address and resend" / "Resend": `POST /delivery-notices/{id}/resend` clona el enviado (asunto,
+   * cuerpo y adjuntos) en un borrador de la MISMA conversación, solo para el destinatario que falló, y se
+   * abre en el composer. `fix` = el destinatario queda seleccionado para corregirlo ahí (se guarda al
+   * enviar); `recipient` solo si la dirección corregida ya se conoce. No se envía nada solo.
+   */
+  resendFromNotice(notice: DeliveryNoticeSummary, fix: boolean, recipient: string | null = null): void {
+    if (!this.activeAccount() || this._noticeBusyId()) {
+      return;
+    }
+    const resendTo = recipient?.trim() || notice.recipient;
+    this._reply.set(null);
+    this._noticeBusyId.set(notice.deliveryNoticeId);
+    this._compose.set({ ...EMPTY_COMPOSE, open: true, loadingDraft: true, resendTo, highlightRecipient: fix });
+    this.service
+      .resendDeliveryNotice(notice.deliveryNoticeId, recipient)
+      .pipe(concatMap(({ draftId }) => this.service.getDraft(draftId)))
+      .subscribe({
+        next: draft => {
+          this._noticeBusyId.set(null);
+          this._compose.update(state =>
+            state.open && state.resendTo === resendTo
+              ? { ...state, draft, loadingDraft: false, customerId: draft.customerId }
+              : state,
+          );
+          this.loadDrafts(true);
+        },
+        error: err => {
+          this._noticeBusyId.set(null);
+          this._compose.update(state =>
+            state.open && state.resendTo === resendTo
+              ? { ...state, loadingDraft: false, loadError: resendErrorMessage(err) }
+              : state,
+          );
+        },
+      });
+  }
+
+  /** "View original notice": el aviso tal cual llegó, en vivo. Solo si el backend dice que se puede. */
+  viewNoticeOriginal(notice: DeliveryNoticeSummary): void {
+    if (!notice.canViewOriginal) {
+      return;
+    }
+    this._noticeOriginal.set({ notice, loading: true, error: null, original: null });
+    this.service.getDeliveryNoticeOriginal(notice.deliveryNoticeId).subscribe({
+      next: original => this.patchNoticeOriginal(notice, { loading: false, original }),
+      error: err =>
+        this.patchNoticeOriginal(notice, {
+          loading: false,
+          error:
+            err instanceof HttpErrorResponse && err.status === 409
+              ? "The original notice isn't available for this message."
+              : err instanceof HttpErrorResponse && err.status === 404
+                ? 'This notice is no longer available.'
+                : toApiError(err).message,
+        }),
+    });
+  }
+
+  closeNoticeOriginal(): void {
+    this._noticeOriginal.set(null);
+  }
+
+  private patchNoticeOriginal(notice: DeliveryNoticeSummary, patch: Partial<NoticeOriginalView>): void {
+    this._noticeOriginal.update(view =>
+      view?.notice.deliveryNoticeId === notice.deliveryNoticeId ? { ...view, ...patch } : view,
+    );
+  }
+
+  /**
+   * "Unblock" (D-8): saca la dirección de la lista de supresión de Postmaster (`postmaster.suppression.write`,
+   * lo comprueba la página). Refleja local que ya no está bloqueada.
+   */
+  unblockNoticeAddress(notice: DeliveryNoticeSummary): void {
+    if (!notice.suppressed || this._noticeBusyId()) {
+      return;
+    }
+    this._noticeBusyId.set(notice.deliveryNoticeId);
+    this.service.unblockAddress(notice.recipient).subscribe({
+      next: () => {
+        this._noticeBusyId.set(null);
+        const recipient = notice.recipient.toLowerCase();
+        const unblock = (item: DeliveryNoticeSummary | null | undefined) =>
+          item && item.recipient.toLowerCase() === recipient ? { ...item, suppressed: false } : item;
+        this._messages.update(list =>
+          list.map(message => (message.deliveryNotice ? { ...message, deliveryNotice: unblock(message.deliveryNotice) } : message)),
+        );
+        this._threads.update(list =>
+          list.map(thread =>
+            thread.latestDeliveryNotice ? { ...thread, latestDeliveryNotice: unblock(thread.latestDeliveryNotice) } : thread,
+          ),
+        );
+        this.toast.info(`Emails to ${notice.recipient} are no longer blocked.`);
+      },
+      error: err => {
+        this._noticeBusyId.set(null);
+        this.toast.error(toApiError(err).message);
+      },
+    });
+  }
+
   // ---------- Toast ----------
 
   private showSentToast(): void {
@@ -2067,4 +2783,19 @@ export class MailStore {
 /** Conversaciones activas con algo sin leer. */
 function countUnreadActive(threads: readonly ThreadSummary[]): number {
   return threads.filter(thread => thread.status === 'Active' && thread.unreadCount > 0).length;
+}
+
+/** Errores del reenvío de un aviso en lenguaje claro (el backend da el código). */
+function resendErrorMessage(err: unknown): string {
+  const apiError = toApiError(err);
+  switch (apiError.code) {
+    case 'EmailAddress.Invalid':
+      return "That email address isn't valid. Check it and try again.";
+    case 'Draft.AccountNotVisible':
+      return "You don't have access to the mailbox this email was sent from. Write a new email instead, or ask an admin for access.";
+    case 'DeliveryNotice.NotFound':
+      return 'This delivery notice is no longer available.';
+    default:
+      return apiError.message;
+  }
 }

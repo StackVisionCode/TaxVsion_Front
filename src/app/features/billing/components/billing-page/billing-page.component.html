@@ -122,7 +122,9 @@
     [defaultCurrency]="store.issuer().defaultCurrency"
     (statusFilterChanged)="onLinkStatusFilter($event)" (pageChanged)="store.setLinkPage($event)"
     (refreshRequested)="store.loadPaymentLinks()" (createRequested)="onCreateLink($event)"
-    (revokeRequested)="onRevokeLink($event)" (copyRequested)="copyLinkUrl($event)"></app-payment-links-panel>
+    (revokeRequested)="onRevokeLink($event)" (copyRequested)="copyLinkUrl($event)"
+    (detailRequested)="store.openLinkDetail($event)"></app-payment-links-panel>
+  <app-payment-link-detail [state]="store.linkDetail()" (closed)="store.closeLinkDetail()" />
 </div>
 
 <!-- Modales (New/Edit invoice es una vista a pantalla completa portada al <body>) -->

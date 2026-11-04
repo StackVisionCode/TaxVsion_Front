@@ -81,17 +81,18 @@
   <div class="mt-4">
     <!-- Step 1: client -->
     <div *ngIf="currentStep() === 1" class="step-content">
-      <app-signature-wizard-client-step [selected]="selectedClient()" [recent]="recentClients()" [locked]="clientLocked()"
-        (picked)="onClientPicked($event)"></app-signature-wizard-client-step>
+      <app-signature-wizard-client-step [selected]="selectedClients()" [recent]="recentClients()" [locked]="clientLocked()"
+        [pinnedId]="pinnedClientId()" (picked)="onClientPicked($event)" (replaced)="onClientReplaced($event)"
+        (removed)="removeClient($event)"></app-signature-wizard-client-step>
     </div>
 
     <!-- Step 2: document -->
     <div *ngIf="currentStep() === 2" class="step-content">
       <app-signature-wizard-document-step [documents]="selectedDocuments()"
         [activeDocumentId]="selectedDocument()?.id ?? null"
-        [clientId]="selectedClient()?.id ?? null"
+        [clientIds]="clientIds()"
         (documentSelected)="onDocumentSelected($event)"
-        (documentRemoved)="removeDocument($event)"
+        (documentRemoved)="requestRemoveDocument($event)"
         (documentsReordered)="reorderDocuments($event)"
         (replaceRequested)="openReplaceDialog($event)"
         (activeDocumentChanged)="activateDocument($event)"></app-signature-wizard-document-step>
@@ -117,6 +118,13 @@
               <button type="button" (click)="activateDocument(doc.id)" class="max-w-[14rem] truncate py-1 text-left">
                 {{ i + 1 }}. {{ doc.name.replace('.pdf', '') }}
               </button>
+              <!-- Con varios documentos, cada pestaña se puede quitar (pide confirmación si tiene campos). -->
+              <button *ngIf="selectedDocuments().length > 1" type="button" (click)="requestRemoveDocument(doc.id)"
+                [attr.aria-label]="'Remove ' + doc.name" [title]="'Remove ' + doc.name" data-testid="doc-tab-remove"
+                class="-mr-2 ml-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full opacity-60 hover:opacity-100"
+                [ngClass]="doc.id === selectedDocument()?.id ? 'hover:bg-white/20' : 'hover:bg-gray-200'">
+                <ion-icon name="close-outline" class="text-sm"></ion-icon>
+              </button>
             </div>
           </div>
         </div>
@@ -128,7 +136,8 @@
           Replace PDF
         </button>
       </div>
-      <app-signature-pdf-editor #editor [client]="selectedClient()" [document]="editorDocument()"
+      <app-signature-pdf-editor #editor [clients]="selectedClients()" [pinnedClientId]="pinnedClientId()"
+        (clientsChange)="onEditorClientsChange($event)" [document]="editorDocument()"
         [keepFieldsOnDocumentChange]="keepFieldsOnDocumentChange()" [seed]="editorSeed()"
         [pageReorderBusy]="pageReorderBusy()" (pageOrderChange)="onPagesReordered($event)"
         (fieldCountChange)="fieldCount.set($event)"
@@ -137,13 +146,13 @@
 
     <!-- Step 4: review & send -->
     <div *ngIf="currentStep() === 4" class="step-content">
-      <app-signature-wizard-review-step [client]="selectedClient()" [document]="selectedDocument()"
+      <app-signature-wizard-review-step [clients]="selectedClients()" [document]="selectedDocument()"
         [documents]="selectedDocuments()"
         [signers]="signersSnapshot()" [fields]="fieldsSnapshot()" [rules]="rulesSnapshot()"
         [canDeliverDocs]="canDeliverDocs()" (rulesChange)="onRulesChange($event)" (goToSigner)="goToSigner($event)"
         [title]="title()" (titleChange)="title.set($event); markMetaDirty()"
         [category]="category()" (categoryChange)="category.set($event); markMetaDirty()"
-        [dueDate]="dueDate()" (dueDateChange)="dueDate.set($event); markMetaDirty()"
+        [dueDate]="dueDate()" [limits]="store.limits()" (dueDateChange)="dueDate.set($event); markMetaDirty()"
         [notes]="notes()" (notesChange)="notes.set($event); markMetaDirty()"></app-signature-wizard-review-step>
     </div>
   </div>
@@ -152,7 +161,11 @@
   <div *ngIf="sendError()"
     class="mt-4 flex items-start gap-2 rounded-2xl border border-red-100 bg-red-50/60 px-4 py-3 text-sm text-red-600">
     <ion-icon name="alert-circle-outline" class="mt-0.5 shrink-0 text-base"></ion-icon>
-    <span class="min-w-0">{{ sendError() }} — press “Send for signature” again to retry from where it stopped.</span>
+    <span class="min-w-0" data-testid="send-error">
+      {{ sendError() }}
+      @if (sendErrorRetryable()) { — try again to continue from where it stopped. }
+      @else { Replace it in the Documents step. }
+    </span>
   </div>
 
   <!-- Por qué Next/Send/Save están deshabilitados (nunca un botón apagado sin motivo) -->
@@ -234,6 +247,12 @@
   message="You have unsaved changes. If you leave now, they'll be lost." confirmLabel="Discard"
   cancelLabel="Keep editing" (confirmed)="confirmDiscard()" (cancelled)="confirmCloseOpen.set(false)"></app-confirm-dialog>
 
+<!-- Quitar un documento que ya tiene campos -->
+<app-confirm-dialog [isOpen]="pendingDocumentRemoval() !== null" heading="Remove this document?"
+  [message]="'“' + (pendingDocumentRemoval()?.name ?? '') + '” and the ' + (pendingDocumentRemoval()?.fieldCount ?? 0) + ((pendingDocumentRemoval()?.fieldCount ?? 0) === 1 ? ' field' : ' fields') + ' placed on it will be removed from this request.'"
+  confirmLabel="Remove document" cancelLabel="Keep document" data-testid="confirm-remove-document"
+  (confirmed)="confirmDocumentRemoval()" (cancelled)="pendingDocumentRemoval.set(null)"></app-confirm-dialog>
+
 <!-- Re-elegir el documento con campos ya colocados -->
 <app-confirm-dialog [isOpen]="pendingDocument() !== null" tone="primary" icon="document-text-outline"
   heading="Replace the document?" [message]="'You placed ' + (fieldCount()) + (fieldCount() === 1 ? ' field' : ' fields') + ' on the current document.'"
@@ -300,7 +319,7 @@
 <!-- F9 — Modal de reemplazo de PDF (step 2 y step 3 lo comparten). -->
 <app-signature-replace-document-dialog [isOpen]="replaceOpen()"
   [currentDocument]="replaceCurrentDocument()"
-  [clientId]="selectedClient()?.id ?? null"
+  [clientIds]="clientIds()"
   [excludedFileIds]="replaceExcludedFileIds()"
   [submitting]="replaceSubmitting()"
   (replace)="onReplaceConfirmed($event)"

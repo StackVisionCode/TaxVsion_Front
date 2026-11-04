@@ -63,4 +63,24 @@ describe('FilterChipsComponent', () => {
     expect(buttons.length).toBe(2);
     expect(buttons[0].getAttribute('aria-pressed')).toBe('true');
   });
+
+  it('multiple: cada chip se enciende y apaga solo y emite la lista nueva; nunca colapsa', () => {
+    TestBed.configureTestingModule({ imports: [FilterChipsComponent] });
+    const fixture = TestBed.createComponent(FilterChipsComponent<string>);
+    const many = ['att', 'unread', 'nc', 'a', 'b', 'c'].map(id => ({ id, label: id }));
+    fixture.componentRef.setInput('options', many);
+    fixture.componentRef.setInput('multiple', true);
+    fixture.componentRef.setInput('values', ['unread']);
+    fixture.detectChanges();
+    const emitted: string[][] = [];
+    fixture.componentInstance.valuesChange.subscribe(v => emitted.push(v));
+    const buttons = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
+
+    expect(buttons.length).toBe(6);
+    expect(buttons[1].getAttribute('aria-pressed')).toBe('true');
+    expect(buttons[0].getAttribute('aria-pressed')).toBe('false');
+    buttons[0].click();
+    buttons[1].click();
+    expect(emitted).toEqual([['unread', 'att'], []]);
+  });
 });

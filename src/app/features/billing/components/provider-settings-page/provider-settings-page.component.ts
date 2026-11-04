@@ -20,12 +20,16 @@ import { AdminCapabilities } from '@core/access/admin-capabilities';
     <div class="min-h-full pt-3 pb-1">
       <app-payment-method-form
         [configs]="store.paymentConfigs()"
+        [providers]="store.providerCatalog()"
+        [providersLoading]="store.providerCatalogLoading()"
+        [providersFailed]="store.providerCatalogFailed()"
         [loading]="store.configsLoading()"
         [saving]="store.savingProvider()"
         [canManage]="can.canManagePaymentProviders()"
         (providerSaveRequested)="onSave($event)"
         (providerToggleRequested)="store.toggleProvider($event)"
         (providerDeleteRequested)="store.deleteProvider($event)"
+        (providersRetryRequested)="store.loadProviderCatalog()"
         (urlSaveRequested)="onUrlSave($event)"
       ></app-payment-method-form>
     </div>
@@ -38,6 +42,7 @@ export class ProviderSettingsPageComponent implements OnInit {
   readonly store = inject(BillingStore);
 
   ngOnInit(): void {
+    this.store.loadProviderCatalog();
     this.store.loadPaymentConfigs();
   }
 

@@ -22,10 +22,7 @@ describe('public form branding security', () => {
         provideHttpClientTesting(),
         {
           provide: ApiConfigService,
-          useValue: {
-            tenantBase: () => 'https://office.example',
-            tenantUrl: (path: string) => `https://office.example${path}`,
-          },
+          useValue: { officeBase: () => 'https://office.example' },
         },
       ],
     });

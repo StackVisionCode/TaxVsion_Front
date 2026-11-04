@@ -24,7 +24,7 @@ type OldPage = { page: number; width: number; height: number };
 function oldBuildNormalizedFields(fields: TemplateFieldLocal[], pages: OldPage[]) {
   const clamp01 = (v: number): number => Math.min(Math.max(v, 0), 1);
   const round = (v: number): number => Math.round(v * 10000) / 10000;
-  const out: { slotOrder: number; type: FieldType; page: number; x: number; y: number; width: number; height: number; label?: string }[] = [];
+  const out: { slotOrder: number; type: FieldType; page: number; x: number; y: number; width: number; height: number; label?: string; fontSizePt?: number | null }[] = [];
   for (const field of fields) {
     if (field.slotOrder === PREPARER_SLOT) {
       continue;
@@ -55,6 +55,7 @@ function oldBuildNormalizedFields(fields: TemplateFieldLocal[], pages: OldPage[]
       width,
       height,
       label: field.type === 'text' ? field.label?.trim() || undefined : undefined,
+      fontSizePt: field.fontSizePt ?? null,
     });
   }
   return out;

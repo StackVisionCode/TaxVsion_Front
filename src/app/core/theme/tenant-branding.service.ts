@@ -111,16 +111,17 @@ export class TenantBrandingService {
       .subscribe();
   }
 
-  /** Aplica la marca indicada por un contrato publico sin persistir el tenant en el navegador. */
+  /**
+   * Aplica la marca indicada por un contrato publico sin persistir el tenant en el navegador. La base sale
+   * de la propia clave: quien abre el enlace no tiene sesión y puede no estar en el subdominio de la oficina.
+   */
   applyForPublicBrandingKey(brandingKey: string, surface: 'Crm' | 'Portal' = 'Crm'): void {
     const slug = brandingKey.trim().toLowerCase().split('.')[0];
     if (!slug) return;
-    const base = this.api.tenantBase();
+    const base = this.api.officeBase(slug);
     this.publicHttp
       .get<PublicBrandingResponse>(
-        this.api.tenantUrl(
-          `/tenants/branding/public/${encodeURIComponent(slug)}?surface=${surface}`,
-        ),
+        `${base}/tenants/branding/public/${encodeURIComponent(slug)}?surface=${surface}`,
       )
       .pipe(
         tap((branding) => this.apply(branding, base)),

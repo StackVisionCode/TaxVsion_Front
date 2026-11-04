@@ -132,6 +132,18 @@ export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
   text: 'Text',
 };
 
+/**
+ * Mínimo de cada tipo al redimensionar, en px a zoom 100 % (ambos editores lo escalan por el zoom).
+ * Iniciales, fecha y texto se estampan sin caja, solo su contenido: basta con que quepa una línea a la
+ * letra mínima. La firma conserva más alto porque su marco (si la oficina lo usa) lleva bandas.
+ */
+export const FIELD_MIN_SIZE: Record<FieldType, { w: number; h: number }> = {
+  signature: { w: 100, h: 32 },
+  initials: { w: 24, h: 14 },
+  date: { w: 48, h: 14 },
+  text: { w: 48, h: 14 },
+};
+
 export const FIELD_TYPE_ICON: Record<FieldType, string> = {
   signature: 'create-outline',
   initials: 'text-outline',

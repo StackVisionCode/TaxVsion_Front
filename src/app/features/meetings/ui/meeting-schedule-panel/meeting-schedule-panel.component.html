@@ -124,11 +124,16 @@
             </button>
           </ng-container>
 
-          <button *ngIf="externalCandidate() as email" type="button" (click)="addExternal()"
-            class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-            <ion-icon name="mail-outline" class="text-base text-gray-400"></ion-icon>
-            Invite <span class="font-medium">{{ email }}</span> as external guest
-          </button>
+          <ng-container *ngIf="externalCandidate() as email">
+            <button *ngIf="externalsAllowed(); else externalsOff" type="button" (click)="addExternal()"
+              class="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+              <ion-icon name="mail-outline" class="text-base text-gray-400"></ion-icon>
+              Invite <span class="font-medium">{{ email }}</span> as external guest
+            </button>
+            <ng-template #externalsOff>
+              <p class="px-4 py-3 text-xs text-gray-500" data-role="externals-off">External guests are turned off for this meeting.</p>
+            </ng-template>
+          </ng-container>
 
           <p *ngIf="inviteeResults().employees.length === 0 && inviteeResults().customers.length === 0 && !externalCandidate()"
             class="px-4 py-3 text-sm text-gray-400">
@@ -173,6 +178,16 @@
             <span class="text-xs text-gray-400">Admit each participant before they join.</span>
           </span>
           <input type="checkbox" [ngModel]="requireWaitingRoom()" (ngModelChange)="requireWaitingRoom.set($event)"
+            class="h-4 w-4 accent-brand-bold" />
+        </label>
+
+        <!-- D-69: invitados externos (siempre esperan a que los admitan); sin la oficina no se ofrece -->
+        <label *ngIf="limits()?.guestsAllowed" class="flex cursor-pointer items-center justify-between gap-3">
+          <span class="flex flex-col">
+            <span class="text-sm font-medium text-gray-800">Allow external guests</span>
+            <span class="text-xs text-gray-400">People outside your office can join. They always wait to be admitted.</span>
+          </span>
+          <input type="checkbox" data-role="meeting-guests-allowed" [ngModel]="guestsAllowed()" (ngModelChange)="setGuestsAllowed($event)"
             class="h-4 w-4 accent-brand-bold" />
         </label>
 
@@ -222,6 +237,12 @@
             }
           </select>
         </div>
+
+        <!-- D-68/D-69: externos de esta reunión + enlace compartible (host/cohost) -->
+        <app-meeting-guest-access *ngIf="meeting?.isHost" [meetingId]="meeting?.id ?? null" (accessChange)="onGuestAccessChange($event)" />
+
+        <p *ngIf="invitationsNotice() as text" class="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700" role="status"
+          data-role="invite-notice">{{ text }}</p>
 
         <button *ngIf="invitees().length > 0" type="button" (click)="sendInvitations()" [disabled]="invitationsBusy()"
           class="self-start rounded-full border border-brand-bold px-4 py-2 text-xs font-semibold text-gray-900 hover:bg-brand-bold hover:text-white disabled:opacity-50 transition-colors">

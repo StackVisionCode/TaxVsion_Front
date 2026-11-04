@@ -22,7 +22,7 @@ import { LinkifiedTextComponent } from '../linkified-text/linkified-text.compone
 import { MessageReactionsComponent } from '../message-reactions/message-reactions.component';
 import { AvatarComponent } from '@shared/ui/avatar/avatar.component';
 import { AvatarUrlPipe } from '@core/profile-photo/avatar-url.pipe';
-import { ATTACHMENT_PENDING_LABELS, ATTACHMENT_STATE_LABELS } from '../chat-message.model';
+import { ATTACHMENT_PENDING_LABELS, ATTACHMENT_STATE_LABELS, systemMessageIcon } from '../chat-message.model';
 import type { ChatEditPolicy, ChatMessage, ChatParticipant, MessageEdit, VoiceNoteTranscriptState } from '../chat-message.model';
 
 export type { ChatMessage, MessageEdit } from '../chat-message.model';
@@ -278,6 +278,11 @@ export class ChatThreadComponent implements AfterViewChecked, AfterViewInit, OnC
     this.pinToBottom = true;
     el.scrollTo({ top: el.scrollHeight, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
     this.unseenCount.set(0);
+  }
+
+  /** Ícono del evento del sistema según su origen (llamada → teléfono; el resto, neutro). */
+  systemIcon(message: ChatMessage): string {
+    return systemMessageIcon(message.systemKind);
   }
 
   /** Identidad estable por id: sin esto cada evento del socket recreaba TODAS las burbujas (parpadeo). */

@@ -79,11 +79,28 @@ export interface MessageEditsDto {
   versions: { revision: number; body: string; replacedAtUtc: string }[];
 }
 
+/** Origen de un mensaje System: Call (llamada), Membership (alguien entra/sale o cambia de rol), Notice (otro aviso). */
+export type SystemMessageKind = 'Call' | 'Membership' | 'Notice';
+
+/** Ícono de la píldora de un mensaje System; sin origen conocido, uno neutro (nunca el teléfono). */
+export function systemMessageIcon(kind: SystemMessageKind | null | undefined): string {
+  switch (kind) {
+    case 'Call':
+      return 'call-outline';
+    case 'Membership':
+      return 'people-outline';
+    default:
+      return 'information-circle-outline';
+  }
+}
+
 export interface ChatMessage {
   id: string;
   senderId: 'me' | 'them';
   /** Evento del sistema (p.ej. "Missed call", "Call ended 2:34") — se pinta centrado, no como burbuja. */
   isSystem?: boolean;
+  /** Origen del evento del sistema (elige el ícono). */
+  systemKind?: SystemMessageKind | null;
   text?: string;
   /** F8d: `status` del escaneo (Scanning/Unavailable) y tipo real para el visor; ausentes = disponible/desconocido. */
   attachment?: { name: string; size: string; fileId: string; status?: AttachmentScanState; contentType?: string | null };

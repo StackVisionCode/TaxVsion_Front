@@ -1,66 +1,92 @@
-<!-- Cliente elegido: tarjeta de resumen -->
-<div *ngIf="selected as client"
-  class="client-detail flex flex-col gap-4 rounded-2xl border border-gray-100 bg-brand-white p-5 sm:flex-row sm:items-center">
-  <app-avatar [name]="client.displayName" [seed]="client.id" [imageUrl]="client.avatarFileId | avatarUrl" sizeClass="h-14 w-14 text-base" />
+<!-- Clientes de la solicitud: una tarjeta por cliente (cada uno firma como cliente) -->
+<div *ngIf="selected.length" class="flex flex-col gap-3" data-testid="selected-clients">
+  <div *ngFor="let client of selected; trackBy: trackClient">
+    <div class="client-detail flex flex-col gap-4 rounded-2xl border border-gray-100 bg-brand-white p-5 sm:flex-row sm:items-center">
+      <app-avatar [name]="client.displayName" [seed]="client.id" [imageUrl]="client.avatarFileId | avatarUrl" sizeClass="h-14 w-14 text-base" />
 
-  <div class="min-w-0 flex-1">
-    <div class="flex flex-wrap items-center gap-2">
-      <p class="truncate text-base font-semibold text-gray-900">{{ client.displayName }}</p>
-      <span class="inline-block shrink-0 rounded-full border px-2 py-0.5 text-[0.625rem] font-medium"
-        [ngClass]="typeBadge(client)">{{ client.type === 'company' ? 'Company' : 'Individual' }}</span>
-      <app-status-pill class="shrink-0" size="xs" [tone]="client.isActive ? 'success' : 'neutral'">
-        {{ client.isActive ? 'Active' : 'Inactive' }}
-      </app-status-pill>
+      <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-center gap-2">
+          <p class="truncate text-base font-semibold text-gray-900">{{ client.displayName }}</p>
+          <span class="inline-block shrink-0 rounded-full border px-2 py-0.5 text-[0.625rem] font-medium"
+            [ngClass]="typeBadge(client)">{{ client.type === 'company' ? 'Company' : 'Individual' }}</span>
+          <app-status-pill class="shrink-0" size="xs" [tone]="client.isActive ? 'success' : 'neutral'">
+            {{ client.isActive ? 'Active' : 'Inactive' }}
+          </app-status-pill>
+        </div>
+        <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-sm text-gray-500">
+          <span class="inline-flex items-center gap-1.5 truncate">
+            <ion-icon name="mail-outline" class="text-sm text-gray-400"></ion-icon>{{ client.email }}
+          </span>
+          <span *ngIf="client.phone" class="inline-flex items-center gap-1.5">
+            <ion-icon name="call-outline" class="text-sm text-gray-400"></ion-icon>{{ client.phone }}
+          </span>
+          <span *ngIf="client.createdAt" class="inline-flex items-center gap-1.5">
+            <ion-icon name="calendar-outline" class="text-sm text-gray-400"></ion-icon>Client since {{ clientSince(client) }}
+          </span>
+        </div>
+      </div>
+
+      <div *ngIf="!isPinned(client)" class="flex shrink-0 items-center gap-2">
+        <button type="button" (click)="toggleSearch(client.id)"
+          class="flex items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+          <ion-icon [name]="searching() === client.id ? 'close-outline' : 'swap-horizontal-outline'" class="text-base"></ion-icon>
+          {{ searching() === client.id ? 'Cancel' : 'Change' }}
+        </button>
+        <button type="button" (click)="removed.emit(client.id)" [attr.aria-label]="'Remove ' + client.displayName"
+          [title]="'Remove ' + client.displayName" data-testid="remove-client"
+          class="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors">
+          <ion-icon name="trash-outline" class="text-base"></ion-icon>
+        </button>
+      </div>
     </div>
-    <div class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-sm text-gray-500">
-      <span class="inline-flex items-center gap-1.5 truncate">
-        <ion-icon name="mail-outline" class="text-sm text-gray-400"></ion-icon>{{ client.email }}
-      </span>
-      <span *ngIf="client.phone" class="inline-flex items-center gap-1.5">
-        <ion-icon name="call-outline" class="text-sm text-gray-400"></ion-icon>{{ client.phone }}
-      </span>
-      <span class="inline-flex items-center gap-1.5">
-        <ion-icon name="calendar-outline" class="text-sm text-gray-400"></ion-icon>Client since {{ clientSince(client) }}
-      </span>
-    </div>
+
+    <ng-container *ngIf="searching() === client.id">
+      <ng-container *ngTemplateOutlet="search; context: { heading: 'Choose another client' }"></ng-container>
+    </ng-container>
   </div>
 
-  <button *ngIf="!locked" type="button" (click)="changing.set(!changing())"
-    class="flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
-    <ion-icon [name]="changing() ? 'close-outline' : 'swap-horizontal-outline'" class="text-base"></ion-icon>
-    {{ changing() ? 'Cancel' : 'Change' }}
+  <button *ngIf="searching() !== 'add'" type="button" (click)="toggleSearch('add')" data-testid="add-client"
+    class="flex items-center gap-1.5 self-start rounded-full border border-dashed border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:border-brand-bold hover:text-brand-bold transition-colors">
+    <ion-icon name="person-add-outline" class="text-base"></ion-icon>
+    Add another client
   </button>
 </div>
 
-<!-- Bloqueado (embebido en el perfil): el cliente se está cargando -->
-<p *ngIf="locked && !selected" class="py-10 text-center text-sm text-gray-400">Loading client…</p>
+<!-- Embebido en el perfil: el cliente se está cargando -->
+<p *ngIf="locked && !selected.length" class="py-10 text-center text-sm text-gray-400">Loading client…</p>
 
-<!-- Buscador: sin cliente, o al pulsar "Change" -->
-<div *ngIf="!locked && (!selected || changing())"
-  class="flex flex-col items-center rounded-2xl border-2 border-dashed border-gray-200 px-6 py-10 text-center"
-  [class.mt-4]="!!selected">
-  <span class="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50 text-brand-bold">
-    <ion-icon name="person-add-outline" class="text-2xl"></ion-icon>
-  </span>
-  <p class="mt-3 text-base font-semibold text-gray-900">{{ selected ? 'Choose another client' : 'Choose a client' }}</p>
-  <p class="mt-1 max-w-xs text-sm text-gray-400">Search your directory to pick who this signature request is for.</p>
+<!-- Buscador para sumar un cliente (sin clientes aún, o "Add another client") -->
+<ng-container *ngIf="showSearch() && (searching() === 'add' || !selected.length)">
+  <ng-container *ngTemplateOutlet="search; context: { heading: selected.length ? 'Add another client' : 'Choose a client' }"></ng-container>
+</ng-container>
 
-  <div class="mt-4 w-full max-w-md text-left">
-    <app-filter-chips class="justify-center" size="sm" [options]="typeFilters" [value]="typeFilter()"
-      (valueChange)="typeFilter.set($event)" />
-    <app-customer-picker class="mt-3" variant="inline" placeholder="Search name, email or phone"
-      [filter]="typeFilterFn()" (selectedChange)="onPicked($event)" />
-  </div>
+<ng-template #search let-heading="heading">
+  <div class="mt-3 flex flex-col items-center rounded-2xl border-2 border-dashed border-gray-200 px-6 py-10 text-center">
+    <span class="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50 text-brand-bold">
+      <ion-icon name="person-add-outline" class="text-2xl"></ion-icon>
+    </span>
+    <p class="mt-3 text-base font-semibold text-gray-900">{{ heading }}</p>
+    <p class="mt-1 max-w-xs text-sm text-gray-400">
+      Search your directory to pick who this signature request is for. Each client signs as a client.
+    </p>
 
-  <!-- Recientes: reenviar sin volver a buscar -->
-  <div *ngIf="visibleRecent().length" class="mt-6 w-full max-w-md">
-    <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Recent</p>
-    <div class="flex flex-wrap justify-center gap-2">
-      <button *ngFor="let customer of visibleRecent(); trackBy: trackCustomer" type="button" (click)="onPicked(customer)"
-        class="flex items-center gap-2 rounded-full border border-gray-200 py-1 pl-1 pr-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-        <app-avatar [name]="customer.displayName" [seed]="customer.id" [imageUrl]="customer.avatarFileId | avatarUrl" sizeClass="h-7 w-7 text-[0.625rem]" />
-        <span class="max-w-[10rem] truncate">{{ customer.displayName }}</span>
-      </button>
+    <div class="mt-4 w-full max-w-md text-left">
+      <app-filter-chips class="justify-center" size="sm" [options]="typeFilters" [value]="typeFilter()"
+        (valueChange)="typeFilter.set($event)" />
+      <app-customer-picker class="mt-3" variant="inline" placeholder="Search name, email or phone"
+        [filter]="typeFilterFn()" (selectedChange)="onPicked($event)" />
+    </div>
+
+    <!-- Recientes: reenviar sin volver a buscar -->
+    <div *ngIf="visibleRecent().length" class="mt-6 w-full max-w-md">
+      <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Recent</p>
+      <div class="flex flex-wrap justify-center gap-2">
+        <button *ngFor="let customer of visibleRecent(); trackBy: trackCustomer" type="button" (click)="onPicked(customer)"
+          class="flex items-center gap-2 rounded-full border border-gray-200 py-1 pl-1 pr-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+          <app-avatar [name]="customer.displayName" [seed]="customer.id" [imageUrl]="customer.avatarFileId | avatarUrl" sizeClass="h-7 w-7 text-[0.625rem]" />
+          <span class="max-w-[10rem] truncate">{{ customer.displayName }}</span>
+        </button>
+      </div>
     </div>
   </div>
-</div>
+</ng-template>

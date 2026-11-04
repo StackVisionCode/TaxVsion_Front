@@ -48,7 +48,29 @@ describe('EmailActivityStore', () => {
     expect(store.items().map(i => i.id)).toEqual(['m1', 'm2']);
     expect(store.total()).toBe(40);
     expect(store.loading()).toBe(false);
-    expect(service.list).toHaveBeenCalledWith({ status: 'All', recipient: '', page: 1, size: EMAIL_ACTIVITY_PAGE_SIZE });
+    expect(service.list).toHaveBeenCalledWith({
+      status: 'All',
+      recipient: '',
+      engagement: null,
+      page: 1,
+      size: EMAIL_ACTIVITY_PAGE_SIZE,
+    });
+  });
+
+  it('Opened/Clicked se combinan con el estado, vuelven a la página 1 y pulsar el activo lo quita', () => {
+    store.setStatus('Delivered');
+    store.setPage(2);
+
+    store.toggleEngagement('Opened');
+    expect(service.list.mock.calls.at(-1)![0]).toMatchObject({ status: 'Delivered', engagement: 'Opened', page: 1 });
+    expect(store.engagement()).toBe('Opened');
+
+    store.toggleEngagement('Clicked');
+    expect(service.list.mock.calls.at(-1)![0]).toMatchObject({ engagement: 'Clicked' });
+
+    store.toggleEngagement('Clicked');
+    expect(service.list.mock.calls.at(-1)![0]).toMatchObject({ status: 'Delivered', engagement: null });
+    expect(store.engagement()).toBeNull();
   });
 
   it('cambiar el filtro vuelve a la página 1', () => {

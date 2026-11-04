@@ -8,7 +8,8 @@ import {
   signal,
 } from '@angular/core';
 import { ModalComponent } from '@shared/ui/modal/modal.component';
-import { DropzoneComponent } from '@shared/ui/dropzone/dropzone.component';
+import { UploadPolicy } from '@core/cloud-storage/cloud-storage.model';
+import { DropzoneComponent, DropzoneRejection } from '@shared/ui/dropzone/dropzone.component';
 import { formatBytes } from '@shared/utils/format.util';
 
 /**
@@ -37,8 +38,16 @@ import { formatBytes } from '@shared/utils/format.util';
         </div>
       </div>
 
-      <app-dropzone class="mt-4" label="Drag files here" hint="PDF, images, spreadsheets and documents"
-        (files)="add($event)" />
+      <app-dropzone class="mt-4" label="Drag files here" [hint]="hint()" [accept]="policy?.accept ?? ''"
+        [maxBytes]="policy?.maxFileSizeBytes ?? 0" (files)="add($event)" (rejected)="reject($event)" />
+
+      @if (rejections().length > 0) {
+        <ul class="mt-2 space-y-0.5" role="alert">
+          @for (rejection of rejections(); track rejection.message) {
+            <li class="text-xs text-red-600">{{ rejection.message }}</li>
+          }
+        </ul>
+      }
 
       @if (staged().length > 0) {
         <div class="mt-3 divide-y divide-gray-100">
@@ -78,15 +87,34 @@ export class UploadDialogComponent implements OnChanges {
   @Input() ownerLabel = '';
   @Input() folderLabel = '';
   @Input() taxYear = new Date().getFullYear();
+  /** Qué admite la carpeta (`GET /storage/upload-policy`); sin ella el dropzone no filtra y valida el backend. */
+  @Input() policy: UploadPolicy | null = null;
   @Output() uploaded = new EventEmitter<File[]>();
   @Output() cancelled = new EventEmitter<void>();
 
   readonly staged = signal<File[]>([]);
+  readonly rejections = signal<DropzoneRejection[]>([]);
 
   ngOnChanges(): void {
     if (this.isOpen) {
       this.staged.set([]);
+      this.rejections.set([]);
     }
+  }
+
+  /** "Up to 25 MB · .pdf, .docx, .xlsx…" desde la política; genérico mientras no llega. */
+  hint(): string {
+    if (!this.policy) {
+      return 'PDF, images, spreadsheets and documents';
+    }
+    const types = this.policy.allowedExtensions;
+    const shown = types.slice(0, 8).join(', ');
+    const more = types.length > 8 ? ` and ${types.length - 8} more` : '';
+    return `Up to ${formatBytes(this.policy.maxFileSizeBytes, { maxUnit: 'GB' })} · ${shown}${more}`;
+  }
+
+  reject(rejections: DropzoneRejection[]): void {
+    this.rejections.set(rejections);
   }
 
   size(file: File): string {
@@ -99,6 +127,7 @@ export class UploadDialogComponent implements OnChanges {
   }
 
   add(files: File[]): void {
+    this.rejections.set([]);
     this.staged.update(current => [...current, ...files]);
   }
 

@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
+import { ENGAGEMENT_HINT } from '@core/postmaster/email-activity.model';
 import { EmailActivityService } from '@core/postmaster/email-activity.service';
 import { ClientProfileEmailDeliveryComponent } from './client-profile-email-delivery.component';
 
@@ -48,6 +49,16 @@ describe('ClientProfileEmailDeliveryComponent', () => {
     expect(list).toHaveBeenCalledWith({ status: 'All', recipient: 'maria@client.com', page: 1, size: 10 });
     expect(fixture.componentInstance.items().map(i => i.id)).toEqual(['m1']);
     expect(fixture.nativeElement.textContent).toContain('Your return is ready');
+  });
+
+  it('marca la apertura con un ícono accesible y el aviso de que es aproximada', () => {
+    const fixture = create('maria@client.com');
+
+    const opened = fixture.nativeElement.querySelector('[data-engagement="Opened"]') as HTMLElement;
+    expect(opened.getAttribute('role')).toBe('img');
+    expect(opened.getAttribute('aria-label')).toBe(`Opened. ${ENGAGEMENT_HINT}`);
+    expect(opened.getAttribute('title')).toBe(`Opened. ${ENGAGEMENT_HINT}`);
+    expect(fixture.nativeElement.querySelector('[data-engagement="Clicked"]')).toBeNull();
   });
 
   it('sin email no consulta nada', () => {

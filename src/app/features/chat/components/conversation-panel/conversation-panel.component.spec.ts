@@ -61,4 +61,15 @@ describe('ChatConversationPanelComponent (T-11, F8a)', () => {
     const admin = render(conversation({ kind: 'Group', adminsOnlyWrite: true, myRole: 'Admin' }));
     expect(admin.querySelector('app-chat-composer')).not.toBeNull();
   });
+
+  it('el otro participante se retiró: aviso con su nombre en lugar del composer y sin reacciones', () => {
+    const el = render(
+      conversation({ kind: 'Direct', name: 'Lena Hart', departedParticipant: { userId: 'u-lena', displayName: 'Lena Hart' }, reactionPolicy: { maxPerUser: 3, catalog: ['👍'] } }),
+    );
+    expect(el.querySelector('app-chat-composer')).toBeNull();
+    expect(el.querySelector('[data-role="participant-left"]')?.textContent?.trim()).toBe(
+      'Lena Hart is no longer with the office. You can still read this conversation.',
+    );
+  });
 });
+

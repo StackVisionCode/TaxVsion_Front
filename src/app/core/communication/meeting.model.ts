@@ -91,6 +91,8 @@ export interface MeetingSnapshotDto {
   endsAtUtc: string | null;
   endReason: MeetingEndReason | null;
   continuationOfMeetingId: string | null;
+  /** MNT-01: estado de la última grabación al entrar o volver (null = nunca se grabó). */
+  recording?: MeetingRecordingStateChangedDto | null;
 }
 
 export interface MeetingParticipantChangedDto {
@@ -200,6 +202,12 @@ export interface MeetingJoinAck {
   /** F5 (D-49) — el re-join completo bajó la mano que tenía levantada: se avisa con toast. */
   handLoweredOnRejoin?: boolean;
   iceServers?: { iceServers: { urls: string | string[]; username?: string; credential?: string }[]; expiresAtUtc: string };
+}
+
+/** F6 / D-68 — identidad del invitado externo: la del ticket; `invitationId` null si entró por el enlace de la reunión. */
+export interface MeetingGuestIdentity {
+  guestUserId: string;
+  invitationId: string | null;
 }
 
 export interface MeetingJoinOptions {

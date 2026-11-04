@@ -69,6 +69,18 @@ h1 {
   justify-content: center;
 }
 
+/* Con logo: arriba y más grande (los logos horizontales traen margen propio), el nombre debajo. */
+.pay-to:has(.office-logo) {
+  flex-direction: column;
+  gap: 6px;
+}
+
+.office-logo {
+  height: 52px;
+  max-width: 220px;
+  object-fit: contain;
+}
+
 .office-name {
   font-size: 14px;
   font-weight: 600;

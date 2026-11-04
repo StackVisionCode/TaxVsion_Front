@@ -1,6 +1,7 @@
 import {
   Component,
   CUSTOM_ELEMENTS_SCHEMA,
+  ElementRef,
   HostListener,
   OnDestroy,
   OnInit,
@@ -16,21 +17,58 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { InfinityLoaderComponent } from '@shared/ui/infinity-loader/infinity-loader.component';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MailFolder, MailFolderListComponent } from '../../ui/mail-folder-list/mail-folder-list.component';
-import { MailListComponent, MailListRow, MailRowTag } from '../../ui/mail-list/mail-list.component';
+import { MailListComponent, MailListRow, MailRowStatus, MailRowTag } from '../../ui/mail-list/mail-list.component';
 import { MailReadingPaneComponent } from '../../ui/mail-reading-pane/mail-reading-pane.component';
 import { ComposeDraftPayload, MailComposeComponent } from '../../ui/mail-compose/mail-compose.component';
 import { MailConnectManualComponent } from '../../ui/mail-connect-manual/mail-connect-manual.component';
-import { MailFolderId, MailStore, OUTGOING_FOLDERS } from '../../data-access/mail.store';
+import {
+  MailDateFilter,
+  MailFolderId,
+  MailSearchFilters,
+  MailSearchTab,
+  MailStore,
+  MailSuggestions,
+  OUTGOING_FOLDERS,
+  hasValidSearchCriteria,
+} from '../../data-access/mail.store';
+import { MailRecentSearchesStore } from '../../data-access/mail-recent-searches.store';
+import { MailPeopleListComponent } from '../../ui/mail-people-list/mail-people-list.component';
+import {
+  EMPTY_ADVANCED_SEARCH,
+  MailAdvancedSearch,
+  MailSearchFiltersComponent,
+} from '../../ui/mail-search-filters/mail-search-filters.component';
+import { formatMailSearchOperators, parseMailSearchOperators } from '../../utils/mail-search-operators';
+import { customRangeLabel } from '../../utils/mail-search-dates';
 import {
   ConnectManualAccountRequest,
+  DeliveryNoticeSummary,
+  DeliveryStatus,
+  EmailSearchHit,
+  FileSearchHit,
   MailAccount,
   MailAccountStatus,
+  PersonSearchHit,
+  ThreadSummary,
+  deliveryNoticeCopy,
+  deliveryStatusPill,
   formatMailTime,
+  isCurrentDeliveryNotice,
 } from '../../data-access/mail.model';
 import { avatarColorFor } from '@shared/utils/avatar.util';
-import { CustomerPickerComponent } from '@shared/ui/customer-picker/customer-picker.component';
+import { formatBytes } from '@shared/utils/format.util';
 import { SegmentedComponent, SegmentedOption } from '@shared/ui/segmented/segmented.component';
+import { FilterChipOption, FilterChipsComponent } from '@shared/ui/filter-chips/filter-chips.component';
+import { GroupedSearchComponent } from '@shared/ui/grouped-search/grouped-search.component';
+import {
+  GroupedSearchChip,
+  GroupedSearchGroup,
+  GroupedSearchPick,
+  GroupedSearchSuggestions,
+} from '@shared/ui/grouped-search/grouped-search.model';
 import { CustomerSummary } from '@core/customers/customer-summary.model';
+import { Observable, map } from 'rxjs';
+import { parseMailSearchParams, sameMailSearch, toMailSearchParams } from '../../utils/mail-search-params';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { ComposeMailDeepLink, hasComposeMailParams, parseComposeMailDeepLink } from '../../utils/compose-deep-link';
 import { CorrespondenceCapabilities } from '../../data-access/correspondence-permissions';
@@ -43,13 +81,44 @@ import { MAIL_SHORTCUTS, MailShortcut, shortcutFor } from '../../utils/mail-shor
 
 interface NotificationMailDeepLink {
   accountId: string | null;
-  customerId: string;
   threadId: string;
   messageId: string | null;
 }
 
-/** Filtro de Sent/Drafts/Trash en /email: todo, o solo lo mandado a quien no es cliente. */
-type OutgoingFilter = 'all' | 'unlinked';
+/** Lo que lleva cada sugerencia del buscador (vuelve en `picked`). */
+type MailSuggestionData =
+  | { kind: 'client'; customer: CustomerSummary }
+  | { kind: 'person'; person: PersonSearchHit }
+  | { kind: 'email'; hit: EmailSearchHit }
+  | { kind: 'file'; hit: FileSearchHit }
+  | { kind: 'recent'; query: string };
+
+/** Chips de campo dentro del buscador (además del de cliente). */
+type MailFieldChipId = 'from' | 'to' | 'subject' | 'folder';
+
+/** Nombre de la carpeta del filtro `in:` en chips y textos. */
+const SEARCH_FOLDER_LABEL: Readonly<Record<MailFolderId, string>> = {
+  inbox: 'Inbox',
+  archived: 'Archived',
+  sent: 'Sent',
+  drafts: 'Drafts',
+  trash: 'Trash',
+};
+
+/** Filas por bloque en la pestaña All (personas y archivos). */
+const ALL_TAB_BLOCK = 3;
+
+/** Chips de filtro (multi): adjuntos, no leídos, Not a client. */
+type MailChipId = 'att' | 'unread' | 'nc';
+
+/** Carpeta de un resultado, tal como se muestra en la fila. */
+const FOLDER_LABEL: Readonly<Record<string, string>> = {
+  Inbox: 'Inbox',
+  Archived: 'Archived',
+  Sent: 'Sent',
+  Drafts: 'Draft',
+  Trash: 'Trash',
+};
 
 /**
  * Página del módulo Mail conectada a los dos servicios reales del Gateway:
@@ -78,11 +147,14 @@ type OutgoingFilter = 'all' | 'unlinked';
     MailReadingPaneComponent,
     MailComposeComponent,
     MailConnectManualComponent,
-    CustomerPickerComponent,
     SegmentedComponent,
+    FilterChipsComponent,
+    GroupedSearchComponent,
     FileViewerComponent,
     ModalComponent,
     RouterLink,
+    MailPeopleListComponent,
+    MailSearchFiltersComponent,
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   templateUrl: './mail-page.component.html',
@@ -97,6 +169,7 @@ export class MailPageComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly directory = inject(CustomerDirectoryStore);
   private readonly toast = inject(ToastService);
+  private readonly recentSearches = inject(MailRecentSearchesStore);
 
   /** Cliente fijado por el perfil; `null` en /email. */
   private readonly embeddedCustomer = injectEmbeddedCustomer();
@@ -119,41 +192,47 @@ export class MailPageComponent implements OnInit, OnDestroy {
     });
   });
 
+  /**
+   * Notificación de correo (`/email?threadId=&messageId=&accountId=`): con las cuentas ya cargadas abre la
+   * conversación por id (`GET /threads/{id}` si no está en la página), tenga o no cliente (un aviso de no
+   * entrega a quien no es cliente no trae `customerId`). Limpia los params que consumió.
+   */
   private readonly pendingNotificationLink = signal<NotificationMailDeepLink | null>(null);
   private readonly notificationDeepLinkEffect = effect(() => {
     const pending = this.pendingNotificationLink();
-    if (!pending) {
+    if (!pending || this.store.bootLoading() || !this.store.hasMailbox()) {
       return;
     }
-
-    if (pending.accountId && this.store.activeAccountId() !== pending.accountId) {
-      if (!this.store.usableAccounts().some(account => account.id === pending.accountId)) {
-        return;
-      }
-      untracked(() => this.store.setActiveAccount(pending.accountId!));
-      return;
-    }
-    if (this.store.selectedCustomerId() !== pending.customerId || this.store.threadsLoading()) {
-      return;
-    }
-    if (!this.store.threads().some(thread => thread.threadId === pending.threadId)) {
-      return;
-    }
-    if (this.store.selectedThreadId() !== pending.threadId) {
-      untracked(() => this.store.selectThread(pending.threadId));
-      return;
-    }
-    if (pending.messageId) {
-      if (this.store.messagesLoading() || !this.store.openMessage(pending.messageId)) {
-        return;
-      }
-    }
-
     untracked(() => {
       this.pendingNotificationLink.set(null);
+      if (pending.accountId && this.store.usableAccounts().some(account => account.id === pending.accountId)) {
+        this.store.setActiveAccount(pending.accountId);
+      }
+      this.store.openThreadById(pending.threadId, pending.messageId);
       void this.router.navigate([], {
         relativeTo: this.route,
         queryParams: { accountId: null, customerId: null, threadId: null, messageId: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    });
+  });
+
+  /**
+   * Settings → Mail llega con `?mailboxes=open`: abre el panel de buzones. Sin buzón no hace falta, la
+   * pantalla de conectar ya es ese panel. El parámetro se quita para que recargar no lo reabra.
+   */
+  private readonly mailboxesLinkEffect = effect(() => {
+    if (this.embedded() || this.routeParams().get('mailboxes') !== 'open' || this.store.bootLoading()) return;
+    untracked(() => {
+      if (this.store.hasMailbox()) {
+        this.store.clearManualError();
+        this.showManualForm.set(false);
+        this.showMailboxManager.set(true);
+      }
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { mailboxes: null },
         queryParamsHandling: 'merge',
         replaceUrl: true,
       });
@@ -219,33 +298,29 @@ export class MailPageComponent implements OnInit, OnDestroy {
   private readonly notificationLinkEffect = effect(() => {
     if (this.embedded()) return;
     const params = this.routeParams();
-    const customerId = params.get('customerId');
     const threadId = params.get('threadId');
-    if (!customerId || !threadId) return;
-    const key = `${customerId}|${threadId}|${params.get('messageId') ?? ''}|${params.get('accountId') ?? ''}`;
+    if (!threadId) return;
+    const key = `${threadId}|${params.get('messageId') ?? ''}|${params.get('accountId') ?? ''}`;
     if (this.consumedNotificationLink === key) return;
     this.consumedNotificationLink = key;
-    untracked(() => {
-      const pending: NotificationMailDeepLink = {
+    untracked(() =>
+      this.pendingNotificationLink.set({
         accountId: params.get('accountId'),
-        customerId,
         threadId,
         messageId: params.get('messageId'),
-      };
-      this.directory.byId([customerId]).subscribe({
-        next: found => {
-          const customer = found.get(customerId);
-          if (!customer) {
-            this.toast.info('This client is no longer available.');
-            return;
-          }
-          this.directory.addRecent(customer);
-          this.pickCustomer(customer);
-          this.pendingNotificationLink.set(pending);
-        },
-        error: () => this.toast.error('We could not open this email conversation.'),
-      });
-    });
+      }),
+    );
+  });
+
+  /**
+   * Búsqueda y chips viven en la URL (`q`, `in`, `tab`, `client`, `att`, `unread`, `nc`, `date`): cada
+   * cambio de la URL (atrás/adelante, recarga, una acción del usuario) se aplica al store, que solo
+   * recarga lo que cambió. En el perfil (embebido) no se toca la URL.
+   */
+  private readonly searchUrlEffect = effect(() => {
+    if (this.embedded()) return;
+    const next = parseMailSearchParams(this.routeParams());
+    untracked(() => this.store.applySearchState(next));
   });
 
   /**
@@ -262,8 +337,14 @@ export class MailPageComponent implements OnInit, OnDestroy {
     if (this.consumedComposeLink === key) return;
     this.consumedComposeLink = key;
     untracked(() => {
-      void this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
-      if (!link || !this.can.canCompose()) return;
+      const allowed = !!link && this.can.canCompose();
+      // El cliente queda como chip en la URL (`client`): si no, la búsqueda en la URL lo quitaría al limpiar.
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: allowed ? { client: link!.customerId } : {},
+        replaceUrl: true,
+      });
+      if (!link || !allowed) return;
       this.directory.byId([link.customerId]).subscribe({
         next: found => {
           const customer = found.get(link.customerId);
@@ -301,6 +382,8 @@ export class MailPageComponent implements OnInit, OnDestroy {
         return 'The provider did not grant offline access. Try again and approve all the requested permissions.';
       case 'invalid_state':
         return 'The connection link expired. Please start the connection again.';
+      case 'initiator_inactive':
+        return 'Your account is no longer active in this office, so the mailbox was not connected.';
       default:
         return 'Could not connect the mailbox. Please try again.';
     }
@@ -387,6 +470,17 @@ export class MailPageComponent implements OnInit, OnDestroy {
   // ---------- Listado central ----------
 
   readonly rows = computed<MailListRow[]>(() => {
+    if (this.store.resultsMode()) {
+      switch (this.store.searchTab()) {
+        case 'files':
+          return this.store.searchFiles().map(hit => this.fileRow(hit));
+        case 'people':
+          return [];
+        default:
+          return this.store.searchEmails().map(hit => this.emailRow(hit));
+      }
+    }
+
     if (this.store.activeFolderId() === 'drafts') {
       return this.store.drafts().map(draft => ({
         id: draft.draftId,
@@ -398,6 +492,7 @@ export class MailPageComponent implements OnInit, OnDestroy {
         // El estado sólo se muestra cuando NO es el normal (Sending/Failed/Sent).
         badge: draft.status === 'Draft' ? null : draft.status,
         unreadCount: 0,
+        hasAttachments: draft.hasAttachments ?? false,
         tag: this.clientTag(draft.customerId),
       }));
     }
@@ -430,6 +525,8 @@ export class MailPageComponent implements OnInit, OnDestroy {
         unreadCount: 0,
         attachmentCount: item.hasAttachments ? item.attachmentCount : 0,
         tag: this.clientTag(item.customerId),
+        // Solo cuando hay noticias: un "Sent" en cada fila no dice nada.
+        status: item.deliveryStatus ? this.sentStatus(item.deliveryStatus) : null,
       }));
     }
 
@@ -442,21 +539,94 @@ export class MailPageComponent implements OnInit, OnDestroy {
       // Quién escribió por última vez; un hilo de solo enviados cae al nombre del cliente.
       const sender = thread.lastSenderName || thread.lastSenderAddress || client?.displayName || null;
       const subject = thread.subject || '(No subject)';
+      const notice = this.threadNotice(thread);
       return {
         id: thread.threadId,
         avatarName: sender || subject,
         avatarColor: avatarColorFor(thread.lastSenderAddress || thread.customerId || thread.threadId),
         title: sender ? (thread.messageCount > 1 ? `${sender} (${thread.messageCount})` : sender) : subject,
         subtitle: sender ? subject : `${thread.messageCount} ${thread.messageCount === 1 ? 'message' : 'messages'}`,
-        preview: thread.snippet ?? null,
+        // Con un aviso vigente, la línea dice qué falló y a quién (no la vista previa del último entrante).
+        preview: notice?.preview ?? thread.snippet ?? null,
+        previewTone: notice?.status.tone ?? null,
         time: formatMailTime(thread.lastMessageAtUtc),
         badge: null,
         unreadCount: thread.unreadCount,
         hasAttachments: thread.hasAttachments ?? false,
         tag: this.clientTag(thread.customerId),
+        status: notice?.status ?? null,
       };
     });
   });
+
+  /** Chip y línea del aviso de entrega vigente de un hilo ("Not delivered" rojo, "Mailbox full" ámbar, "Delayed" gris). */
+  private threadNotice(thread: ThreadSummary): { status: MailRowStatus; preview: string } | null {
+    const notice = thread.latestDeliveryNotice;
+    if (!notice || !isCurrentDeliveryNotice(thread)) {
+      return null;
+    }
+    const copy = deliveryNoticeCopy(notice);
+    const tone = copy.tone === 'green' ? 'gray' : copy.tone;
+    const preview =
+      notice.outcome === 'Delayed'
+        ? `Delivery to ${notice.recipient} is delayed — the server will keep trying.`
+        : `Couldn't deliver to ${notice.recipient} — ${copy.reason}`;
+    return { status: { label: copy.chip, tone }, preview };
+  }
+
+  private sentStatus(status: DeliveryStatus): MailRowStatus {
+    const pill = deliveryStatusPill(status);
+    return { label: pill.label, tone: pill.tone };
+  }
+
+  /** Fila de un correo en el modo resultados: quién, asunto, carpeta y vista previa. */
+  private emailRow(hit: EmailSearchHit): MailListRow {
+    const outgoing = hit.source === 'Outgoing';
+    const who = outgoing
+      ? hit.toAddresses.length > 0
+        ? `To ${hit.toAddresses.join(', ')}`
+        : 'Sent message'
+      : hit.fromName || hit.fromAddress || hit.subject || '(No subject)';
+    return {
+      id: this.emailRowId(hit),
+      avatarName: (outgoing ? hit.toAddresses[0] : hit.fromName || hit.fromAddress) || hit.subject || 'Mail',
+      avatarColor: avatarColorFor((outgoing ? hit.toAddresses[0] : hit.fromAddress) || hit.threadId || hit.subject),
+      title: who,
+      subtitle: hit.subject || '(No subject)',
+      preview: hit.snippet,
+      time: formatMailTime(hit.occurredAtUtc),
+      badge: FOLDER_LABEL[hit.folder] ?? hit.folder,
+      unreadCount: 0,
+      unread: !!hit.isUnread,
+      hasAttachments: hit.hasAttachments,
+      tag: this.clientTag(hit.customerId),
+    };
+  }
+
+  /** Fila de un adjunto en la pestaña Files: nombre, de quién, tamaño. */
+  private fileRow(hit: FileSearchHit): MailListRow {
+    const party =
+      hit.source === 'Outgoing'
+        ? `To ${hit.toAddresses.join(', ') || 'recipient'}`
+        : `From ${hit.fromName || hit.fromAddress || 'unknown sender'}`;
+    return {
+      id: `file:${hit.source}:${hit.attachmentId}`,
+      avatarName: hit.filename,
+      avatarColor: avatarColorFor(hit.filename),
+      icon: fileIcon(hit.contentType, hit.filename),
+      title: hit.filename,
+      subtitle: party,
+      preview: formatBytes(hit.sizeBytes),
+      time: formatMailTime(hit.occurredAtUtc),
+      badge: null,
+      unreadCount: 0,
+      tag: this.clientTag(hit.customerId),
+    };
+  }
+
+  private emailRowId(hit: EmailSearchHit): string {
+    return `email:${hit.source}:${hit.folder}:${hit.messageId ?? hit.threadId ?? hit.subject}`;
+  }
 
   /**
    * Etiqueta de cliente de una fila: su nombre, o "Not a client". Con un filtro activo (o en el perfil)
@@ -473,6 +643,9 @@ export class MailPageComponent implements OnInit, OnDestroy {
   }
 
   readonly listLoading = computed(() => {
+    if (this.store.resultsMode()) {
+      return this.store.searchLoading();
+    }
     switch (this.store.activeFolderId()) {
       case 'drafts':
         return this.store.draftsLoading();
@@ -486,6 +659,9 @@ export class MailPageComponent implements OnInit, OnDestroy {
   });
 
   readonly listError = computed(() => {
+    if (this.store.resultsMode()) {
+      return this.store.searchError();
+    }
     switch (this.store.activeFolderId()) {
       case 'drafts':
         return this.store.draftsError();
@@ -499,6 +675,9 @@ export class MailPageComponent implements OnInit, OnDestroy {
   });
 
   readonly listHasMore = computed(() => {
+    if (this.store.resultsMode()) {
+      return false;
+    }
     switch (this.store.activeFolderId()) {
       case 'drafts':
         return this.store.draftsHasMore();
@@ -511,7 +690,13 @@ export class MailPageComponent implements OnInit, OnDestroy {
     }
   });
 
+  /** Fila resaltada en el modo resultados (la que se abrió). */
+  readonly selectedResultId = signal<string | null>(null);
+
   readonly selectedRowId = computed(() => {
+    if (this.store.resultsMode()) {
+      return this.selectedResultId();
+    }
     switch (this.store.activeFolderId()) {
       case 'drafts':
         return this.selectedDraftId();
@@ -522,23 +707,44 @@ export class MailPageComponent implements OnInit, OnDestroy {
     }
   });
 
-  /** Inbox y Archived buscan en el servidor; Sent/Drafts/Trash filtran lo cargado. */
-  readonly threadFolder = computed(() => !OUTGOING_FOLDERS.has(this.store.activeFolderId()));
-
-  /** Estados vacíos honestos: dicen qué falta según carpeta y filtro, sin inventar un siguiente paso. */
+  /** Estados vacíos honestos: dicen qué falta según carpeta, búsqueda y chips, sin inventar un siguiente paso. */
   readonly listEmptyText = computed(() => {
     const folder = this.store.activeFolderId();
-    const search = this.store.threadSearch();
-    if (search && this.threadFolder()) {
-      return `No conversations match "${search}"`;
+    const search = this.store.query();
+    if (this.store.resultsMode()) {
+      const label = this.searchLabel();
+      switch (this.store.searchTab()) {
+        case 'files':
+          return `No files match ${label}`;
+        case 'people':
+          return `No people match ${label}`;
+        case 'all':
+          return this.store.searchPeople().length > 0 || this.store.searchFiles().length > 0
+            ? `No emails match ${label}`
+            : `Nothing matches ${label}`;
+        default:
+          return `No emails match ${label}`;
+      }
+    }
+    if (search) {
+      return OUTGOING_FOLDERS.has(folder) ? `No messages match "${search}"` : `No conversations match "${search}"`;
+    }
+    if (this.hasNarrowingChips()) {
+      return 'Nothing matches these filters';
     }
     if (folder === 'trash') {
       return 'Trash is empty';
     }
     if (this.store.unlinkedView()) {
-      return folder === 'drafts'
-        ? "No drafts to people who aren't clients"
-        : "No messages sent to people who aren't clients yet";
+      switch (folder) {
+        case 'drafts':
+          return "No drafts to people who aren't clients";
+        case 'inbox':
+        case 'archived':
+          return "No conversations with people who aren't clients";
+        default:
+          return "No messages sent to people who aren't clients yet";
+      }
     }
     // Perfil o filtro de cliente: el texto habla de ese cliente.
     if (this.embedded() || this.store.selectedCustomerId()) {
@@ -561,9 +767,34 @@ export class MailPageComponent implements OnInit, OnDestroy {
       case 'archived':
         return 'No archived conversations';
       default:
-        return "You're all caught up — new client mail lands here";
+        return this.store.unreadOnly() ? 'No unread conversations' : "You're all caught up — new client mail lands here";
     }
   });
+
+  /** Pista bajo el vacío de una búsqueda: qué probar. */
+  readonly listEmptyHint = computed(() => {
+    const search = this.store.query();
+    if (this.store.resultsMode()) {
+      return 'Check the spelling or remove a filter.';
+    }
+    if (!search) {
+      return '';
+    }
+    return this.store.resultsMode()
+      ? 'Check the spelling or remove a filter.'
+      : 'Check the spelling, or press Enter in the search box to look in all folders.';
+  });
+
+  /** Chips que acotan la lista sin hablar de un cliente (el vacío lo dice así). */
+  private readonly hasNarrowingChips = computed(
+    () => this.store.hasAttachmentsOnly() || this.store.dateFilter() !== 'any',
+  );
+
+  /** Hay filtros de campo (From/To/Subject/carpeta): solo existen en el modo resultados. */
+  readonly hasFieldFilters = computed(
+    () =>
+      !!this.store.fromFilter() || !!this.store.toFilter() || !!this.store.subjectFilter() || !!this.store.searchFolder(),
+  );
 
   /**
    * Cliente en cuya ficha se archiva lo que se está redactando (null = ninguno). Sale del composer, no
@@ -587,44 +818,635 @@ export class MailPageComponent implements OnInit, OnDestroy {
     return this.store.customerIndex().get(customerId) ?? (selected?.id === customerId ? selected : null);
   });
 
-  // ---------- Filtro "Not a client" (solo Sent/Drafts/Trash) ----------
+  // ---------- Búsqueda unificada (app-grouped-search) ----------
 
-  readonly outgoingFilterOptions: readonly SegmentedOption<OutgoingFilter>[] = [
-    { id: 'all', label: 'Everyone' },
-    { id: 'unlinked', label: 'Not a client' },
-  ];
+  private readonly groupedSearch = viewChild(GroupedSearchComponent);
+  private readonly groupedSearchEl = viewChild(GroupedSearchComponent, { read: ElementRef });
+  /** El panel de filtros se coloca bajo el buscador. */
+  readonly searchAnchor = computed<HTMLElement | null>(() => this.groupedSearchEl()?.nativeElement ?? null);
 
-  readonly outgoingFilter = computed<OutgoingFilter>(() => (this.store.unlinkedView() ? 'unlinked' : 'all'));
-
-  /** El filtro existe donde hay correo a quien no es cliente: lo que uno manda o redacta. */
-  readonly showOutgoingFilter = computed(
-    () => !this.embedded() && OUTGOING_FOLDERS.has(this.store.activeFolderId()),
+  readonly searchPlaceholder = computed(() =>
+    this.embedded() ? "Search this client's mail and files" : 'Search mail, people, files and clients',
   );
 
-  setOutgoingFilter(filter: OutgoingFilter): void {
-    this.selectedDraftId.set(null);
-    this.selectedSentId.set(null);
-    if (filter === 'unlinked') {
-      this.store.showUnlinkedMail();
-    } else {
-      this.store.showAllMail();
+  /**
+   * Sugerencias: clientes del directorio y correos/archivos del backend, en paralelo (el store), como
+   * grupos para el buscador compartido. Propiedad flecha para conservar `this`.
+   */
+  readonly suggestFn = (term: string): Observable<GroupedSearchSuggestions<MailSuggestionData>> =>
+    this.store.suggest(term).pipe(map(result => ({ groups: this.suggestionGroups(result), pending: result.pending })));
+
+  /**
+   * Con el buscador vacío: búsquedas recientes (quitar una o "Clear") y, en /email, clientes recientes
+   * (los comparte todo el CRM).
+   */
+  readonly idleGroups = computed<GroupedSearchGroup<MailSuggestionData>[]>(() => {
+    const groups: GroupedSearchGroup<MailSuggestionData>[] = [];
+    const searches = this.recentSearches.recent();
+    if (searches.length > 0) {
+      groups.push({
+        id: 'recent-searches',
+        label: 'Recent searches',
+        action: 'Clear',
+        items: searches.map(query => ({
+          id: `recent:${query}`,
+          label: query,
+          icon: 'time-outline',
+          removable: true,
+          data: { kind: 'recent', query } as MailSuggestionData,
+        })),
+      });
+    }
+    if (!this.embedded()) {
+      const recent = this.directory.recent().filter(customer => customer.status !== 'Archived');
+      if (recent.length > 0) {
+        groups.push({ id: 'clients', label: 'Recent clients', items: recent.map(customer => this.clientItem(customer)) });
+      }
+    }
+    return groups;
+  });
+
+  /**
+   * Chips dentro del buscador: "Client: Ana Pérez" (nunca en el perfil) y los filtros de campo del modo
+   * resultados ("From: ana@x.com", "To: …", "Subject: …", "In: Sent"). Cada uno se quita con su X.
+   */
+  readonly searchChips = computed<GroupedSearchChip[]>(() => {
+    const chips: GroupedSearchChip[] = [];
+    const customer = this.store.selectedCustomer();
+    if (!this.embedded() && this.store.selectedCustomerId()) {
+      chips.push({ id: 'client', label: `Client: ${customer?.displayName ?? 'Loading…'}` });
+    }
+    if (this.store.fromFilter()) chips.push({ id: 'from', label: `From: ${this.store.fromFilter()}` });
+    if (this.store.toFilter()) chips.push({ id: 'to', label: `To: ${this.store.toFilter()}` });
+    if (this.store.subjectFilter()) chips.push({ id: 'subject', label: `Subject: ${this.store.subjectFilter()}` });
+    const folder = this.store.searchFolder();
+    if (folder) chips.push({ id: 'folder', label: `In: ${SEARCH_FOLDER_LABEL[folder]}` });
+    return chips;
+  });
+
+  private suggestionGroups(result: MailSuggestions): GroupedSearchGroup<MailSuggestionData>[] {
+    const groups: GroupedSearchGroup<MailSuggestionData>[] = [];
+    if (result.clients.length > 0) {
+      groups.push({ id: 'clients', label: 'Clients', items: result.clients.map(customer => this.clientItem(customer)) });
+    }
+    if (result.people.length > 0) {
+      groups.push({ id: 'people', label: 'People', items: result.people.map(person => this.personItem(person)) });
+    }
+    if (result.emails.length > 0) {
+      groups.push({
+        id: 'emails',
+        label: 'Emails',
+        items: result.emails.map(hit => ({
+          id: this.emailRowId(hit),
+          label: hit.subject || '(No subject)',
+          sublabel:
+            hit.source === 'Outgoing'
+              ? `To ${hit.toAddresses.join(', ')}`
+              : hit.fromName || hit.fromAddress || hit.snippet || null,
+          meta: `${FOLDER_LABEL[hit.folder] ?? hit.folder} · ${formatMailTime(hit.occurredAtUtc)}`,
+          icon: hit.source === 'Outgoing' ? 'paper-plane-outline' : 'mail-outline',
+          data: { kind: 'email', hit },
+        })),
+      });
+    }
+    if (result.files.length > 0) {
+      groups.push({
+        id: 'files',
+        label: 'Files',
+        items: result.files.map(hit => ({
+          id: `file:${hit.source}:${hit.attachmentId}`,
+          label: hit.filename,
+          sublabel: hit.source === 'Outgoing' ? `To ${hit.toAddresses.join(', ')}` : hit.fromName || hit.fromAddress || null,
+          meta: formatMailTime(hit.occurredAtUtc),
+          icon: fileIcon(hit.contentType, hit.filename),
+          data: { kind: 'file', hit },
+        })),
+      });
+    }
+    return groups;
+  }
+
+  /** Persona sugerida: nombre (o dirección), insignia "Client" si la conversación es de un cliente. */
+  private personItem(person: PersonSearchHit) {
+    const name = this.personName(person);
+    return {
+      id: `person:${person.address.toLowerCase()}`,
+      label: name,
+      sublabel: name !== person.address ? person.address : null,
+      badge: person.customerId ? 'Client' : null,
+      meta: person.lastContactAtUtc ? formatMailTime(person.lastContactAtUtc) : null,
+      avatar: { name, seed: person.address, imageUrl: null },
+      data: { kind: 'person', person } as MailSuggestionData,
+    };
+  }
+
+  private personName(person: PersonSearchHit): string {
+    return (
+      person.displayName?.trim() ||
+      (person.customerId ? this.store.customerIndex().get(person.customerId)?.displayName : null) ||
+      person.address
+    );
+  }
+
+  private clientItem(customer: CustomerSummary) {
+    return {
+      id: `client:${customer.id}`,
+      label: customer.displayName,
+      sublabel: customer.primaryEmail || null,
+      avatar: { name: customer.displayName, seed: customer.id, imageUrl: null },
+      data: { kind: 'client', customer } as MailSuggestionData,
+    };
+  }
+
+  /**
+   * Elegir una sugerencia: cliente → chip y filtro; persona → chip "From:" y busca (D-1); correo → lo abre;
+   * archivo → visor; búsqueda reciente → se vuelve a ejecutar tal cual.
+   */
+  onSearchPick(pick: GroupedSearchPick<MailSuggestionData>): void {
+    const data = pick.item.data;
+    switch (data.kind) {
+      case 'client':
+        this.directory.addRecent(data.customer);
+        this.pickCustomer(data.customer);
+        this.updateSearch({ clientId: data.customer.id, notClient: false });
+        break;
+      case 'person':
+        this.filterByPerson(data.person, 'from');
+        break;
+      case 'recent': {
+        const parsed = parseMailSearchOperators(data.query);
+        this.runSearch({
+          q: parsed.q,
+          from: parsed.from,
+          to: parsed.to,
+          subject: parsed.subject,
+          searchFolder: parsed.folder,
+          hasAttachments: parsed.hasAttachments,
+          unread: parsed.unread,
+        });
+        break;
+      }
+      case 'email':
+        this.openEmailHit(data.hit);
+        break;
+      case 'file':
+        this.previewSearchFiles([data.hit], 0);
+        break;
     }
   }
 
-  // ---------- Filtro de cliente ----------
-  // Opcional: sin cliente, el Inbox es el de toda la oficina. Lo resuelve `app-customer-picker`
-  // (búsqueda server-side, recientes compartidos del CustomerDirectoryStore y teclado).
+  /**
+   * Enter / "See all results": modo resultados en todas las carpetas. Los operadores (`from:` `in:sent`…)
+   * se vuelven chips y el resto queda como `q`. Vacío y sin filtros de campo = salir de la búsqueda.
+   */
+  onSearchSubmit(term: string): void {
+    const parsed = parseMailSearchOperators(term);
+    if (!parsed.q && !parsed.from && !parsed.to && !parsed.subject && !this.hasFieldFilters()) {
+      // Sin texto: `in:sent` abre esa carpeta e `is:unread`/`has:attachment` encienden su chip.
+      if (parsed.folder) {
+        this.selectedDraftId.set(null);
+        this.selectedSentId.set(null);
+        this.store.selectFolder(parsed.folder);
+      }
+      this.selectedResultId.set(null);
+      this.updateSearch({
+        q: '',
+        results: false,
+        from: '',
+        to: '',
+        subject: '',
+        searchFolder: null,
+        hasAttachments: this.store.hasAttachmentsOnly() || parsed.hasAttachments,
+        unread: this.store.unreadOnly() || parsed.unread,
+      });
+      return;
+    }
+    // Los operadores pasan a chips: en el buscador queda solo el texto libre.
+    if (parsed.q !== term.trim()) {
+      this.groupedSearch()?.setText(parsed.q);
+    }
+    // Lo que el texto no trae como operador se conserva (chips ya puestos).
+    this.runSearch({
+      q: parsed.q,
+      ...(parsed.from ? { from: parsed.from } : {}),
+      ...(parsed.to ? { to: parsed.to } : {}),
+      ...(parsed.subject ? { subject: parsed.subject } : {}),
+      ...(parsed.folder ? { searchFolder: parsed.folder } : {}),
+      ...(parsed.hasAttachments ? { hasAttachments: true } : {}),
+      ...(parsed.unread ? { unread: true } : {}),
+    });
+  }
 
-  /** `null` = el usuario quitó el cliente (la X del chip): vuelve al correo de todos los clientes. */
-  onCustomerChange(customer: CustomerSummary | null): void {
-    if (customer) {
-      this.pickCustomer(customer);
+  /**
+   * Ejecuta una búsqueda en todas las carpetas (Enter, persona, panel o reciente) y la guarda en las
+   * búsquedas recientes si tiene criterio. Conserva la pestaña si ya se estaba en resultados.
+   */
+  private runSearch(patch: Partial<MailSearchFilters>): void {
+    this.selectedResultId.set(null);
+    const tab = this.store.resultsMode() ? this.store.searchTab() : 'all';
+    const next: MailSearchFilters = { ...this.store.searchState(), tab, ...patch, results: true };
+    this.updateSearch(next);
+    if (hasValidSearchCriteria(next)) {
+      this.recentSearches.add(
+        formatMailSearchOperators({
+          q: next.q,
+          from: next.from,
+          to: next.to,
+          subject: next.subject,
+          folder: next.searchFolder,
+          hasAttachments: next.hasAttachments,
+          unread: next.unread,
+        }),
+      );
+    }
+  }
+
+  /** Filtrar por una persona (sugerencia o pestaña People): chip From/To en lugar del texto, y busca. */
+  filterByPerson(person: PersonSearchHit, field: 'from' | 'to'): void {
+    this.runSearch({
+      q: '',
+      from: field === 'from' ? person.address : '',
+      to: field === 'to' ? person.address : '',
+      subject: '',
+      tab: 'all',
+    });
+  }
+
+  /** "Write an email" de una persona: el redactor de siempre con su dirección (archiva en su cliente si lo es). */
+  composeToPerson(person: PersonSearchHit): void {
+    if (!this.canCompose() || !this.can.canCompose()) {
       return;
     }
     this.selectedDraftId.set(null);
-    this.selectedSentId.set(null);
-    this.store.clearCustomer();
+    this.store.openCompose(person.address, person.customerId);
   }
+
+  /** "Open client profile" de una persona que es cliente. */
+  openPersonClient(person: PersonSearchHit): void {
+    if (person.customerId) {
+      void this.router.navigate(['/clients', person.customerId]);
+    }
+  }
+
+  onSuggestionRemoved(pick: GroupedSearchPick<MailSuggestionData>): void {
+    if (pick.item.data.kind === 'recent') {
+      this.recentSearches.remove(pick.item.data.query);
+    }
+  }
+
+  onSuggestionGroupAction(groupId: string): void {
+    if (groupId === 'recent-searches') {
+      this.recentSearches.clear();
+    }
+  }
+
+  /** La X (o Esc) del buscador: vuelve a la carpeta donde se estaba, sin el término ni filtros de campo. */
+  onSearchCleared(): void {
+    this.selectedResultId.set(null);
+    this.updateSearch({ q: '', results: false, from: '', to: '', subject: '', searchFolder: null });
+  }
+
+  onSearchChipRemoved(id: string): void {
+    if (id === 'client') {
+      this.selectedDraftId.set(null);
+      this.selectedSentId.set(null);
+      this.store.clearCustomer();
+      this.updateSearch({ clientId: null });
+      return;
+    }
+    const field = id as MailFieldChipId;
+    const patch: Partial<MailSearchFilters> =
+      field === 'folder' ? { searchFolder: null } : { [field]: '' };
+    this.selectedResultId.set(null);
+    this.updateSearch(patch);
+  }
+
+  /** Pestañas del modo resultados; el número solo cuando ese grupo vino en la última respuesta. */
+  readonly searchTabs = computed<SegmentedOption<MailSearchTab>[]>(() => {
+    const groups = this.store.searchGroups();
+    const count = (group: 'emails' | 'people' | 'files', n: number) => (groups.includes(group) ? ` · ${n}` : '');
+    return [
+      { id: 'all', label: 'All' },
+      { id: 'emails', label: `Emails${count('emails', this.store.searchEmails().length)}` },
+      { id: 'people', label: `People${count('people', this.store.searchPeople().length)}` },
+      { id: 'files', label: `Files${count('files', this.store.searchFiles().length)}` },
+    ];
+  });
+
+  setSearchTab(tab: MailSearchTab): void {
+    this.selectedResultId.set(null);
+    this.updateSearch({ tab });
+  }
+
+  /** Cómo se nombra la búsqueda en textos ("factura" o los filtros de campo en forma de operador). */
+  readonly searchLabel = computed(() => {
+    const q = this.store.query();
+    if (q) {
+      return `"${q}"`;
+    }
+    return formatMailSearchOperators({
+      from: this.store.fromFilter(),
+      to: this.store.toFilter(),
+      subject: this.store.subjectFilter(),
+    }) || 'your search';
+  });
+
+  /** Encabezado del modo resultados: término y dónde se busca. */
+  readonly resultsSummary = computed(() => {
+    const folder = this.store.searchFolder();
+    return {
+      term: this.store.query() ? `"${this.store.query()}"` : null,
+      where: folder ? `in ${SEARCH_FOLDER_LABEL[folder]}` : 'in all folders',
+    };
+  });
+
+  /** Pestaña All: hasta 3 personas y 3 archivos alrededor de los correos. */
+  readonly allTab = computed(() => this.store.resultsMode() && this.store.searchTab() === 'all');
+  readonly allTabBlock = ALL_TAB_BLOCK;
+  readonly allFiles = computed(() => this.store.searchFiles().slice(0, ALL_TAB_BLOCK));
+
+  /** Fila compacta de un archivo en el bloque de All. */
+  fileSummary(hit: FileSearchHit): { icon: string; party: string; size: string; time: string } {
+    return {
+      icon: fileIcon(hit.contentType, hit.filename),
+      party:
+        hit.source === 'Outgoing'
+          ? `To ${hit.toAddresses.join(', ') || 'recipient'}`
+          : `From ${hit.fromName || hit.fromAddress || 'unknown sender'}`,
+      size: formatBytes(hit.sizeBytes),
+      time: formatMailTime(hit.occurredAtUtc),
+    };
+  }
+
+  /** Abre un archivo del bloque de All en el visor (con los demás del bloque para navegar). */
+  previewAllFile(index: number): void {
+    this.previewSearchFiles(this.allFiles(), index);
+  }
+
+  // ---------- Búsqueda avanzada (panel del ícono de filtros) ----------
+
+  readonly filtersOpen = signal(false);
+  /** Abierto desde "Custom range…" del chip de fecha: el panel arranca con ese preset. */
+  private readonly filtersCustomDate = signal(false);
+
+  toggleFilters(): void {
+    const next = !this.filtersOpen();
+    if (next) {
+      this.groupedSearch()?.close();
+    }
+    this.filtersCustomDate.set(false);
+    this.filtersOpen.set(next);
+  }
+
+  closeFilters(): void {
+    this.filtersOpen.set(false);
+    this.filtersCustomDate.set(false);
+  }
+
+  /** Lo que el panel muestra al abrirse: el estado aplicado ahora. */
+  readonly advancedValue = computed<MailAdvancedSearch>(() => ({
+    ...EMPTY_ADVANCED_SEARCH,
+    q: this.store.query(),
+    from: this.store.fromFilter(),
+    to: this.store.toFilter(),
+    subject: this.store.subjectFilter(),
+    folder: this.store.searchFolder(),
+    date: this.filtersCustomDate() ? 'custom' : this.store.dateFilter(),
+    dateFrom: this.store.dateFrom(),
+    dateTo: this.store.dateTo(),
+    hasAttachments: this.store.hasAttachmentsOnly(),
+    unread: this.store.unreadOnly(),
+  }));
+
+  /** Cuántos filtros del panel están activos (punto en el ícono). */
+  readonly advancedCount = computed(() => {
+    const value = this.advancedValue();
+    return [value.from, value.to, value.subject, value.folder, value.date !== 'any', value.hasAttachments, value.unread].filter(
+      Boolean,
+    ).length;
+  });
+
+  onAdvancedSearch(value: MailAdvancedSearch): void {
+    this.closeFilters();
+    this.runSearch({
+      q: value.q,
+      from: value.from,
+      to: value.to,
+      subject: value.subject,
+      searchFolder: value.folder,
+      date: value.date,
+      dateFrom: value.dateFrom,
+      dateTo: value.dateTo,
+      hasAttachments: value.hasAttachments,
+      unread: value.unread,
+    });
+  }
+
+  /** "Clear filters" del panel: quita lo que el panel controla (el chip de cliente se queda). */
+  onAdvancedCleared(): void {
+    this.selectedResultId.set(null);
+    this.updateSearch({
+      q: '',
+      results: false,
+      from: '',
+      to: '',
+      subject: '',
+      searchFolder: null,
+      date: 'any',
+      dateFrom: null,
+      dateTo: null,
+      hasAttachments: false,
+      unread: false,
+    });
+  }
+
+  // ---------- Chips de filtro ----------
+
+  /** Chips de filtro (todos en el servidor); "Not a client" nunca en el perfil. */
+  readonly chipOptions = computed<FilterChipOption<MailChipId>[]>(() => {
+    const options: FilterChipOption<MailChipId>[] = [{ id: 'att', label: 'Has attachments' }];
+    // "Unread" en el servidor: Inbox/Archived y modo resultados; no existe en lo saliente.
+    if (this.store.resultsMode() || !OUTGOING_FOLDERS.has(this.store.activeFolderId())) {
+      options.push({ id: 'unread', label: 'Unread' });
+    }
+    if (!this.embedded()) {
+      options.push({ id: 'nc', label: 'Not a client' });
+    }
+    return options;
+  });
+
+  readonly activeChips = computed<MailChipId[]>(() => {
+    const ids: MailChipId[] = [];
+    if (this.store.hasAttachmentsOnly()) ids.push('att');
+    if (this.store.unreadOnly()) ids.push('unread');
+    if (this.store.unlinkedView()) ids.push('nc');
+    return ids;
+  });
+
+  /**
+   * "Any time" va con id `all`: así `app-filter-chips` pinta la píldora inactiva cuando no filtra. El rango
+   * personalizado se elige en el panel de filtros; activo, la píldora muestra sus fechas.
+   */
+  readonly dateOptions = computed<FilterChipOption<'all' | Exclude<MailDateFilter, 'any'>>[]>(() => [
+    { id: 'all', label: 'Any time' },
+    { id: '7d', label: 'Last 7 days' },
+    { id: '30d', label: 'Last 30 days' },
+    { id: '90d', label: 'Last 3 months' },
+    {
+      id: 'custom',
+      label: this.store.dateFilter() === 'custom' ? customRangeLabel(this.store.dateFrom(), this.store.dateTo()) : 'Custom range…',
+    },
+  ]);
+
+  readonly dateChip = computed<'all' | Exclude<MailDateFilter, 'any'>>(() => {
+    const date = this.store.dateFilter();
+    return date === 'any' ? 'all' : date;
+  });
+
+  onChipsChange(ids: MailChipId[]): void {
+    const notClient = ids.includes('nc');
+    this.selectedDraftId.set(null);
+    this.selectedSentId.set(null);
+    this.updateSearch({
+      hasAttachments: ids.includes('att'),
+      unread: ids.includes('unread'),
+      notClient,
+      // Cliente y "Not a client" son excluyentes.
+      clientId: notClient ? null : this.store.selectedCustomerId(),
+    });
+  }
+
+  onDateChange(id: 'all' | Exclude<MailDateFilter, 'any'>): void {
+    if (id === 'custom') {
+      // Las fechas se eligen en el panel (Date → Custom range).
+      this.groupedSearch()?.close();
+      this.filtersCustomDate.set(true);
+      this.filtersOpen.set(true);
+      return;
+    }
+    this.updateSearch({ date: id === 'all' ? 'any' : id, dateFrom: null, dateTo: null });
+  }
+
+  /** Hay chips o búsqueda: se ofrece limpiar todo. */
+  readonly hasAnyFilter = computed(
+    () =>
+      this.activeChips().length > 0 ||
+      this.store.dateFilter() !== 'any' ||
+      (!this.embedded() && !!this.store.selectedCustomerId()) ||
+      !!this.store.query() ||
+      this.hasFieldFilters(),
+  );
+
+  clearAllFilters(): void {
+    this.selectedResultId.set(null);
+    this.updateSearch({
+      q: '',
+      results: false,
+      clientId: this.embedded() ? this.store.selectedCustomerId() : null,
+      hasAttachments: false,
+      unread: false,
+      notClient: false,
+      date: 'any',
+      dateFrom: null,
+      dateTo: null,
+      from: '',
+      to: '',
+      subject: '',
+      searchFolder: null,
+      tab: 'all',
+    });
+  }
+
+  /**
+   * Cambia la búsqueda: en /email navega (la URL es la fuente de verdad y `searchUrlEffect` la aplica),
+   * guardando historial para atrás/adelante; en el perfil la aplica directo.
+   */
+  private updateSearch(patch: Partial<MailSearchFilters>): void {
+    const current = this.store.searchState();
+    const next: MailSearchFilters = { ...current, ...patch };
+    // Con término y fuera del modo resultados, la carpeta viaja en la URL (`in`).
+    next.folder = next.q && !next.results ? this.store.activeFolderId() : null;
+    if (this.embedded()) {
+      this.store.applySearchState(next);
+      return;
+    }
+    // Se compara con la URL (no con el store): elegir carpeta ya apagó el modo resultados en el store y
+    // la URL quedaba con `q` sin `in` (o con `from=`).
+    if (sameMailSearch(parseMailSearchParams(this.routeParams()), next)) {
+      this.store.applySearchState(next);
+      return;
+    }
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: toMailSearchParams(next),
+      queryParamsHandling: 'merge',
+    });
+  }
+
+  /** Abre un correo encontrado (sugerencia o fila del modo resultados). */
+  private openEmailHit(hit: EmailSearchHit): void {
+    this.selectedDraftId.set(null);
+    this.selectedSentId.set(null);
+    const opened = this.store.openSearchEmail(hit);
+    if (opened === 'trash') {
+      // La papelera no abre lectura: se va a Trash con el término (la lista lo filtra en el servidor).
+      this.toast.info('This message is in Trash.');
+      this.store.selectFolder('trash');
+      this.updateSearch({
+        q: this.store.query() || hit.subject,
+        results: false,
+        from: '',
+        to: '',
+        subject: '',
+        searchFolder: null,
+      });
+      return;
+    }
+    if (opened === 'draft' && hit.messageId) {
+      this.selectedDraftId.set(hit.messageId);
+    }
+    if (opened === 'sent' && hit.messageId) {
+      this.selectedSentId.set(hit.messageId);
+    }
+  }
+
+  /** Abre el visor con adjuntos encontrados; la descarga sale por el mismo flujo (`downloadSearchFile`). */
+  private previewSearchFiles(files: readonly FileSearchHit[], start: number): void {
+    this.viewerFiles.set(
+      files.map(file => ({
+        name: file.filename,
+        contentType: file.contentType,
+        sizeBytes: file.sizeBytes,
+        resolveUrl: () => this.store.searchFileUrl(file),
+        ref: { searchFile: file },
+      })),
+    );
+    this.viewerIndex.set(start);
+    this.viewerOpen.set(true);
+  }
+
+  // ---------- Tarjeta de aviso de no entrega ----------
+
+  /** Reenviar exige buzón activo y permiso de redactar y enviar. */
+  readonly canResendNotice = computed(() => this.canCompose() && this.can.canCompose() && this.can.canSend());
+
+  resendNotice(event: { notice: DeliveryNoticeSummary; fix: boolean }): void {
+    this.selectedDraftId.set(null);
+    this.store.resendFromNotice(event.notice, event.fix);
+  }
+
+  viewNoticeOriginal(notice: DeliveryNoticeSummary): void {
+    this.store.viewNoticeOriginal(notice);
+  }
+
+  unblockNotice(notice: DeliveryNoticeSummary): void {
+    this.store.unblockNoticeAddress(notice);
+  }
+
+  /** Cabeceras del aviso original, ordenadas para leerlas. */
+  readonly noticeOriginalHeaders = computed(() =>
+    Object.entries(this.store.noticeOriginal()?.original?.headers ?? {}).map(([name, value]) => ({ name, value })),
+  );
 
   /** Cambiar de cliente cambia el listado entero: las filas resaltadas del anterior ya no aplican. */
   pickCustomer(customer: CustomerSummary): void {
@@ -802,13 +1624,24 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   // ---------- Navegación del listado ----------
 
+  /** Con un término, elegir carpeta sale del modo resultados y busca en esa carpeta (`in` en la URL). */
   selectFolder(folderId: string): void {
     this.selectedDraftId.set(null);
     this.selectedSentId.set(null);
+    this.selectedResultId.set(null);
+    const fields = this.hasFieldFilters();
     this.store.selectFolder(folderId as MailFolderId);
+    // From/To/Subject/carpeta solo existen en `/search`: elegir carpeta los quita.
+    if (this.store.query() || fields) {
+      this.updateSearch({ results: false, from: '', to: '', subject: '', searchFolder: null });
+    }
   }
 
   selectRow(id: string): void {
+    if (this.store.resultsMode()) {
+      this.selectResultRow(id);
+      return;
+    }
     // La papelera no abre lectura: cada fila tiene sus botones Restore / Delete.
     if (this.store.activeFolderId() === 'trash') {
       return;
@@ -833,6 +1666,24 @@ export class MailPageComponent implements OnInit, OnDestroy {
     this.selectedDraftId.set(null);
     this.selectedSentId.set(null);
     this.store.selectThread(id);
+  }
+
+  /** Fila del modo resultados: un correo se abre donde vive; un archivo, en el visor (con descarga). */
+  private selectResultRow(id: string): void {
+    if (this.store.searchTab() === 'files') {
+      const files = this.store.searchFiles();
+      const index = files.findIndex(file => `file:${file.source}:${file.attachmentId}` === id);
+      if (index >= 0) {
+        this.selectedResultId.set(id);
+        this.previewSearchFiles(files, index);
+      }
+      return;
+    }
+    const hit = this.store.searchEmails().find(item => this.emailRowId(item) === id);
+    if (hit) {
+      this.selectedResultId.set(id);
+      this.openEmailHit(hit);
+    }
   }
 
   retryList(): void {
@@ -869,7 +1720,6 @@ export class MailPageComponent implements OnInit, OnDestroy {
 
   readonly shortcuts = MAIL_SHORTCUTS;
   readonly shortcutsOpen = signal(false);
-  private readonly mailList = viewChild(MailListComponent);
 
   /**
    * Atajos de una tecla sobre la bandeja. Solo en /email con buzón, sin el composer, el visor ni la ayuda
@@ -884,7 +1734,8 @@ export class MailPageComponent implements OnInit, OnDestroy {
       this.connectedNotice() ||
       this.store.compose().open ||
       this.viewerOpen() ||
-      this.shortcutsOpen()
+      this.shortcutsOpen() ||
+      this.filtersOpen()
     ) {
       return;
     }
@@ -921,7 +1772,8 @@ export class MailPageComponent implements OnInit, OnDestroy {
         if (this.canCompose() && this.can.canCompose()) this.openCompose();
         break;
       case 'search':
-        this.mailList()?.focusSearch();
+        // El buscador agrupado expone `focus()`: ya no depende de un selector del DOM.
+        this.groupedSearch()?.focus();
         break;
       case 'help':
         this.shortcutsOpen.set(true);
@@ -983,7 +1835,12 @@ export class MailPageComponent implements OnInit, OnDestroy {
   }
 
   onViewerDownload(event: FileViewerDownload): void {
-    this.downloadAttachment(event.item.ref as { messageId: string; attachmentId: string });
+    const ref = event.item.ref as { messageId: string; attachmentId: string } | { searchFile: FileSearchHit };
+    if ('searchFile' in ref) {
+      this.store.downloadSearchFile(ref.searchFile);
+      return;
+    }
+    this.downloadAttachment(ref);
   }
 
   loadMoreMessages(): void {
@@ -1081,4 +1938,14 @@ export class MailPageComponent implements OnInit, OnDestroy {
   fileComposeUnder(customer: CustomerSummary): void {
     this.store.fileComposeUnder(customer);
   }
+}
+
+/** Icono por tipo de archivo (filas de Files y sugerencias). */
+function fileIcon(contentType: string | null | undefined, filename: string): string {
+  const mime = (contentType ?? '').toLowerCase();
+  const name = filename.toLowerCase();
+  if (mime.startsWith('image/')) return 'image-outline';
+  if (mime === 'application/pdf' || name.endsWith('.pdf')) return 'document-text-outline';
+  if (mime.includes('sheet') || mime.includes('excel') || /\.(xlsx?|csv)$/.test(name)) return 'grid-outline';
+  return 'document-outline';
 }

@@ -13,6 +13,18 @@
       </button>
     </div>
   } @else if (details(); as rec) {
+    <!-- D-71: varias grabaciones en la misma reunión -->
+    @if (recordings().length > 1) {
+      <div class="flex flex-wrap gap-1.5" role="group" aria-label="Recordings of this meeting" data-role="recording-picker">
+        @for (item of recordings(); track item.recordingId ?? $index) {
+          <button type="button" (click)="selectRecording(item.recordingId)" [attr.aria-pressed]="item.recordingId === rec.recordingId"
+            class="rounded-full border px-3 py-1 text-xs font-semibold transition-colors"
+            [class]="item.recordingId === rec.recordingId ? 'border-brand-bold bg-brand-bold text-white' : 'border-gray-200 text-gray-600 hover:bg-gray-50'">
+            {{ recordingLabel(item, $index) }}
+          </button>
+        }
+      </div>
+    }
     <!-- Estado + datos -->
     <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500">
       <app-status-pill [tone]="stateTone()" [soft]="true" size="xs" data-role="recording-state">{{ stateLabel() }}</app-status-pill>

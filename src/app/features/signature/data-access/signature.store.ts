@@ -1,16 +1,19 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
+  EMPTY,
   Observable,
   catchError,
+  concatMap,
   debounceTime,
-  distinctUntilChanged,
   firstValueFrom,
   forkJoin,
+  from,
   map,
   of,
   switchMap,
   tap,
+  timer,
 } from 'rxjs';
 import { toApiError } from '@core/models/api-error.model';
 import { AuthService } from '@core/auth/auth.service';
@@ -22,6 +25,7 @@ import { SignatureService } from './signature.service';
 import { CustomerDirectoryStore } from '@core/customers/customer-directory.store';
 import { injectEmbeddedCustomer } from '@core/customers/embedded-customer';
 import { SignatureRealtimeService } from './signature-realtime.service';
+import { rejectedDocumentMessage } from '../utils/document-verification.util';
 import {
   ApiSignatureRequestStatus,
   SignatureCategory,
@@ -29,10 +33,12 @@ import {
   SignerLanguage,
   SignerVerificationMethod,
   PreparerSessionState,
+  PreparerCandidate,
   SetPreparerBody,
   SignatureCategoryOption,
   SignatureProfile,
   SignatureProfileScope,
+  EffectiveSignatureLimits,
   SignatureSettings,
   SignatureSettingsUpdate,
   SignatureRequestDetail,
@@ -41,6 +47,7 @@ import {
   TemplateSummary,
   UpdateSignatureRequestBody,
   UpsertDraftBody,
+  UpsertDraftResponse,
   ValidateDocumentResponse,
   ReplaceDocumentFileResponse,
   customerToWizardClient,
@@ -92,6 +99,8 @@ export interface WizardFieldDraft {
   isRequired: boolean;
   /** Etiqueta/instrucción del campo de texto (P4); null en los demás tipos. */
   label: string | null;
+  /** Letra del estampado en pt; null = automática. */
+  fontSizePt?: number | null;
 }
 
 export interface WizardRequestDraft {
@@ -178,47 +187,118 @@ export function emptySendState(): WizardSendState {
 
 export type WizardSendPhase = 'creating' | 'sending';
 
-/** Ids originales (del backend) de un borrador rehidratado, para calcular qué borrar al editar. */
+/** Lo que el borrador rehidratado ya tenía en el backend y el guardado por upsert no cubre. */
 export interface DraftEditOriginal {
-  signerBackendIds: string[];
-  fields: { editorLocalId: string; fieldId: string; signerBackendId: string }[];
   /** Campos del preparador originales, para borrar los que el usuario quitó al editar. */
   preparerFields: { editorLocalId: string; fieldId: string }[];
 }
 
-export interface DraftEditPlan {
-  removeSignerBackendIds: string[];
-  removeFields: { signerBackendId: string; fieldId: string }[];
+/** Espera del autosave tras el último cambio del editor (colapsa ráfagas de drag/resize). */
+const AUTOSAVE_DEBOUNCE_MS = 5000;
+
+/** Campos que viajan en el upsert: los de un firmante que sigue en la solicitud. */
+function upsertableFields(draft: WizardRequestDraft): WizardFieldDraft[] {
+  const signerLocalIds = new Set(draft.signers.map((signer) => signer.localId));
+  return draft.fields.filter((field) => signerLocalIds.has(field.signerLocalId));
+}
+
+/** Ids de backend de la audiencia Specific; null si algún firmante aún no existe en el backend. */
+function specificAudienceIds(draft: WizardRequestDraft, state: WizardSendState): string[] | null {
+  const ids = draft.partialCopyAudienceSignerIds.map((localId) => state.signerIdByLocal[localId]);
+  return ids.every((id) => !!id) ? (ids as string[]) : null;
+}
+
+/** La audiencia Specific nombra firmantes nuevos: se fija después del upsert, ya con sus ids. */
+function audienceWaitsForNewSigners(draft: WizardRequestDraft, state: WizardSendState): boolean {
+  return (
+    draft.sendPartialCopyOnEachSignature &&
+    draft.partialCopyAudienceKind === 'Specific' &&
+    specificAudienceIds(draft, state) === null
+  );
 }
 
 /**
- * Diff puro: qué firmantes/campos del borrador original ya no están en la edición actual y hay que
- * borrar. Un firmante presente = su localId sigue mapeado a un id de backend en el `state`; un campo
- * cuyo firmante sobrevive pero cuyo localId desapareció se borra (si el firmante se borró, el backend
- * borra sus campos en cascada, así que no se listan aquí).
+ * Estado completo del borrador en el shape de `PUT /requests/{id}/draft` (lo usan el autosave y el
+ * guardado final). Lo ya creado viaja con su id de backend; lo nuevo sin id y el servidor lo crea, o lo
+ * reconoce por archivo/email si un guardado anterior ya lo creó.
  */
-export function computeDraftEditPlan(
+export function draftToUpsertBody(
   draft: WizardRequestDraft,
   state: WizardSendState,
-  original: DraftEditOriginal,
-): DraftEditPlan {
-  const currentBackendIds = draft.signers
-    .map((signer) => state.signerIdByLocal[signer.localId])
-    .filter((id): id is string => !!id);
-  const currentFieldLocalIds = new Set(draft.fields.map((field) => field.localId));
-
+  expectedUpdatedAtUtc: string | null,
+): UpsertDraftBody {
+  const signerIndexByLocal = new Map(draft.signers.map((signer, index) => [signer.localId, index]));
+  const audienceDeferred = audienceWaitsForNewSigners(draft, state);
   return {
-    removeSignerBackendIds: original.signerBackendIds.filter(
-      (id) => !currentBackendIds.includes(id),
-    ),
-    removeFields: original.fields
-      .filter(
-        (field) =>
-          currentBackendIds.includes(field.signerBackendId) &&
-          !currentFieldLocalIds.has(field.editorLocalId),
-      )
-      .map((field) => ({ signerBackendId: field.signerBackendId, fieldId: field.fieldId })),
+    expectedUpdatedAtUtc,
+    title: draft.title || 'Untitled',
+    description: draft.description,
+    category: draft.category,
+    tokenExpirationHours: draft.tokenExpirationHours,
+    sendSealedDocumentToSigners: draft.sendSealedDocumentToSigners,
+    sendCertificateToSigners: draft.sendCertificateToSigners,
+    certificateGenerationMode: draft.certificateGenerationMode,
+    autoRemindersEnabled: draft.autoRemindersEnabled,
+    reminderIntervalHours: draft.reminderIntervalHours,
+    documents: draft.documents.map((document) => ({
+      localId: document.localId,
+      id: state.documentIdByLocal[document.localId] ?? null,
+      originalFileId: document.originalFileId,
+      title: document.title,
+      note: document.note,
+    })),
+    signers: draft.signers.map((signer) => ({
+      id: state.signerIdByLocal[signer.localId] ?? null,
+      email: signer.email,
+      fullName: signer.fullName,
+      phoneNumber: signer.phone,
+      language: signer.language,
+      verificationMethod: signer.verificationMethod ?? null,
+    })),
+    fields: upsertableFields(draft).map((field) => ({
+      id: null,
+      signerIndex: signerIndexByLocal.get(field.signerLocalId)!,
+      documentLocalId: field.documentLocalId,
+      kind: field.kind,
+      page: field.page,
+      x: field.x,
+      y: field.y,
+      width: field.width,
+      height: field.height,
+      label: field.label,
+      isRequired: field.isRequired,
+      fontSizePt: field.fontSizePt ?? null,
+    })),
+    // null = no tocar: la audiencia que nombra firmantes nuevos se fija después, con sus ids.
+    sendPartialCopyOnEachSignature: audienceDeferred ? null : draft.sendPartialCopyOnEachSignature,
+    partialCopyAudience:
+      audienceDeferred || !draft.sendPartialCopyOnEachSignature
+        ? null
+        : {
+            kind: draft.partialCopyAudienceKind,
+            signerIds:
+              draft.partialCopyAudienceKind === 'Specific' ? (specificAudienceIds(draft, state) ?? []) : [],
+          },
+    expirationEnabled: draft.expirationEnabled,
   };
+}
+
+/**
+ * Guarda en el `state` los ids que el servidor resolvió para ESE borrador (mismo orden que el body):
+ * el siguiente guardado los manda con id en vez de volver a crearlos.
+ */
+export function applyUpsertResult(
+  draft: WizardRequestDraft,
+  state: WizardSendState,
+  resp: UpsertDraftResponse,
+): void {
+  state.documentIdByLocal = Object.fromEntries(resp.documents.map((document) => [document.localId, document.id]));
+  state.signerIdByLocal = Object.fromEntries(
+    draft.signers
+      .map((signer, index): [string, string | undefined] => [signer.localId, resp.signerIds[index]])
+      .filter((entry): entry is [string, string] => !!entry[1]),
+  );
+  state.postedFieldLocalIds = upsertableFields(draft).map((field) => field.localId);
 }
 
 /**
@@ -251,49 +331,31 @@ export class SignatureStore {
     });
 
     // F2.5: autoguardado — el editor empuja el estado completo. Pipeline:
-    //  - debounce 5s (antes 2.5s): colapsa ráfagas de resize/drag en una sola llamada.
-    //  - distinctUntilChanged por JSON: no se vuelve a mandar si el body no cambió realmente.
-    //  - switchMap: cancela request en vuelo si llega una nueva.
-    //  - catchError en el inner observable: así UN error no mata la suscripción (sin esto, un
-    //    429/500 cualquiera dejaba el autosave inservible hasta recargar la página).
+    //  - espera AUTOSAVE_DEBOUNCE_MS tras el último cambio; un cambio nuevo (o `flushAutosave`) descarta
+    //    el pendiente.
+    //  - concatMap: un guardado que ya salió nunca se cancela (el servidor pudo aplicarlo); termina y deja
+    //    sus ids antes del siguiente.
     //  - Si el server responde 429, entramos en cooldown 30s (se refleja en scheduleAutosave) para
     //    no seguir empujando contra el rate-limit `signature.g.request_manage` (60/min).
     this.autosave$
       .pipe(
-        debounceTime(5000),
-        distinctUntilChanged(
-          (a, b) => a.id === b.id && JSON.stringify(a.body) === JSON.stringify(b.body),
-        ),
-        switchMap((req) =>
-          this.service.upsertDraft(req.id, req.body).pipe(
-            map((resp) => ({ ok: true as const, resp })),
-            catchError((err) => {
-              const apiError = toApiError(err);
-              const isRateLimited = apiError.code === 'Http.429';
-              this._autosaveStatus.set(
-                apiError.code === 'Signature.Request.VersionConflict' ? 'conflict' : 'error',
-              );
-              if (isRateLimited) {
-                this._autosaveCooldownUntil = Date.now() + 30_000;
-              }
-              return of({ ok: false as const });
-            }),
-          ),
-        ),
+        switchMap((item) => (item ? timer(AUTOSAVE_DEBOUNCE_MS).pipe(map(() => item)) : EMPTY)),
+        concatMap((item) => from(this.runAutosave(item))),
         takeUntilDestroyed(),
       )
-      .subscribe((result) => {
-        if (result.ok) {
-          this._autosaveStatus.set('saved');
-          this._lastSavedAtUtc.set(result.resp.updatedAtUtc);
-        }
-      });
+      .subscribe();
   }
 
   // ---------- Autosave (F2.5) ----------
   // Snapshot completo del editor que el panel envía en cada cambio. SignerIndex ata cada campo al
   // firmante por su posición en la lista — soporta firmantes recién creados sin Id de backend.
-  private readonly autosave$ = new Subject<{ id: string; body: UpsertDraftBody }>();
+  private readonly autosave$ = new Subject<AutosaveRequest | null>();
+  /** Versión del borrador que el servidor espera en el próximo upsert (la del último guardado). */
+  private draftVersion: string | null = null;
+  /** Sube al descartar los autosaves pendientes: los encolados con otra generación ya no se mandan. */
+  private autosaveGeneration = 0;
+  private autosaveInFlight: Promise<void> | null = null;
+  private lastSavedBodyJson: string | null = null;
   private readonly _autosaveStatus = signal<'idle' | 'saving' | 'saved' | 'error' | 'conflict'>(
     'idle',
   );
@@ -305,16 +367,74 @@ export class SignatureStore {
   // Timestamp hasta el que el autosave está en cooldown (429 reciente). 0 = sin cooldown.
   private _autosaveCooldownUntil = 0;
 
-  scheduleAutosave(id: string, body: UpsertDraftBody): void {
+  /** `onSaved` recibe los ids que el servidor resolvió para ESE body (ver `applyUpsertResult`). */
+  scheduleAutosave(id: string, body: UpsertDraftBody, onSaved?: (resp: UpsertDraftResponse) => void): void {
     if (!this.autosaveEnabled) return;
     if (Date.now() < this._autosaveCooldownUntil) return; // cooldown por rate-limit del backend
     this._autosaveStatus.set('saving');
-    this.autosave$.next({ id, body });
+    this.autosave$.next({ id, body, onSaved, generation: this.autosaveGeneration });
   }
 
-  resetAutosaveStatus(): void {
+  /** Al abrir un borrador: su versión es la base de los guardados siguientes. */
+  beginDraftEditing(updatedAtUtc: string): void {
+    this.discardPendingAutosaves();
+    this.draftVersion = updatedAtUtc;
+    this.lastSavedBodyJson = null;
     this._autosaveStatus.set('idle');
     this._lastSavedAtUtc.set(null);
+  }
+
+  /** Descarta los autosaves pendientes y espera al que está en vuelo (deja sus ids antes de seguir). */
+  private async flushAutosave(): Promise<void> {
+    this.discardPendingAutosaves();
+    await this.autosaveInFlight;
+  }
+
+  private discardPendingAutosaves(): void {
+    this.autosaveGeneration++;
+    this.autosave$.next(null);
+  }
+
+  private async runAutosave(item: AutosaveRequest): Promise<void> {
+    if (item.generation !== this.autosaveGeneration) {
+      return;
+    }
+    // Mismo contenido que lo último guardado: nada que mandar (la versión no cuenta).
+    const json = JSON.stringify({ ...item.body, expectedUpdatedAtUtc: null });
+    if (json === this.lastSavedBodyJson) {
+      this._autosaveStatus.set('saved');
+      return;
+    }
+    const run = this.saveDraftState(item, json);
+    this.autosaveInFlight = run;
+    try {
+      await run;
+    } finally {
+      this.autosaveInFlight = null;
+    }
+  }
+
+  private async saveDraftState(item: AutosaveRequest, json: string): Promise<void> {
+    try {
+      // La versión se toma al salir: un guardado anterior pudo avanzarla mientras este esperaba.
+      const resp = await firstValueFrom(
+        this.service.upsertDraft(item.id, {
+          ...item.body,
+          expectedUpdatedAtUtc: this.draftVersion ?? item.body.expectedUpdatedAtUtc,
+        }),
+      );
+      this.draftVersion = resp.updatedAtUtc;
+      this.lastSavedBodyJson = json;
+      this._autosaveStatus.set('saved');
+      this._lastSavedAtUtc.set(resp.updatedAtUtc);
+      item.onSaved?.(resp);
+    } catch (err) {
+      const apiError = toApiError(err);
+      this._autosaveStatus.set(apiError.code === 'Signature.Request.VersionConflict' ? 'conflict' : 'error');
+      if (apiError.code === 'Http.429') {
+        this._autosaveCooldownUntil = Date.now() + 30_000;
+      }
+    }
   }
 
   // ---------- Listado ----------
@@ -525,6 +645,17 @@ export class SignatureStore {
     return this.service
       .signAsPreparer(requestId)
       .pipe(tap(() => this.patchPreparer(requestId, { signed: true })));
+  }
+
+  /** Admin: pasa el preparador de una solicitud enviada a otro empleado (auditado en el backend). */
+  changePreparer(requestId: string, newPreparerUserId: string): Observable<void> {
+    return this.service
+      .changePreparer(requestId, newPreparerUserId)
+      .pipe(tap(() => this.refreshAfterAction()));
+  }
+
+  listPreparerCandidates(): Observable<PreparerCandidate[]> {
+    return this.service.listPreparerCandidates();
   }
 
   // ---------- Plantillas ----------
@@ -759,6 +890,26 @@ export class SignatureStore {
       .pipe(tap(() => this.loadSignatureProfiles(true)));
   }
 
+  // ---------- Límites vigentes (plan + excepción + oficina + plataforma) ----------
+  private readonly _limits = signal<EffectiveSignatureLimits | null>(null);
+  /** null mientras no llegan: los formularios no inventan números, solo esperan. */
+  readonly limits = this._limits.asReadonly();
+  private limitsRequested = false;
+
+  /** Se pide una vez por sesión del feature; cambiar ajustes vuelve a pedirlo. */
+  loadLimits(force = false): void {
+    if (this.limitsRequested && !force) {
+      return;
+    }
+    this.limitsRequested = true;
+    this.service.getEffectiveLimits().subscribe({
+      next: (limits) => this._limits.set(limits),
+      error: () => {
+        this.limitsRequested = false;
+      },
+    });
+  }
+
   // ---------- Gobernanza de firma (solo admin) ----------
   private readonly _signatureSettings = signal<SignatureSettings | null>(null);
   readonly signatureSettings = this._signatureSettings.asReadonly();
@@ -787,10 +938,9 @@ export class SignatureStore {
         generateCertificateByDefault: s.generateCertificateByDefault,
         documentLimits: {
           maxPdfBytes: s.maxPdfBytes,
-          maxImageBytes: s.maxImageBytes,
           maxPagesPerDocument: s.maxPagesPerDocument,
         },
-        retentionPolicy: { retentionYears: s.retentionYears, allowPurge: s.allowPurge },
+        retentionPolicy: { allowPurge: s.allowPurge },
         defaultReminderIntervalHours: s.defaultReminderIntervalHours,
         allowEmployeeOwnSignature: allow,
       })
@@ -799,7 +949,12 @@ export class SignatureStore {
 
   /** B1 — guarda la configuración global completa (PUT de reemplazo) y refresca el signal con la verdad del servidor. */
   saveSignatureSettings(body: SignatureSettingsUpdate): Observable<void> {
-    return this.service.updateSignatureSettings(body).pipe(tap(() => this.loadSignatureSettings()));
+    return this.service.updateSignatureSettings(body).pipe(
+      tap(() => {
+        this.loadSignatureSettings();
+        this.loadLimits(true);
+      }),
+    );
   }
 
   /** Renombra una categoría custom y refresca la lista (gestión, F4). */
@@ -868,7 +1023,7 @@ export class SignatureStore {
       if (err instanceof SendNotReadyError) {
         return { detail, sent: false };
       }
-      throw new Error(toApiError(err).message);
+      throw toWizardError(err);
     }
   }
 
@@ -931,7 +1086,7 @@ export class SignatureStore {
       if (err instanceof SendNotReadyError) {
         return { detail, sent: false };
       }
-      throw new Error(toApiError(err).message);
+      throw toWizardError(err);
     }
   }
 
@@ -1047,10 +1202,7 @@ export class SignatureStore {
       this.refreshAfterAction();
       return state;
     } catch (err) {
-      if (err instanceof SendNotReadyError) {
-        throw err;
-      }
-      throw new Error(toApiError(err).message);
+      throw toWizardError(err);
     }
   }
 
@@ -1065,19 +1217,16 @@ export class SignatureStore {
       this.refreshAfterAction();
       return state;
     } catch (err) {
-      throw new Error(toApiError(err).message);
+      throw toWizardError(err);
     }
   }
 
   /**
-   * Guarda/envía un borrador REHIDRATADO (F4b). A diferencia de `sendWizard`, aquí ya existe la
-   * solicitud: se edita la metadata (PUT), se borran los firmantes/campos que el usuario quitó, se
-   * agregan los nuevos, se reordena y — si `send` — se envía. El `state` sembrado hace que
-   * `materializeDraft` no re-cree ni re-agregue lo que ya existía.
-   *
-   * Limitaciones (sin endpoint en el backend): editar canal/teléfono de un firmante existente o
-   * mover un campo ya colocado no se persiste; sí add/remove/reorder de firmantes, add/remove de
-   * campos y la metadata.
+   * Guardar/enviar un borrador ya existente (continuar edición): el estado completo va por el mismo
+   * upsert que el autosave (documentos, firmantes, campos, orden y metadata en una transacción), así
+   * nunca se re-crea lo que un autosave ya guardó. Después, lo que el upsert no cubre (campos del
+   * preparador quitados, PIN, identidad/firma del preparador, audiencia con firmantes nuevos) y — si
+   * `send` — el envío.
    */
   async commitEditedDraft(
     draft: WizardRequestDraft,
@@ -1092,63 +1241,14 @@ export class SignatureStore {
     }
     try {
       onPhase?.('creating');
-      // Metadata + flags de entrega/reminders (para que los toggles editados al continuar se guarden).
-      // GenerateCertificate es inmutable tras crear; SetCertificateDelivery solo acepta true si aquél
-      // está activo, pero el editor no deja activar "send certificate" sin "generate", así que es coherente.
-      await firstValueFrom(
-        this.service.update(requestId, {
-          title: draft.title,
-          description: draft.description,
-          category: draft.category,
-          tokenExpirationHours: draft.tokenExpirationHours,
-          sendSealedDocumentToSigners: draft.sendSealedDocumentToSigners,
-          sendCertificateToSigners: draft.sendCertificateToSigners,
-          autoRemindersEnabled: draft.autoRemindersEnabled,
-          reminderIntervalHours: draft.reminderIntervalHours,
-          certificateGenerationMode: draft.certificateGenerationMode,
-        }),
+      await this.flushAutosave();
+      const audienceDeferred = audienceWaitsForNewSigners(draft, state);
+      const resp = await firstValueFrom(
+        this.service.upsertDraft(requestId, draftToUpsertBody(draft, state, this.draftVersion)),
       );
-
-      // Bajas de lo que el usuario quitó (los campos de un firmante borrado caen en cascada).
-      const plan = computeDraftEditPlan(draft, state, original);
-      for (const field of plan.removeFields) {
-        await firstValueFrom(
-          this.service.removeField(requestId, field.signerBackendId, field.fieldId),
-        );
-      }
-      for (const signerId of plan.removeSignerBackendIds) {
-        await firstValueFrom(this.service.removeSigner(requestId, signerId));
-      }
-
-      // Documentos: elimina los quitados, crea los nuevos y conserva un mapeo local -> backend
-      // para que cada campo se publique contra el documento correcto.
-      const currentDocumentLocalIds = new Set(draft.documents.map((document) => document.localId));
-      // Altas primero: al reemplazar el único documento nunca dejamos el agregado temporalmente vacío.
-      for (const document of draft.documents) {
-        if (state.documentIdByLocal[document.localId]) {
-          continue;
-        }
-        const created = await firstValueFrom(
-          this.service.addRequestDocument(requestId, {
-            originalFileId: document.originalFileId,
-            title: document.title,
-            note: document.note,
-          }),
-        );
-        state.documentIdByLocal[document.localId] = created.id;
-      }
-      for (const [localId, backendId] of Object.entries(state.documentIdByLocal)) {
-        if (!currentDocumentLocalIds.has(localId)) {
-          await firstValueFrom(this.service.removeRequestDocument(requestId, backendId));
-          delete state.documentIdByLocal[localId];
-        }
-      }
-      const orderedDocumentIds = draft.documents
-        .map((document) => state.documentIdByLocal[document.localId])
-        .filter((id): id is string => !!id);
-      if (orderedDocumentIds.length > 0) {
-        await firstValueFrom(this.service.reorderRequestDocuments(requestId, orderedDocumentIds));
-      }
+      this.draftVersion = resp.updatedAtUtc;
+      applyUpsertResult(draft, state, resp);
+      state.audienceApplied = !audienceDeferred;
 
       // Campos del preparador que ya no están en la edición → borrar.
       const currentPreparerLocalIds = new Set(draft.preparerFields.map((f) => f.localId));
@@ -1158,16 +1258,8 @@ export class SignatureStore {
         }
       }
 
-      // Altas nuevas (firmantes/campos/PIN); lo existente se omite por el state sembrado.
+      // PIN, preparador y audiencia; firmantes y campos ya quedaron mapeados por el upsert.
       await this.materializeDraft(draft, state);
-
-      // Reordena al orden final (idempotente).
-      const orderedIds = draft.signers
-        .map((signer) => state.signerIdByLocal[signer.localId])
-        .filter((id): id is string => !!id);
-      if (orderedIds.length > 0) {
-        await firstValueFrom(this.service.reorderSigners(requestId, orderedIds));
-      }
 
       if (send && !state.sent) {
         onPhase?.('sending');
@@ -1179,10 +1271,7 @@ export class SignatureStore {
       this.refreshAfterAction();
       return state;
     } catch (err) {
-      if (err instanceof SendNotReadyError) {
-        throw err;
-      }
-      throw new Error(toApiError(err).message);
+      throw toWizardError(err);
     }
   }
 
@@ -1275,6 +1364,7 @@ export class SignatureStore {
           height: field.height,
           label: field.label,
           isRequired: field.isRequired,
+          fontSizePt: field.fontSizePt ?? null,
         }),
       );
       state.postedFieldLocalIds.push(field.localId);
@@ -1364,6 +1454,11 @@ export class SignatureStore {
   private async waitUntilReady(requestId: string): Promise<void> {
     for (let attempt = 0; attempt < READY_POLL_MAX_ATTEMPTS; attempt++) {
       const detail = await firstValueFrom(this.service.getById(requestId));
+      // Rechazado por el servidor: esperar no sirve, hay que reemplazar el archivo.
+      const rejected = rejectedDocumentMessage(detail.documents);
+      if (rejected) {
+        throw new DocumentRejectedError(rejected);
+      }
       if (
         detail.documents.length > 0 &&
         detail.documents.every((document) => document.hashPre !== null)
@@ -1378,5 +1473,32 @@ export class SignatureStore {
   }
 }
 
+interface AutosaveRequest {
+  id: string;
+  body: UpsertDraftBody;
+  onSaved?: (resp: UpsertDraftResponse) => void;
+  generation: number;
+}
+
 /** El documento sigue en scan: la solicitud quedó creada (Draft) y el retry solo re-espera + envía. */
 export class SendNotReadyError extends Error {}
+
+/** El servidor rechazó un documento: la solicitud quedó en Draft y hay que reemplazar el archivo. */
+export class DocumentRejectedError extends Error {}
+
+/** Códigos con que el servidor rechaza un PDF (al crear la solicitud o al revisarlo después). */
+const DOCUMENT_REJECTION_CODE_PREFIX = 'Signature.DocumentValidation.';
+
+/**
+ * Error del wizard con su tipo conservado: el panel decide con él si sugerir reintentar
+ * (fallo transitorio) o reemplazar el archivo (rechazo del documento).
+ */
+export function toWizardError(err: unknown): Error {
+  if (err instanceof SendNotReadyError || err instanceof DocumentRejectedError) {
+    return err;
+  }
+  const apiError = toApiError(err);
+  return apiError.code.startsWith(DOCUMENT_REJECTION_CODE_PREFIX)
+    ? new DocumentRejectedError(apiError.message)
+    : new Error(apiError.message);
+}
